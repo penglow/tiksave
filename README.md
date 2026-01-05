@@ -18,15 +18,15 @@ A smart iOS app that transforms your saved TikTok videos into an organized, sear
 │
 ├── backend/                    # Node.js API Server
 │   ├── src/
+│   │   ├── database/           # Database init, migrations, seeds
+│   │   ├── middleware/         # Auth & error handling
 │   │   ├── routes/             # API endpoints
 │   │   ├── services/           # Business logic
-│   │   ├── models/             # Database models
 │   │   ├── workers/            # Job queue workers
-│   │   └── utils/              # Utilities
+│   │   └── utils/              # Shared utilities
 │   └── package.json
 │
-└── database/                   # Database schemas
-    └── migrations/
+└── database/                   # Docker & SQL init scripts
 ```
 
 ## Features
