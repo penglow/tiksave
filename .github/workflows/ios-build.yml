@@ -15,24 +15,35 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Select Xcode version
-      run: sudo xcode-select -s /Applications/Xcode_15.0.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode_15.1.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer || echo "Using default Xcode"
-      
     - name: Show Xcode version
       run: xcodebuild -version
+      
+    - name: List available schemes
+      run: xcodebuild -project TikSave.xcodeproj -list
+      
+    - name: List available simulators
+      run: xcrun simctl list devices available
       
     - name: Build iOS App
       run: |
         xcodebuild -project TikSave.xcodeproj \
-          -scheme TikSave \
-          -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+          -target TikSave \
+          -sdk iphonesimulator \
+          -configuration Debug \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
           clean build
       
     - name: Build Share Extension
       run: |
         xcodebuild -project TikSave.xcodeproj \
-          -scheme TikSaveExtension \
-          -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+          -target TikSaveExtension \
+          -sdk iphonesimulator \
+          -configuration Debug \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
           clean build
       
     # Uncomment when you add tests
@@ -41,5 +52,7 @@ jobs:
     #     xcodebuild test \
     #       -project TikSave.xcodeproj \
     #       -scheme TikSave \
-    #       -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest'
+    #       -destination 'generic/platform=iOS Simulator' \
+    #       CODE_SIGN_IDENTITY="" \
+    #       CODE_SIGNING_REQUIRED=NO
 
