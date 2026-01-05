@@ -1,0 +1,94 @@
+# Environment variables (SECRETS - NEVER COMMIT)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build outputs
+dist/
+build/
+*.js.map
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage & Testing
+coverage/
+.nyc_output/
+
+# IDE & Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# iOS/Xcode
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.hmap
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+Pods/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Docker volumes (local data)
+database/data/
+postgres-data/
+redis-data/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Certificates and keys (if any local)
+*.pem
+*.key
+*.crt
+*.p12
+
