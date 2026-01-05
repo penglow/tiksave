@@ -1,4 +1,4 @@
-import { BlobServiceClient, generateBlobSASQueryParameters, BlobSASPermissions, StorageSharedKeyCredential } from '@azure/storage-blob';
+import { BlobServiceClient, BlobSASPermissions } from '@azure/storage-blob';
 import { v4 as uuidv4 } from 'uuid';
 
 const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING!;

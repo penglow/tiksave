@@ -1,4 +1,5 @@
 import { DefaultAzureCredential } from '@azure/identity';
+import * as cheerio from 'cheerio';
 
 interface VideoIndexerConfig {
   subscriptionId: string;
@@ -320,9 +321,52 @@ export async function analyzeUrlOnly(url: string, sharedText?: string): Promise<
     if (hashtagMatches) {
       result.hashtags = hashtagMatches.map(h => h.toLowerCase());
     }
+  }
+
+  // Fetch metadata from URL for richer analysis
+  try {
+    // Add a simple user agent to avoid being blocked immediately
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; TikSave/1.0; +http://tiksave.app)'
+      }
+    });
     
-    // Infer topics from hashtags
-    result.topics = inferTopicsFromHashtags(result.hashtags);
+    if (response.ok) {
+      const html = await response.text();
+      const $ = cheerio.load(html);
+      
+      // Extract metadata
+      const description = $('meta[property="og:description"]').attr('content') || 
+                         $('meta[name="description"]').attr('content') || '';
+                         
+      const title = $('meta[property="og:title"]').attr('content') || 
+                   $('title').text() || '';
+
+      // Combine text for analysis
+      const combinedText = `${title} ${description} ${sharedText || ''}`;
+      
+      // Infer labels from rich metadata
+      const inferredLabels = inferLabelsFromText(combinedText);
+      result.labels = [...new Set([...result.labels, ...inferredLabels])]; // Deduplicate
+      
+      // If we found a description, try to extract hashtags from it too
+      const descHashtags = description.match(/#[\w]+/g);
+      if (descHashtags) {
+        const newTags = descHashtags.map(h => h.toLowerCase());
+        result.hashtags = [...new Set([...result.hashtags, ...newTags])];
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to fetch metadata for URL analysis:', error);
+    // Continue with basic analysis
+  }
+    
+  // Infer topics from hashtags (now including those found in metadata)
+  result.topics = inferTopicsFromHashtags(result.hashtags);
+  
+  // Fallback label inference if we haven't found any yet and have shared text
+  if (result.labels.length === 0 && sharedText) {
     result.labels = inferLabelsFromText(sharedText);
   }
   

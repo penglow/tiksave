@@ -1,12 +1,12 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { v4 as uuidv4 } from 'uuid';
 import { query } from '../database/init.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { addToProcessingQueue } from '../workers/videoProcessor.js';
 import { generateUploadUrl } from '../services/storage.js';
 import { recordTrainingExample, updateUserPreferences } from '../services/learning.js';
+import { extractKeywords, extractHashtags } from '../utils/text.js';
 
 export const itemsRouter = Router();
 
@@ -310,25 +310,4 @@ function formatSaveItem(row: any) {
   };
 }
 
-function extractKeywords(text?: string | null): string[] {
-  if (!text) return [];
-  
-  // Simple keyword extraction - remove common words
-  const stopWords = new Set(['the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare', 'ought', 'used', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'between', 'under', 'again', 'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just', 'and', 'but', 'if', 'or', 'because', 'until', 'while', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'what', 'which', 'who', 'whom', 'whose', 'my', 'your', 'his', 'her', 'its', 'our', 'their']);
-  
-  const words = text.toLowerCase()
-    .replace(/[^\w\s]/g, '')
-    .split(/\s+/)
-    .filter(word => word.length > 2 && !stopWords.has(word));
-  
-  // Return unique words
-  return [...new Set(words)].slice(0, 20);
-}
-
-function extractHashtags(text?: string | null): string[] {
-  if (!text) return [];
-  
-  const matches = text.match(/#[\w]+/g);
-  return matches ? matches.map(tag => tag.toLowerCase()) : [];
-}
 

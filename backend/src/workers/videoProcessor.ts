@@ -4,6 +4,7 @@ import { indexVideo, getVideoIndex, analyzeUrlOnly, getThumbnailUrl } from '../s
 import { classifyItem } from '../services/classification.js';
 import { generateItemEmbedding } from '../services/embeddings.js';
 import { getBlobUrl } from '../services/storage.js';
+import { extractHashtags } from '../utils/text.js';
 
 // Redis connection for job queue
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -239,13 +240,6 @@ function normalizeInsights(insights: any, rawSharedText?: string): {
     creator: insights.creator || null,
     duration: null,
   };
-}
-
-function extractHashtags(text?: string | null): string[] {
-  if (!text) return [];
-  
-  const matches = text.match(/#[\w]+/g);
-  return matches ? matches.map(h => h.toLowerCase()) : [];
 }
 
 function generateTitle(transcript: string | null, rawSharedText: string | null): string {

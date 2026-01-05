@@ -232,23 +232,31 @@ foldersRouter.delete('/:id', async (req, res: Response) => {
 });
 
 // Reorder folders
+const reorderSchema = z.object({
+  orderedIds: z.array(z.string().uuid()),
+});
+
 foldersRouter.post('/reorder', async (req, res: Response) => {
   const authReq = req as AuthenticatedRequest;
-  const { orderedIds } = req.body;
   
-  if (!Array.isArray(orderedIds)) {
-    throw new AppError('orderedIds must be an array', 400);
+  try {
+    const { orderedIds } = reorderSchema.parse(req.body);
+    
+    // Update sort order for each folder
+    for (let i = 0; i < orderedIds.length; i++) {
+      await query(
+        'UPDATE folders SET sort_order = $1 WHERE id = $2 AND user_id = $3',
+        [i, orderedIds[i], authReq.userId]
+      );
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'orderedIds must be an array of valid UUIDs' });
+    }
+    throw error;
   }
-  
-  // Update sort order for each folder
-  for (let i = 0; i < orderedIds.length; i++) {
-    await query(
-      'UPDATE folders SET sort_order = $1 WHERE id = $2 AND user_id = $3',
-      [i, orderedIds[i], authReq.userId]
-    );
-  }
-  
-  res.json({ success: true });
 });
 
 // Helper function

@@ -94,7 +94,19 @@ function scoreFolder(folder: any, input: ClassificationInput): {
   const reasons: string[] = [];
   const folderNameLower = folder.name.toLowerCase();
   const userWeights = folder.weights || {};
-  
+  const rules = folder.rules || {}; // Check for rules
+
+  // HARD RULES (Deterministic)
+  // Check creator rules
+  if (rules.creators && input.creatorUsername) {
+    if (rules.creators.includes(input.creatorUsername)) {
+      return { 
+        score: 10000, 
+        reasons: [`Rule: Creator ${input.creatorUsername} always goes here`] 
+      };
+    }
+  }
+
   // Topic matching (high weight)
   for (const topic of input.topics) {
     const topicLower = topic.toLowerCase();
@@ -154,9 +166,12 @@ function scoreFolder(folder: any, input: ClassificationInput): {
   }
   
   // Creator matching (high weight - creators are consistent)
-  if (input.creatorUsername && userWeights.creatorWeights?.[input.creatorUsername]) {
-    score += userWeights.creatorWeights[input.creatorUsername] * 25;
-    reasons.push(`Creator ${input.creatorUsername} often filed here`);
+  if (input.creatorUsername) {
+    const creatorKey = input.creatorUsername.toLowerCase();
+    if (userWeights.creatorWeights?.[creatorKey]) {
+      score += userWeights.creatorWeights[creatorKey] * 25;
+      reasons.push(`Creator ${input.creatorUsername} often filed here`);
+    }
   }
   
   // Transcript keyword matching (lower weight)

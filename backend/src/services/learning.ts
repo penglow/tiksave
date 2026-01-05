@@ -107,6 +107,20 @@ async function updateFolderWeights(
       -1,
       Math.min(1, (weights.creatorWeights[key] || 0) + delta * 2)
     );
+
+    // Check if we should create a hard rule for this creator (3+ corrections)
+    if (isPositive) {
+      const history = await query(
+        `SELECT COUNT(*) as count FROM training_examples 
+         WHERE user_id = $1 AND corrected_folder_id = $2 
+         AND features->>'creatorUsername' = $3`,
+        [userId, folderId, features.creator]
+      );
+      
+      if (parseInt(history.rows[0].count) >= 2) { // Already have current one + 2 others = 3 total
+        await addCreatorRule(userId, folderId, features.creator);
+      }
+    }
   }
   
   // Update folder bias
@@ -180,6 +194,27 @@ export async function getLearningStats(userId: string): Promise<{
       count: parseInt(row.count),
     })),
   };
+}
+
+async function addCreatorRule(userId: string, folderId: string, creator: string) {
+  // Get current rules
+  const res = await query('SELECT rules FROM folders WHERE id = $1', [folderId]);
+  if (res.rows.length === 0) return;
+  
+  let rules = res.rows[0].rules || {};
+  
+  if (!rules.creators) {
+    rules.creators = [];
+  }
+  
+  if (!rules.creators.includes(creator)) {
+    rules.creators.push(creator);
+    
+    await query(
+      'UPDATE folders SET rules = $1 WHERE id = $2',
+      [rules, folderId]
+    );
+  }
 }
 
 /**
