@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,16 @@ import {
   ScrollView,
   TouchableOpacity,
   Linking,
+  Alert,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Colors, Spacing, BorderRadius } from '../config';
 import { getDisplayTitle } from '../types';
+import { apiService } from '../services/api';
 import { InboxStackScreenProps } from '../navigation/types';
 
 // This screen can be accessed from multiple stacks, so we use a union type
@@ -19,11 +23,47 @@ type Props =
   | InboxStackScreenProps<'VideoDetail'>
   | { route: { params: { item: import('../types').SaveItem } }; navigation: any };
 
-export default function VideoDetailScreen({ route }: Props) {
+export default function VideoDetailScreen({ route, navigation }: Props) {
   const { item } = route.params;
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const openInTikTok = () => {
     Linking.openURL(item.sourceURL);
+  };
+
+  const performDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await apiService.deleteItem(item.id);
+      navigation.goBack();
+    } catch (error) {
+      console.error('Failed to delete:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to delete video. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to delete video. Please try again.');
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDelete = () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Delete this video from your library? This cannot be undone.');
+      if (confirmed) {
+        performDelete();
+      }
+    } else {
+      Alert.alert(
+        'Delete Video',
+        'Are you sure you want to delete this video from your library? This cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: performDelete },
+        ]
+      );
+    }
   };
 
   return (
@@ -141,6 +181,23 @@ export default function VideoDetailScreen({ route }: Props) {
           <Ionicons name="open-outline" size={20} color={Colors.text} />
           <Text style={styles.actionButtonText}>Open in TikTok</Text>
         </LinearGradient>
+      </TouchableOpacity>
+
+      {/* Delete Button */}
+      <TouchableOpacity 
+        style={styles.deleteButton} 
+        onPress={handleDelete} 
+        activeOpacity={0.8}
+        disabled={isDeleting}
+      >
+        {isDeleting ? (
+          <ActivityIndicator size="small" color={Colors.error} />
+        ) : (
+          <>
+            <Ionicons name="trash-outline" size={18} color={Colors.error} />
+            <Text style={styles.deleteButtonText}>Delete Video</Text>
+          </>
+        )}
       </TouchableOpacity>
     </ScrollView>
   );
@@ -280,6 +337,21 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontSize: 16,
     fontWeight: '600',
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.error,
+    borderRadius: BorderRadius.lg,
+  },
+  deleteButtonText: {
+    color: Colors.error,
+    fontSize: 15,
+    fontWeight: '500',
   },
 });
 

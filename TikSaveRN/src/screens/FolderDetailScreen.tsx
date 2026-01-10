@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Dimensions,
   Linking,
+  Alert,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +32,57 @@ type Props = FoldersStackScreenProps<'FolderDetail'>;
 
 export default function FolderDetailScreen({ route, navigation }: Props) {
   const { folder } = route.params;
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const performDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await apiService.deleteFolder(folder.id);
+      navigation.goBack();
+    } catch (error) {
+      console.error('Failed to delete folder:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to delete folder. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to delete folder. Please try again.');
+      }
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteFolder = useCallback(() => {
+    const message = `Delete "${folder.name}" and all ${items.length} video${items.length !== 1 ? 's' : ''} inside? This cannot be undone.`;
+    
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(message);
+      if (confirmed) {
+        performDelete();
+      }
+    } else {
+      Alert.alert('Delete Folder', message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: performDelete },
+      ]);
+    }
+  }, [folder.id, folder.name, items.length, navigation]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={handleDeleteFolder}
+          disabled={isDeleting}
+          style={styles.headerButton}
+        >
+          <Ionicons
+            name="trash-outline"
+            size={22}
+            color={isDeleting ? Colors.textQuaternary : Colors.error}
+          />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, handleDeleteFolder, isDeleting]);
   const [items, setItems] = useState<SaveItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -206,6 +259,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  headerButton: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
   },
   scrollView: {
     flex: 1,

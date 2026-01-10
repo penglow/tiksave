@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserSettings, DEFAULT_USER_SETTINGS } from '../types';
 
-type TabName = 'inbox' | 'folders' | 'search' | 'settings';
+type TabName = 'library' | 'add' | 'search' | 'settings';
 
 interface AppState {
   selectedTab: TabName;
@@ -10,6 +10,7 @@ interface AppState {
   isProcessing: boolean;
   recentSearches: string[];
   userSettings: UserSettings;
+  pendingShareUrl: string | null;
 
   // Actions
   setSelectedTab: (tab: TabName) => void;
@@ -20,19 +21,26 @@ interface AppState {
   loadRecentSearches: () => Promise<void>;
   loadUserSettings: () => Promise<void>;
   updateUserSettings: (settings: Partial<UserSettings>) => Promise<void>;
+  setPendingShareUrl: (url: string) => void;
+  clearPendingShare: () => void;
 }
 
 const RECENT_SEARCHES_KEY = 'recentSearches';
 const USER_SETTINGS_KEY = 'userSettings';
 
 export const useAppStore = create<AppState>((set, get) => ({
-  selectedTab: 'inbox',
+  selectedTab: 'library',
   unreadInboxCount: 0,
   isProcessing: false,
   recentSearches: [],
   userSettings: DEFAULT_USER_SETTINGS,
+  pendingShareUrl: null,
 
   setSelectedTab: (tab) => set({ selectedTab: tab }),
+  
+  setPendingShareUrl: (url) => set({ pendingShareUrl: url }),
+  
+  clearPendingShare: () => set({ pendingShareUrl: null }),
   
   setUnreadInboxCount: (count) => set({ unreadInboxCount: count }),
   

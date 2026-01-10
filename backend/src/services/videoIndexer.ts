@@ -1,5 +1,6 @@
 import { DefaultAzureCredential } from '@azure/identity';
 import * as cheerio from 'cheerio';
+import OpenAI from 'openai';
 
 interface VideoIndexerConfig {
   subscriptionId: string;
@@ -293,84 +294,449 @@ function getConfig(): VideoIndexerConfig {
 }
 
 /**
- * Analyze a video URL to extract metadata (Mode A - link only)
- * Falls back to basic analysis when we can't download the video
+ * Analyze a video URL - fetch metadata and use AI for smart categorization
  */
 export async function analyzeUrlOnly(url: string, sharedText?: string): Promise<{
   topics: string[];
   labels: string[];
   creator?: string;
   hashtags: string[];
+  thumbnailUrl?: string;
+  title?: string;
+  description?: string;
 }> {
+  console.log('🔍 Analyzing URL:', url);
+  
   const result = {
     topics: [] as string[],
     labels: [] as string[],
     creator: undefined as string | undefined,
     hashtags: [] as string[],
+    thumbnailUrl: undefined as string | undefined,
+    title: undefined as string | undefined,
+    description: undefined as string | undefined,
   };
   
   // Extract creator from URL
   const creatorMatch = url.match(/tiktok\.com\/@([\w.-]+)/);
   if (creatorMatch) {
-    result.creator = `@${creatorMatch[1]}`;
+    result.creator = creatorMatch[1];
+    console.log('👤 Creator:', result.creator);
   }
   
   // Extract hashtags from shared text
   if (sharedText) {
-    const hashtagMatches = sharedText.match(/#[\w]+/g);
+    const hashtagMatches = sharedText.match(/#[\w\u4e00-\u9fff]+/g);
     if (hashtagMatches) {
-      result.hashtags = hashtagMatches.map(h => h.toLowerCase());
+      result.hashtags = hashtagMatches.map(h => h.replace('#', '').toLowerCase());
+      console.log('#️⃣ Hashtags:', result.hashtags);
+    }
+  }
+  
+  // Fetch TikTok page metadata (thumbnail, title, description)
+  try {
+    console.log('🌐 Fetching TikTok metadata...');
+    const metadata = await fetchTikTokMetadata(url);
+    if (metadata) {
+      result.thumbnailUrl = metadata.thumbnailUrl;
+      result.title = metadata.title;
+      result.description = metadata.description;
+      console.log('📷 Thumbnail:', result.thumbnailUrl ? 'found' : 'not found');
+      console.log('📝 Title:', result.title);
+    }
+  } catch (error) {
+    console.warn('⚠️ Failed to fetch TikTok metadata:', error);
+  }
+  
+  // Use AI to generate smart categories
+  const contentForAI = [
+    result.title,
+    result.description,
+    sharedText,
+    result.hashtags.length > 0 ? `Hashtags: ${result.hashtags.join(', ')}` : '',
+    result.creator ? `Creator: @${result.creator}` : '',
+  ].filter(Boolean).join('\n');
+  
+  if (contentForAI.trim()) {
+    try {
+      console.log('🤖 Using AI to categorize...');
+      const aiCategories = await generateAICategories(contentForAI);
+      result.topics = aiCategories.categories;
+      result.labels = aiCategories.labels;
+      console.log('🏷️ AI Categories:', result.topics);
+      console.log('🔖 AI Labels:', result.labels);
+    } catch (error) {
+      console.warn('⚠️ AI categorization failed, using fallback:', error);
+      result.topics = inferTopicsFallback(contentForAI);
+    }
+  } else {
+    result.topics = ['Saved'];
+  }
+
+  console.log('✅ Analysis complete');
+  return result;
+}
+
+/**
+ * Extract video ID from TikTok URL
+ */
+function extractVideoId(url: string): string | null {
+  // Pattern: https://www.tiktok.com/@username/video/VIDEO_ID
+  const match = url.match(/\/video\/(\d+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Try to construct thumbnail URL from video ID (fallback method)
+ */
+function constructThumbnailUrl(videoId: string): string {
+  // TikTok CDN pattern - try multiple known patterns
+  // Note: These patterns may change, but worth trying
+  return `https://p16-sign-va.tiktokcdn.com/obj/tos-useast2a-p-0037-aiso/${videoId}/?lk=3&nonce=xxx&refresh_token=xxx&shp=xxx&shcp=xxx`;
+}
+
+/**
+ * Fetch metadata from TikTok page using multiple methods
+ */
+async function fetchTikTokMetadata(url: string): Promise<{
+  thumbnailUrl?: string;
+  title?: string;
+  description?: string;
+} | null> {
+  const videoId = extractVideoId(url);
+  let thumbnailUrl: string | undefined;
+  let title: string | undefined;
+  let description: string | undefined;
+
+  // Method 1: Try TikTok's embed/oEmbed endpoint (most reliable)
+  if (videoId) {
+    try {
+      // Try multiple oEmbed endpoints
+      const embedUrls = [
+        `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`,
+        `https://api.tiktok.com/oembed?url=${encodeURIComponent(url)}`,
+      ];
+      
+      for (const embedUrl of embedUrls) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+          
+          const response = await fetch(embedUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': 'application/json',
+            },
+            signal: controller.signal,
+          });
+          
+          clearTimeout(timeout);
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.thumbnail_url) {
+              thumbnailUrl = data.thumbnail_url;
+              title = data.title;
+              console.log('📷 Got thumbnail from oEmbed API ✅');
+              return { thumbnailUrl, title, description };
+            }
+          }
+        } catch (e) {
+          // Try next endpoint
+          continue;
+        }
+      }
+    } catch (error) {
+      console.log('⚠️ oEmbed method failed, trying alternatives...');
     }
   }
 
-  // Fetch metadata from URL for richer analysis
+  // Method 2: Try direct page scraping with better headers
   try {
-    // Add a simple user agent to avoid being blocked immediately
-    const response = await fetch(url, {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    
+    // Try with vm.tiktok.com (mobile version, sometimes easier to scrape)
+    const mobileUrl = url.replace('www.tiktok.com', 'vm.tiktok.com');
+    
+    const response = await fetch(mobileUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; TikSave/1.0; +http://tiksave.app)'
-      }
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Referer': 'https://www.tiktok.com/',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': 'max-age=0',
+      },
+      signal: controller.signal,
+      redirect: 'follow',
     });
+    
+    clearTimeout(timeout);
     
     if (response.ok) {
       const html = await response.text();
       const $ = cheerio.load(html);
       
-      // Extract metadata
-      const description = $('meta[property="og:description"]').attr('content') || 
-                         $('meta[name="description"]').attr('content') || '';
-                         
-      const title = $('meta[property="og:title"]').attr('content') || 
-                   $('title').text() || '';
-
-      // Combine text for analysis
-      const combinedText = `${title} ${description} ${sharedText || ''}`;
+      // Try to find thumbnail in various places
+      thumbnailUrl = $('meta[property="og:image"]').attr('content') ||
+                    $('meta[name="twitter:image"]').attr('content') ||
+                    $('meta[property="og:image:secure_url"]').attr('content') ||
+                    $('img[alt*="video"]').first().attr('src') ||
+                    $('img').filter((i, el) => {
+                      const src = $(el).attr('src') || '';
+                      return src.includes('tiktokcdn.com') || src.includes('cover');
+                    }).first().attr('src');
       
-      // Infer labels from rich metadata
-      const inferredLabels = inferLabelsFromText(combinedText);
-      result.labels = [...new Set([...result.labels, ...inferredLabels])]; // Deduplicate
+      title = $('meta[property="og:title"]').attr('content') ||
+              $('meta[name="twitter:title"]').attr('content');
       
-      // If we found a description, try to extract hashtags from it too
-      const descHashtags = description.match(/#[\w]+/g);
-      if (descHashtags) {
-        const newTags = descHashtags.map(h => h.toLowerCase());
-        result.hashtags = [...new Set([...result.hashtags, ...newTags])];
+      description = $('meta[property="og:description"]').attr('content') ||
+                   $('meta[name="description"]').attr('content');
+      
+      // Try to extract from JSON in script tags
+      if (!thumbnailUrl) {
+        const scriptTags = $('script[type="application/json"]');
+        for (let i = 0; i < scriptTags.length; i++) {
+          try {
+            const data = JSON.parse($(scriptTags[i]).html() || '{}');
+            const cover = data?.props?.pageProps?.videoData?.itemInfo?.itemStruct?.video?.cover ||
+                         data?.props?.pageProps?.videoData?.itemInfo?.itemStruct?.cover ||
+                         data?.videoData?.cover;
+            if (cover) {
+              thumbnailUrl = cover;
+              break;
+            }
+          } catch (e) {
+            // Continue
+          }
+        }
+      }
+      
+      if (thumbnailUrl) {
+        console.log('📷 Got thumbnail from page scraping ✅');
       }
     }
   } catch (error) {
-    console.warn('Failed to fetch metadata for URL analysis:', error);
-    // Continue with basic analysis
+    console.log('⚠️ Page scraping failed, trying fallback...');
   }
+
+  // Method 3: Try using TikTok's share embed endpoint
+  if (!thumbnailUrl && videoId) {
+    try {
+      // TikTok's share page sometimes has better metadata
+      const shareUrl = `https://www.tiktok.com/t/${videoId}/`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch(shareUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'text/html',
+        },
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeout);
+      
+      if (response.ok) {
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        const ogImage = $('meta[property="og:image"]').attr('content');
+        if (ogImage) {
+          thumbnailUrl = ogImage;
+          console.log('📷 Got thumbnail from share page ✅');
+        }
+      }
+    } catch (error) {
+      // Share page might not work
+    }
+  }
+
+  // Method 4: Try original URL with different approach
+  if (!thumbnailUrl) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Referer': 'https://www.google.com/',
+        },
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeout);
+      
+      if (response.ok) {
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        thumbnailUrl = $('meta[property="og:image"]').attr('content');
+      }
+    } catch (error) {
+      // Last resort failed
+    }
+  }
+
+  // Clean up thumbnail URL (but don't be too strict)
+  if (thumbnailUrl) {
+    // Clean up the URL
+    thumbnailUrl = thumbnailUrl.trim();
     
-  // Infer topics from hashtags (now including those found in metadata)
-  result.topics = inferTopicsFromHashtags(result.hashtags);
-  
-  // Fallback label inference if we haven't found any yet and have shared text
-  if (result.labels.length === 0 && sharedText) {
-    result.labels = inferLabelsFromText(sharedText);
+    // Ensure it's a valid URL format
+    if (!thumbnailUrl.startsWith('http://') && !thumbnailUrl.startsWith('https://')) {
+      console.log('⚠️ Invalid thumbnail URL format, discarding:', thumbnailUrl);
+      thumbnailUrl = undefined;
+    } else {
+      // Don't remove query parameters - TikTok URLs often need them
+      // Just log what we found
+      console.log('📷 Final thumbnail URL:', thumbnailUrl.substring(0, 100) + '...');
+    }
   }
   
-  return result;
+  console.log('📷 Final thumbnail result:', thumbnailUrl ? `✅ Found (${thumbnailUrl.length} chars)` : '❌ Not found');
+  
+  return { thumbnailUrl, title, description };
+}
+
+/**
+ * Use OpenAI to generate smart, hierarchical categories
+ */
+async function generateAICategories(content: string): Promise<{
+  categories: string[];
+  labels: string[];
+}> {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OpenAI API key not configured');
+  }
+  
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  
+  const prompt = `Analyze this TikTok video content and categorize it.
+
+Content:
+${content}
+
+Generate a HIERARCHICAL category structure using ">" to separate parent and subcategory.
+
+Format: "Parent Category > Specific Subcategory"
+
+Parent categories to use (pick the most relevant):
+- Food (for anything food/cooking/restaurant related)
+- Travel (for travel vlogs, destination guides, hotels)
+- Fitness (for workouts, gym, health)
+- Fashion (for outfits, style, clothing)
+- Beauty (for makeup, skincare, haircare)
+- Tech (for gadgets, apps, reviews)
+- Entertainment (for comedy, music, dance, gaming)
+- Lifestyle (for daily life, tips, motivation)
+- Education (for learning, tutorials, how-tos)
+- Cars (for automotive content)
+- Pets (for animal content)
+- Finance (for money, investing, business)
+
+Examples of GOOD hierarchical categories:
+- "Food > Japanese Street Food"
+- "Food > Korean BBQ"
+- "Travel > Tokyo Guide"
+- "Travel > Hotel Reviews"
+- "Fitness > Home Workouts"
+- "Fitness > Gym Motivation"
+- "Beauty > Korean Skincare"
+- "Entertainment > Dance Choreography"
+- "Tech > iPhone Tips"
+
+Generate 1-2 hierarchical categories. Be specific with subcategories.
+Also provide 2-4 descriptive tags.
+
+Respond in JSON:
+{
+  "categories": ["Parent > Subcategory"],
+  "labels": ["tag1", "tag2"]
+}`;
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-3.5-turbo',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.5,
+    max_tokens: 150,
+  });
+  
+  const text = response.choices[0]?.message?.content || '';
+  console.log('🤖 AI Response:', text);
+  
+  try {
+    // Extract JSON from response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        categories: parsed.categories || ['Saved'],
+        labels: parsed.labels || [],
+      };
+    }
+  } catch {
+    console.warn('Failed to parse AI response:', text);
+  }
+  
+  return { categories: ['Saved'], labels: [] };
+}
+
+/**
+ * Fallback topic inference when AI is not available - uses hierarchical format
+ */
+function inferTopicsFallback(text: string): string[] {
+  const textLower = text.toLowerCase();
+  const topics: string[] = [];
+  
+  // Hierarchical patterns: "Parent > Subcategory"
+  const patterns: [string, string[]][] = [
+    ['Food > Japanese Cuisine', ['ramen', 'sushi', 'japanese food', 'tokyo eats', 'izakaya']],
+    ['Food > Korean Cuisine', ['korean food', 'kbbq', 'korean bbq', 'kimchi', 'bibimbap']],
+    ['Food > Street Food', ['street food', 'food stall', 'night market', 'food tour']],
+    ['Food > Recipes', ['recipe', 'cooking', 'cook', 'baking', 'homemade']],
+    ['Food > Restaurant Reviews', ['restaurant', 'cafe', 'dining', 'food review']],
+    ['Travel > Japan', ['tokyo', 'osaka', 'kyoto', 'japan', 'shibuya', 'shinjuku']],
+    ['Travel > Korea', ['seoul', 'korea', 'busan', 'gangnam', 'hongdae']],
+    ['Travel > Hotels', ['hotel', 'room tour', 'resort', 'airbnb', 'stay']],
+    ['Travel > Adventures', ['travel', 'trip', 'vacation', 'explore', 'adventure']],
+    ['Fitness > Gym', ['gym', 'lifting', 'gains', 'deadlift', 'squat', 'bench']],
+    ['Fitness > Home Workouts', ['home workout', 'no equipment', 'bodyweight', 'at home']],
+    ['Fitness > Cardio', ['running', 'cardio', 'hiit', 'jump rope']],
+    ['Fashion > Outfits', ['outfit', 'ootd', 'fit check', 'what i wore']],
+    ['Fashion > Style Tips', ['fashion', 'style', 'fashion tips', 'styling']],
+    ['Beauty > Skincare', ['skincare', 'skin routine', 'skincare routine', 'moisturizer']],
+    ['Beauty > Makeup', ['makeup', 'grwm', 'get ready', 'makeup tutorial']],
+    ['Tech > Reviews', ['iphone', 'tech', 'gadget', 'review', 'unboxing']],
+    ['Tech > Tips', ['tips', 'tricks', 'hack', 'shortcut']],
+    ['Entertainment > Comedy', ['funny', 'comedy', 'humor', 'laugh', 'meme']],
+    ['Entertainment > Dance', ['dance', 'choreography', 'dancer', 'moves']],
+    ['Entertainment > Music', ['music', 'song', 'cover', 'singing', 'singer']],
+    ['Entertainment > Gaming', ['gaming', 'game', 'gameplay', 'streamer', 'twitch']],
+    ['Pets > Dogs', ['dog', 'puppy', 'doggo', 'pup']],
+    ['Pets > Cats', ['cat', 'kitten', 'kitty', 'meow']],
+    ['Cars > Reviews', ['car', 'supercar', 'automotive', 'car review']],
+    ['Lifestyle > Tips', ['hack', 'tip', 'diy', 'tutorial', 'life hack']],
+    ['Finance > Investing', ['invest', 'stock', 'crypto', 'trading']],
+    ['Finance > Money Tips', ['money', 'budget', 'saving', 'finance']],
+  ];
+  
+  for (const [topic, keywords] of patterns) {
+    if (keywords.some(kw => textLower.includes(kw))) {
+      topics.push(topic);
+      break; // Only take the first match for cleaner categorization
+    }
+  }
+  
+  return topics.length > 0 ? topics : ['Saved'];
 }
 
 function inferTopicsFromHashtags(hashtags: string[]): string[] {

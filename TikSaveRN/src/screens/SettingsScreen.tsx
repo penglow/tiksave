@@ -8,14 +8,19 @@ import {
   Switch,
   Alert,
   Linking,
+  Platform,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
+import { useNavigation } from '@react-navigation/native';
+import type { MainTabScreenProps } from '../navigation/types';
 
 import { Colors, Spacing, BorderRadius } from '../config';
-import { AppTheme } from '../types';
+import { AppTheme, Folder, getDisplayIcon } from '../types';
 import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
+import { apiService } from '../services/api';
 
 const APP_VERSION = '1.0.0';
 
@@ -23,34 +28,117 @@ export default function SettingsScreen() {
   const signOut = useAuthStore((state) => state.signOut);
   const { userSettings, updateUserSettings } = useAppStore();
   const [thumbnailCacheSize] = useState('0.0 MB');
+  const [showFoldersModal, setShowFoldersModal] = useState(false);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [foldersLoading, setFoldersLoading] = useState(false);
+  const navigation = useNavigation<any>();
 
-  const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: signOut },
-    ]);
+  const loadFolders = async () => {
+    setFoldersLoading(true);
+    try {
+      const data = await apiService.getFolders();
+      setFolders(data);
+    } catch (error) {
+      console.error('Failed to load folders:', error);
+    } finally {
+      setFoldersLoading(false);
+    }
   };
 
-  const handleDeleteData = () => {
-    Alert.alert(
-      'Delete All Data?',
-      'This will permanently delete all your saved videos, folders, and learning data. This action cannot be undone.',
-      [
+  const handleOpenFolders = () => {
+    loadFolders();
+    setShowFoldersModal(true);
+  };
+
+  const handleDeleteFolder = async (folder: Folder) => {
+    const confirmMessage = `Delete "${folder.name}"? Videos in this folder will be moved back to your library.`;
+    
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(confirmMessage);
+      if (confirmed) {
+        try {
+          await apiService.deleteFolder(folder.id);
+          loadFolders();
+        } catch (error) {
+          console.error('Failed to delete folder:', error);
+          window.alert('Failed to delete folder. Please try again.');
+        }
+      }
+    } else {
+      Alert.alert('Delete Folder', confirmMessage, [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            // TODO: Implement data deletion
-            Alert.alert('Success', 'All data has been deleted.');
+          onPress: async () => {
+            try {
+              await apiService.deleteFolder(folder.id);
+              loadFolders();
+            } catch (error) {
+              console.error('Failed to delete folder:', error);
+              Alert.alert('Error', 'Failed to delete folder. Please try again.');
+            }
           },
         },
-      ]
-    );
+      ]);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (Platform.OS === 'web') {
+      // Use browser's confirm dialog on web since Alert.alert doesn't work properly
+      const confirmed = window.confirm('Are you sure you want to sign out?');
+      if (confirmed) {
+        await signOut();
+      }
+    } else {
+      Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+          },
+        },
+      ]);
+    }
+  };
+
+  const handleDeleteData = () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        'Delete All Data?\n\nThis will permanently delete all your saved videos, folders, and learning data. This action cannot be undone.'
+      );
+      if (confirmed) {
+        // TODO: Implement data deletion
+        window.alert('All data has been deleted.');
+      }
+    } else {
+      Alert.alert(
+        'Delete All Data?',
+        'This will permanently delete all your saved videos, folders, and learning data. This action cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              // TODO: Implement data deletion
+              Alert.alert('Success', 'All data has been deleted.');
+            },
+          },
+        ]
+      );
+    }
   };
 
   const handleClearCache = () => {
-    Alert.alert('Success', 'Thumbnail cache cleared.');
+    if (Platform.OS === 'web') {
+      window.alert('Thumbnail cache cleared.');
+    } else {
+      Alert.alert('Success', 'Thumbnail cache cleared.');
+    }
   };
 
   const openLink = (url: string) => {
@@ -110,6 +198,28 @@ export default function SettingsScreen() {
         <Text style={styles.sectionFooter}>
           Video upload enables richer AI analysis. Without it, classification uses only shared
           text and URL.
+        </Text>
+      </View>
+
+      {/* Organization Section - Optional Manual Folders */}
+      <View style={styles.section}>
+        <Text style={styles.sectionHeader}>ORGANIZATION (OPTIONAL)</Text>
+
+        <TouchableOpacity style={styles.settingRow} onPress={handleOpenFolders}>
+          <View style={styles.settingIconRow}>
+            <View style={styles.settingIconContainer}>
+              <Ionicons name="folder" size={20} color={Colors.secondary} />
+            </View>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>My Collections</Text>
+              <Text style={styles.settingDescription}>Create custom folders for manual organization</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.textQuaternary} />
+        </TouchableOpacity>
+
+        <Text style={styles.sectionFooter}>
+          AI automatically categorizes your videos. Use collections for additional personal organization.
         </Text>
       </View>
 
@@ -233,6 +343,85 @@ export default function SettingsScreen() {
           <Text style={styles.settingLabelDanger}>Sign Out</Text>
         </TouchableOpacity>
       </View>
+
+      {/* My Collections Modal */}
+      <Modal
+        visible={showFoldersModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowFoldersModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>My Collections</Text>
+              <TouchableOpacity onPress={() => setShowFoldersModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.modalSubtitle}>
+              Optional: Create personal collections for custom organization
+            </Text>
+
+            {foldersLoading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading...</Text>
+              </View>
+            ) : folders.length === 0 ? (
+              <View style={styles.emptyFolders}>
+                <Ionicons name="folder-open" size={40} color={Colors.textQuaternary} />
+                <Text style={styles.emptyFoldersText}>No collections yet</Text>
+                <Text style={styles.emptyFoldersSubtext}>
+                  AI categories handle organization automatically.{'\n'}
+                  Create collections for additional grouping.
+                </Text>
+              </View>
+            ) : (
+              <ScrollView style={styles.foldersList}>
+                {folders.map((folder) => (
+                  <TouchableOpacity
+                    key={folder.id}
+                    style={styles.folderItem}
+                    onPress={() => {
+                      setShowFoldersModal(false);
+                      // Navigate to FolderDetail using root navigation
+                      (navigation as any).navigate('FolderDetail', { folder });
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.folderIcon}>{getDisplayIcon(folder)}</Text>
+                    <View style={styles.folderInfo}>
+                      <Text style={styles.folderName}>{folder.name}</Text>
+                      <Text style={styles.folderCount}>{folder.itemCount} videos</Text>
+                    </View>
+                    <TouchableOpacity 
+                      style={styles.folderDeleteButton}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleDeleteFolder(folder);
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={18} color={Colors.error} />
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+
+            <TouchableOpacity 
+              style={styles.createFolderButton}
+              onPress={() => {
+                setShowFoldersModal(false);
+                // TODO: Navigate to create folder or open inline modal
+              }}
+            >
+              <Ionicons name="add" size={20} color={Colors.text} />
+              <Text style={styles.createFolderText}>Create Collection</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -330,6 +519,124 @@ const styles = StyleSheet.create({
   themeOptionTextSelected: {
     color: Colors.text,
     fontWeight: '600',
+  },
+  settingIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  settingIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: `${Colors.secondary}20`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  settingDescription: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    marginTop: 2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: Spacing.xl,
+    paddingBottom: 40,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: Colors.textTertiary,
+    marginBottom: Spacing.lg,
+  },
+  loadingContainer: {
+    padding: Spacing.xxl,
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: Colors.textTertiary,
+    fontSize: 14,
+  },
+  emptyFolders: {
+    alignItems: 'center',
+    padding: Spacing.xxl,
+  },
+  emptyFoldersText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+    marginTop: Spacing.lg,
+  },
+  emptyFoldersSubtext: {
+    fontSize: 13,
+    color: Colors.textTertiary,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+    lineHeight: 20,
+  },
+  foldersList: {
+    maxHeight: 300,
+  },
+  folderItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  folderIcon: {
+    fontSize: 24,
+    marginRight: Spacing.md,
+  },
+  folderInfo: {
+    flex: 1,
+  },
+  folderName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: Colors.text,
+  },
+  folderCount: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+  },
+  folderDeleteButton: {
+    padding: Spacing.sm,
+    marginLeft: Spacing.sm,
+  },
+  createFolderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.overlay,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginTop: Spacing.lg,
+  },
+  createFolderText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.text,
   },
 });
 

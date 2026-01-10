@@ -212,15 +212,15 @@ foldersRouter.delete('/:id', async (req, res: Response) => {
     throw new AppError('Folder not found', 404);
   }
   
-  // Move items in this folder to null (Inbox)
+  // Delete all items in this folder
   await query(
-    'UPDATE save_items SET folder_id = NULL WHERE folder_id = $1',
+    'DELETE FROM save_items WHERE folder_id = $1',
     [id]
   );
   
-  // Also move items from child folders
+  // Also delete items from child folders
   await query(
-    `UPDATE save_items SET folder_id = NULL 
+    `DELETE FROM save_items 
      WHERE folder_id IN (SELECT id FROM folders WHERE parent_id = $1)`,
     [id]
   );

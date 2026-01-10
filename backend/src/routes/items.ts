@@ -7,6 +7,7 @@ import { addToProcessingQueue } from '../workers/videoProcessor.js';
 import { generateUploadUrl } from '../services/storage.js';
 import { recordTrainingExample, updateUserPreferences } from '../services/learning.js';
 import { extractKeywords, extractHashtags } from '../utils/text.js';
+import { analyzeUrlOnly } from '../services/videoIndexer.js';
 
 export const itemsRouter = Router();
 
@@ -27,16 +28,16 @@ itemsRouter.post('/', async (req, res: Response) => {
   try {
     const { sourceURL, rawSharedText } = createItemSchema.parse(req.body);
     
-    // Check for duplicates (same URL in last 24 hours)
+    // Check for exact duplicate URL (same URL in last 5 minutes only)
     const duplicate = await query(
       `SELECT id FROM save_items 
        WHERE user_id = $1 AND source_url = $2 
-       AND created_at > NOW() - INTERVAL '24 hours'`,
+       AND created_at > NOW() - INTERVAL '5 minutes'`,
       [authReq.userId, sourceURL]
     );
     
     if (duplicate.rows.length > 0) {
-      // Return existing item
+      // Return existing item if just added
       const existing = await getItemById(duplicate.rows[0].id);
       return res.json(existing);
     }
@@ -52,13 +53,25 @@ itemsRouter.post('/', async (req, res: Response) => {
     
     const item = formatSaveItem(result.rows[0]);
     
-    // Add to processing queue
-    await addToProcessingQueue({
-      itemId: item.id,
-      userId: authReq.userId,
-      sourceURL,
-      rawSharedText,
-    });
+    // Process immediately for faster feedback (dev mode)
+    // In production, use the queue for scalability
+    try {
+      console.log('🚀 Processing item immediately:', item.id);
+      await processItemNow(item.id, authReq.userId, sourceURL, rawSharedText);
+      
+      // Return updated item
+      const updated = await getItemById(item.id, authReq.userId);
+      return res.status(201).json(updated);
+    } catch (processingError) {
+      console.error('⚠️ Immediate processing failed, queuing:', processingError);
+      // Fallback to queue
+      await addToProcessingQueue({
+        itemId: item.id,
+        userId: authReq.userId,
+        sourceURL,
+        rawSharedText,
+      });
+    }
     
     res.status(201).json(item);
   } catch (error) {
@@ -308,6 +321,57 @@ function formatSaveItem(row: any) {
     creatorUsername: row.creator_username,
     errorMessage: row.error_message,
   };
+}
+
+// Process an item immediately (synchronous)
+async function processItemNow(
+  itemId: string,
+  userId: string,
+  sourceURL: string,
+  rawSharedText?: string
+): Promise<void> {
+  console.log(`\n🎬 Processing item ${itemId} NOW`);
+  
+  // Update status
+  await query('UPDATE save_items SET status = $1 WHERE id = $2', ['processing', itemId]);
+  
+  // Analyze URL - now includes thumbnail, title, description
+  const analysis = await analyzeUrlOnly(sourceURL, rawSharedText);
+  console.log('📊 Categories:', analysis.topics);
+  console.log('📷 Thumbnail:', analysis.thumbnailUrl ? 'found' : 'not found');
+  
+  // Use AI-generated title or fallback
+  let title = analysis.title || 'TikTok Video';
+  if (!analysis.title && rawSharedText) {
+    const withoutHashtags = rawSharedText.replace(/#[\w]+/g, '').trim();
+    if (withoutHashtags.length > 5) {
+      title = withoutHashtags.slice(0, 100);
+    }
+  }
+  
+  // Update item with results (no folder classification - just AI categories)
+  await query(
+    `UPDATE save_items SET
+      status = 'ready',
+      detected_topics = $1,
+      detected_labels = $2,
+      creator_username = $3,
+      title = $4,
+      thumbnail_url = $5,
+      updated_at = NOW()
+     WHERE id = $6`,
+    [
+      analysis.topics,
+      analysis.labels,
+      analysis.creator,
+      title,
+      analysis.thumbnailUrl,
+      itemId,
+    ]
+  );
+  
+  console.log(`✅ Item ${itemId} processed!`);
+  console.log(`   Categories: ${analysis.topics.join(', ')}`);
 }
 
 

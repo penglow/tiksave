@@ -1,77 +1,76 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 
-import { MainTabParamList, FoldersStackParamList, InboxStackParamList, SearchStackParamList } from './types';
+import { MainTabParamList, LibraryStackParamList, SearchStackParamList, AddStackParamList } from './types';
 import { Colors } from '../config';
-import { useAppStore } from '../stores/appStore';
 
 // Screens
-import InboxScreen from '../screens/InboxScreen';
-import FoldersScreen from '../screens/FoldersScreen';
-import FolderDetailScreen from '../screens/FolderDetailScreen';
+import LibraryScreen from '../screens/LibraryScreen';
+import CategoryDetailScreen from '../screens/CategoryDetailScreen';
+import AddVideoScreen from '../screens/AddVideoScreen';
 import SearchScreen from '../screens/SearchScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import VideoDetailScreen from '../screens/VideoDetailScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
-const InboxStack = createNativeStackNavigator<InboxStackParamList>();
-const FoldersStack = createNativeStackNavigator<FoldersStackParamList>();
-const SearchStack = createNativeStackNavigator<SearchStackParamList>();
+const LibraryStack = createStackNavigator<LibraryStackParamList>();
+const SearchStack = createStackNavigator<SearchStackParamList>();
+const AddStack = createStackNavigator<AddStackParamList>();
 
 // Stack navigators for each tab
-function InboxStackNavigator() {
+function LibraryStackNavigator() {
   return (
-    <InboxStack.Navigator
+    <LibraryStack.Navigator
       screenOptions={{
         headerStyle: { backgroundColor: Colors.background },
         headerTintColor: Colors.text,
         headerTitleStyle: { fontWeight: '600' },
-        contentStyle: { backgroundColor: Colors.background },
+        cardStyle: { backgroundColor: Colors.background },
       }}
     >
-      <InboxStack.Screen 
-        name="InboxMain" 
-        component={InboxScreen}
-        options={{ title: 'Inbox', headerLargeTitle: true }}
+      <LibraryStack.Screen 
+        name="LibraryMain" 
+        component={LibraryScreen}
+        options={{ title: 'My Library' }}
       />
-      <InboxStack.Screen 
+      <LibraryStack.Screen 
+        name="CategoryDetail" 
+        component={CategoryDetailScreen}
+        options={({ route }) => ({ title: route.params.categoryName })}
+      />
+      <LibraryStack.Screen 
         name="VideoDetail" 
         component={VideoDetailScreen}
         options={{ title: 'Video Details' }}
       />
-    </InboxStack.Navigator>
+      <LibraryStack.Screen 
+        name="AddVideo" 
+        component={AddVideoScreen}
+        options={{ title: 'Import TikTok' }}
+      />
+    </LibraryStack.Navigator>
   );
 }
 
-function FoldersStackNavigator() {
+function AddStackNavigator() {
   return (
-    <FoldersStack.Navigator
+    <AddStack.Navigator
       screenOptions={{
         headerStyle: { backgroundColor: Colors.background },
         headerTintColor: Colors.text,
         headerTitleStyle: { fontWeight: '600' },
-        contentStyle: { backgroundColor: Colors.background },
+        cardStyle: { backgroundColor: Colors.background },
       }}
     >
-      <FoldersStack.Screen 
-        name="FoldersList" 
-        component={FoldersScreen}
-        options={{ title: 'Folders', headerLargeTitle: true }}
+      <AddStack.Screen 
+        name="AddMain" 
+        component={AddVideoScreen}
+        options={{ title: 'Import TikTok' }}
       />
-      <FoldersStack.Screen 
-        name="FolderDetail" 
-        component={FolderDetailScreen}
-        options={({ route }) => ({ title: route.params.folder.name })}
-      />
-      <FoldersStack.Screen 
-        name="VideoDetail" 
-        component={VideoDetailScreen}
-        options={{ title: 'Video Details' }}
-      />
-    </FoldersStack.Navigator>
+    </AddStack.Navigator>
   );
 }
 
@@ -82,13 +81,13 @@ function SearchStackNavigator() {
         headerStyle: { backgroundColor: Colors.background },
         headerTintColor: Colors.text,
         headerTitleStyle: { fontWeight: '600' },
-        contentStyle: { backgroundColor: Colors.background },
+        cardStyle: { backgroundColor: Colors.background },
       }}
     >
       <SearchStack.Screen 
         name="SearchMain" 
         component={SearchScreen}
-        options={{ title: 'Search', headerLargeTitle: true }}
+        options={{ title: 'Search' }}
       />
       <SearchStack.Screen 
         name="VideoDetail" 
@@ -99,20 +98,8 @@ function SearchStackNavigator() {
   );
 }
 
-// Badge component for inbox tab
-function TabBadge({ count }: { count: number }) {
-  if (count === 0) return null;
-  
-  return (
-    <View style={styles.badge}>
-      <Text style={styles.badgeText}>{count > 99 ? '99+' : count}</Text>
-    </View>
-  );
-}
 
 export default function MainNavigator() {
-  const unreadInboxCount = useAppStore((state) => state.unreadInboxCount);
-
   return (
     <Tab.Navigator
       screenOptions={{
@@ -135,32 +122,37 @@ export default function MainNavigator() {
       }}
     >
       <Tab.Screen
-        name="Inbox"
-        component={InboxStackNavigator}
+        name="Library"
+        component={LibraryStackNavigator}
         options={{
           tabBarIcon: ({ focused, color, size }) => (
-            <View>
+            <View style={styles.iconContainer}>
               <Ionicons 
-                name={focused ? 'file-tray-full' : 'file-tray-full-outline'} 
+                name={focused ? 'grid' : 'grid-outline'} 
                 size={size} 
                 color={color} 
               />
-              <TabBadge count={unreadInboxCount} />
+              {focused && <View style={[styles.activeIndicator, { backgroundColor: Colors.primary }]} />}
             </View>
           ),
+          tabBarLabel: 'Library',
         }}
       />
       <Tab.Screen
-        name="Folders"
-        component={FoldersStackNavigator}
+        name="Add"
+        component={AddStackNavigator}
         options={{
           tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons 
-              name={focused ? 'folder' : 'folder-outline'} 
-              size={size} 
-              color={color} 
-            />
+            <View style={styles.iconContainer}>
+              <Ionicons 
+                name={focused ? 'add-circle' : 'add-circle-outline'} 
+                size={size} 
+                color={color} 
+              />
+              {focused && <View style={[styles.activeIndicator, { backgroundColor: Colors.primary }]} />}
+            </View>
           ),
+          tabBarLabel: 'Import',
         }}
       />
       <Tab.Screen
@@ -168,11 +160,14 @@ export default function MainNavigator() {
         component={SearchStackNavigator}
         options={{
           tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons 
-              name={focused ? 'search' : 'search-outline'} 
-              size={size} 
-              color={color} 
-            />
+            <View style={styles.iconContainer}>
+              <Ionicons 
+                name={focused ? 'search' : 'search-outline'} 
+                size={size} 
+                color={color} 
+              />
+              {focused && <View style={[styles.activeIndicator, { backgroundColor: Colors.primary }]} />}
+            </View>
           ),
         }}
       />
@@ -181,11 +176,14 @@ export default function MainNavigator() {
         component={SettingsScreen}
         options={{
           tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons 
-              name={focused ? 'settings' : 'settings-outline'} 
-              size={size} 
-              color={color} 
-            />
+            <View style={styles.iconContainer}>
+              <Ionicons 
+                name={focused ? 'settings' : 'settings-outline'} 
+                size={size} 
+                color={color} 
+              />
+              {focused && <View style={[styles.activeIndicator, { backgroundColor: Colors.primary }]} />}
+            </View>
           ),
           headerShown: true,
           headerStyle: { backgroundColor: Colors.background },
@@ -198,22 +196,13 @@ export default function MainNavigator() {
 }
 
 const styles = StyleSheet.create({
-  badge: {
-    position: 'absolute',
-    right: -10,
-    top: -4,
-    backgroundColor: Colors.error,
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    justifyContent: 'center',
+  iconContainer: {
     alignItems: 'center',
-    paddingHorizontal: 4,
   },
-  badgeText: {
-    color: Colors.text,
-    fontSize: 10,
-    fontWeight: '700',
+  activeIndicator: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 4,
   },
 });
-

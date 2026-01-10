@@ -46,30 +46,42 @@ export function startWorker(): void {
   processingQueue.process('process', 5, async (job) => {
     const { itemId, userId, sourceURL, rawSharedText, hasUploadedVideo } = job.data as ProcessingJob;
     
-    console.log(`Processing item ${itemId}`);
+    console.log(`\n🎬 Processing item ${itemId}`);
+    console.log(`   URL: ${sourceURL}`);
+    console.log(`   Shared text: ${rawSharedText?.substring(0, 100) || '(none)'}`);
     
     try {
       // Update status to processing
       await updateItemStatus(itemId, 'processing');
+      console.log('   Status: processing');
       
       let insights: any = null;
       let videoIndexerId: string | null = null;
       let thumbnailUrl: string | null = null;
       
-      // Mode B: Full video analysis (if video was uploaded)
-      if (hasUploadedVideo) {
+      // Mode B: Full video analysis (if video was uploaded and Azure is configured)
+      if (hasUploadedVideo && process.env.AZURE_VIDEO_INDEXER_ACCOUNT_ID) {
         try {
+          console.log('   Using Azure Video Indexer...');
           insights = await processWithVideoIndexer(itemId, userId);
           videoIndexerId = insights?.videoIndexerId;
           thumbnailUrl = insights?.thumbnailUrl;
         } catch (error) {
-          console.error('Video indexer failed, falling back to URL analysis:', error);
+          console.error('   Video indexer failed, falling back to URL analysis:', error);
         }
       }
       
-      // Mode A: URL-only analysis (or fallback)
+      // Mode A: URL-only analysis (fast, no external API calls)
       if (!insights) {
+        console.log('   Using fast URL analysis...');
         insights = await analyzeUrlOnly(sourceURL, rawSharedText);
+        console.log('   Analysis complete:', JSON.stringify(insights));
+      }
+      
+      // Extract thumbnail from insights (for URL-only analysis)
+      if (!thumbnailUrl && insights?.thumbnailUrl) {
+        thumbnailUrl = insights.thumbnailUrl;
+        console.log('   📷 Thumbnail from URL analysis:', thumbnailUrl);
       }
       
       // Extract data from insights
@@ -150,7 +162,11 @@ export function startWorker(): void {
         ]
       );
       
-      console.log(`Item ${itemId} processed successfully: ${status}`);
+      console.log(`\n✅ Item ${itemId} processed successfully`);
+      console.log(`   Status: ${status}`);
+      console.log(`   Topics: ${topics.join(', ') || 'none'}`);
+      console.log(`   Labels: ${labels.join(', ') || 'none'}`);
+      console.log(`   Folder: ${classification.folderName || 'none'} (${Math.round(classification.confidence * 100)}% confidence)`);
       
     } catch (error) {
       console.error(`Failed to process item ${itemId}:`, error);

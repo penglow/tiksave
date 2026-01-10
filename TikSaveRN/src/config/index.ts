@@ -1,7 +1,20 @@
+import { Platform } from 'react-native';
+
 // API Configuration
+// Use your computer's local IP address for mobile device/emulator testing
+// Find your IP with: ipconfig (Windows) or ifconfig (Mac/Linux)
+const LOCAL_IP = '192.168.100.150'; // Update this to your computer's IP address
+
+// Use localhost for web, IP address for mobile
+const getApiUrl = () => {
+  if (!__DEV__) return 'https://your-production-api.com/api';
+  if (Platform.OS === 'web') return 'http://localhost:3000/api';
+  return `http://${LOCAL_IP}:3000/api`;
+};
+
 export const Config = {
   // API Base URL - switch for development/production
-  apiBaseURL: __DEV__ ? 'http://localhost:3000/api' : 'https://your-production-api.com/api',
+  apiBaseURL: getApiUrl(),
 
   // Feature Flags
   enableSemanticSearch: true,

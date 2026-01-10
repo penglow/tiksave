@@ -14,26 +14,55 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "scheme": "tiksave",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yourcompany.tiksave",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "TikSave needs access to save videos to your library"
-      }
+        "NSPhotoLibraryUsageDescription": "TikSave needs access to save videos to your library",
+        "LSApplicationQueriesSchemes": ["tiktok"]
+      },
+      "associatedDomains": ["applinks:tiksave.app"]
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#12121F"
       },
-      "package": "com.yourcompany.tiksave"
+      "package": "com.yourcompany.tiksave",
+      "intentFilters": [
+        {
+          "action": "android.intent.action.SEND",
+          "category": ["android.intent.category.DEFAULT"],
+          "data": [
+            {
+              "mimeType": "text/plain"
+            }
+          ]
+        },
+        {
+          "action": "android.intent.action.VIEW",
+          "category": ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"],
+          "data": [
+            {
+              "scheme": "https",
+              "host": "*.tiktok.com"
+            },
+            {
+              "scheme": "https", 
+              "host": "vm.tiktok.com"
+            }
+          ]
+        }
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font"
     ]
   }
 }
-

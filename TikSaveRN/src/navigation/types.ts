@@ -16,8 +16,8 @@ export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeSta
 
 // Main Tab Navigator
 export type MainTabParamList = {
-  Inbox: undefined;
-  Folders: undefined;
+  Library: undefined;
+  Add: undefined;
   Search: undefined;
   Settings: undefined;
 };
@@ -27,7 +27,20 @@ export type MainTabScreenProps<T extends keyof MainTabParamList> = CompositeScre
   RootStackScreenProps<keyof RootStackParamList>
 >;
 
-// Folders Stack Navigator
+// Library Stack Navigator (main view with AI categories)
+export type LibraryStackParamList = {
+  LibraryMain: undefined;
+  CategoryDetail: { categoryName: string; icon: string; color: string };
+  VideoDetail: { item: SaveItem };
+  AddVideo: undefined;
+};
+
+export type LibraryStackScreenProps<T extends keyof LibraryStackParamList> = NativeStackScreenProps<
+  LibraryStackParamList,
+  T
+>;
+
+// Folders Stack Navigator (optional manual organization)
 export type FoldersStackParamList = {
   FoldersList: undefined;
   FolderDetail: { folder: Folder };
@@ -50,7 +63,7 @@ export type SearchStackScreenProps<T extends keyof SearchStackParamList> = Nativ
   T
 >;
 
-// Inbox Stack Navigator
+// Inbox Stack Navigator (for processing/review items)
 export type InboxStackParamList = {
   InboxMain: undefined;
   VideoDetail: { item: SaveItem };
@@ -61,10 +74,19 @@ export type InboxStackScreenProps<T extends keyof InboxStackParamList> = NativeS
   T
 >;
 
+// Add Stack Navigator
+export type AddStackParamList = {
+  AddMain: undefined;
+};
+
+export type AddStackScreenProps<T extends keyof AddStackParamList> = NativeStackScreenProps<
+  AddStackParamList,
+  T
+>;
+
 // Declare global navigation types
 declare global {
   namespace ReactNavigation {
     interface RootParamList extends RootStackParamList {}
   }
 }
-
