@@ -51,19 +51,21 @@ A smart mobile app that transforms your saved TikTok videos into an organized, s
 
 ### Backend
 - Node.js + Express
-- PostgreSQL with pgvector (for embeddings)
-- Redis (job queue)
-- Azure AI Video Indexer
+- PostgreSQL with pgvector extension (for vector embeddings)
+- Redis (for job queue and caching)
+- Optional: Azure AI Video Indexer (for advanced video analysis)
+- Optional: OpenAI API (for AI-powered categorization)
 
 ## Setup Instructions
 
 ### Prerequisites
-- Node.js 18+
-- npm or yarn
-- Expo CLI (`npm install -g expo-cli`)
-- iOS Simulator (macOS) or Android Emulator
+- **Node.js 18+** - [Download Node.js](https://nodejs.org/)
+- **npm** or **yarn** (comes with Node.js)
+- **Docker Desktop** - [Download Docker Desktop](https://www.docker.com/products/docker-desktop/) (for running PostgreSQL and Redis)
+- **Expo CLI** (optional, can use `npx expo` instead): `npm install -g expo-cli`
+- **iOS Simulator** (macOS only) or **Android Emulator** (for testing)
 
-### Mobile App
+### Mobile App Setup
 
 1. Navigate to the app directory:
    ```bash
@@ -78,8 +80,8 @@ A smart mobile app that transforms your saved TikTok videos into an organized, s
 3. Configure the API URL in `src/config/index.ts`:
    ```typescript
    apiBaseURL: __DEV__ 
-     ? 'http://localhost:3000/api'  // Development
-     : 'https://your-production-api.com/api', // Production
+     ? 'http://localhost:3000/api'  // Development - adjust if backend runs on different port
+     : 'https://your-production-api.com/api', // Production - update with your production URL
    ```
 
 4. Start the development server:
@@ -88,13 +90,16 @@ A smart mobile app that transforms your saved TikTok videos into an organized, s
    ```
 
 5. Run on your preferred platform:
-   - Press `i` for iOS Simulator
+   - Press `i` for iOS Simulator (macOS only)
    - Press `a` for Android Emulator
-   - Scan QR code with Expo Go app on your device
+   - Scan QR code with Expo Go app on your physical device
 
-### Backend
+### Backend Setup
 
-1. Navigate to the backend:
+For detailed backend setup instructions, see `backend/START-BACKEND.md`.
+
+Quick start:
+1. Navigate to the backend directory:
    ```bash
    cd backend
    ```
@@ -104,22 +109,49 @@ A smart mobile app that transforms your saved TikTok videos into an organized, s
    npm install
    ```
 
-3. Copy `.env.example` to `.env` and configure your environment variables
+3. Start the database (requires Docker):
+   ```bash
+   cd ../database
+   docker-compose up -d
+   cd ../backend
+   ```
 
-4. Run database migrations:
+4. Create a `.env` file in the `backend` directory with:
+   ```env
+   DATABASE_URL=postgresql://tiksave:tiksave_password@localhost:5432/tiksave
+   REDIS_URL=redis://localhost:6379
+   PORT=3000
+   NODE_ENV=development
+   ```
+
+5. Run database migrations:
    ```bash
    npm run migrate
    ```
 
-5. Start the server:
+6. Start the server:
    ```bash
    npm run dev
    ```
 
-## API Keys Required
+## Optional: API Keys for Enhanced Features
 
-- Azure Video Indexer account
-- OpenAI API key (for embeddings)
+The app works without these API keys, but some features will be limited:
+
+- **OpenAI API key** - Enables AI-powered categorization and semantic search
+  - Get one at: [platform.openai.com](https://platform.openai.com/)
+  - Add to `.env`: `OPENAI_API_KEY=your_key_here`
+
+- **Azure Video Indexer** - Enables advanced video analysis and transcription
+  - Requires an Azure account: [azure.microsoft.com](https://azure.microsoft.com/)
+  - Add to `.env`:
+    ```env
+    AZURE_VIDEO_INDEXER_KEY=your_key_here
+    AZURE_VIDEO_INDEXER_ACCOUNT_ID=your_account_id_here
+    AZURE_VIDEO_INDEXER_LOCATION=your_location_here
+    ```
+
+**Note:** Without these keys, the app will still function but AI-powered features like automatic folder suggestions and video transcription will be disabled.
 
 ## Building for Production
 
