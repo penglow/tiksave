@@ -105,24 +105,18 @@ export function startWorker(): void {
       });
       
       // Determine final status
-      const HIGH_CONFIDENCE = 0.85;
-      const MEDIUM_CONFIDENCE = 0.6;
+      // Assign folder if classification found one (confidence >= 0.3 threshold in classification service)
+      const folderId = classification.folderId || null;
       
-      let status: string;
-      let folderId: string | null = null;
-      
-      if (classification.confidence >= HIGH_CONFIDENCE && classification.folderId) {
-        status = 'ready';
-        folderId = classification.folderId;
-      } else if (classification.confidence >= MEDIUM_CONFIDENCE && classification.folderId) {
-        status = 'ready'; // Filed but might need review
-        folderId = classification.folderId;
-      } else {
-        status = 'needs_review';
-      }
+      // If a folder was assigned, mark as ready so it appears in library
+      // The classification service already ensures confidence >= 0.3 before returning a folderId
+      const status = folderId ? 'ready' : 'needs_review';
       
       // Generate title from transcript or shared text
       const title = generateTitle(transcript, rawSharedText);
+      
+      // Only store confidence if it's meaningful (>= 0.1), otherwise store NULL
+      const confidenceValue = classification.confidence >= 0.1 ? classification.confidence : null;
       
       // Update item with all results
       await query(
@@ -150,7 +144,7 @@ export function startWorker(): void {
           topics,
           labels,
           classification.folderId,
-          classification.confidence,
+          confidenceValue,
           folderId,
           title,
           duration,

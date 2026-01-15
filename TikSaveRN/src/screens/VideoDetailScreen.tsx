@@ -170,7 +170,7 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
         )}
 
         {/* Confidence */}
-        {item.confidence !== undefined && (
+        {item.confidence !== undefined && item.confidence !== null && item.confidence > 0 && (
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>AI Confidence</Text>
             <View style={styles.confidenceBar}>

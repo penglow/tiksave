@@ -143,7 +143,7 @@ export default function MoveFolderModal({ visible, item, onClose, onMove }: Prop
                     </View>
                     <View style={styles.folderInfo}>
                       <Text style={styles.folderName}>{suggestedFolder.name}</Text>
-                      {item.confidence && (
+                      {item.confidence && item.confidence > 0 && (
                         <Text style={styles.confidenceText}>
                           {Math.round(item.confidence * 100)}% confident
                         </Text>

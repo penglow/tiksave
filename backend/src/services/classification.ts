@@ -73,7 +73,7 @@ export async function classifyItem(
   const maxScore = calculateMaxPossibleScore(input);
   const confidence = maxScore > 0 ? Math.min(bestMatch.score / maxScore, 1) : 0;
   
-  return {
+  const result = {
     folderId: confidence >= 0.3 ? bestMatch.folderId : null,
     folderName: confidence >= 0.3 ? bestMatch.folderName : null,
     confidence,
@@ -84,6 +84,8 @@ export async function classifyItem(
       confidence: maxScore > 0 ? Math.min(s.score / maxScore, 1) : 0,
     })),
   };
+  
+  return result;
 }
 
 function scoreFolder(folder: any, input: ClassificationInput): {

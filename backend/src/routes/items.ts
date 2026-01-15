@@ -8,6 +8,7 @@ import { generateUploadUrl } from '../services/storage.js';
 import { recordTrainingExample, updateUserPreferences } from '../services/learning.js';
 import { extractKeywords, extractHashtags } from '../utils/text.js';
 import { analyzeUrlOnly } from '../services/videoIndexer.js';
+import { classifyItem } from '../services/classification.js';
 
 export const itemsRouter = Router();
 
@@ -312,7 +313,7 @@ function formatSaveItem(row: any) {
     detectedTopics: row.detected_topics || [],
     detectedLabels: row.detected_labels || [],
     predictedFolderId: row.predicted_folder_id,
-    confidence: row.confidence ? parseFloat(row.confidence) : null,
+    confidence: row.confidence != null ? parseFloat(row.confidence) : undefined,
     folderId: row.folder_id,
     folderName: row.folder_name,
     title: row.title,
@@ -349,29 +350,57 @@ async function processItemNow(
     }
   }
   
-  // Update item with results (no folder classification - just AI categories)
+  // Classify into folder
+  const classification = await classifyItem(userId, {
+    topics: analysis.topics || [],
+    labels: analysis.labels || [],
+    transcriptText: null,
+    hashtags: extractHashtags(rawSharedText),
+    creatorUsername: analysis.creator,
+  });
+  
+  // Determine final status based on confidence
+  // Assign folder if classification found one (confidence >= 0.3 threshold in classification service)
+  const folderId = classification.folderId || null;
+  
+  // If a folder was assigned, mark as ready so it appears in library
+  // The classification service already ensures confidence >= 0.3 before returning a folderId
+  const status = folderId ? 'ready' : 'needs_review';
+  
+  // Only store confidence if it's meaningful (>= 0.1), otherwise store NULL
+  const confidenceValue = classification.confidence >= 0.1 ? classification.confidence : null;
+  
+  // Update item with results including classification and confidence
   await query(
     `UPDATE save_items SET
-      status = 'ready',
-      detected_topics = $1,
-      detected_labels = $2,
-      creator_username = $3,
-      title = $4,
-      thumbnail_url = $5,
+      status = $1,
+      detected_topics = $2,
+      detected_labels = $3,
+      creator_username = $4,
+      title = $5,
+      thumbnail_url = $6,
+      predicted_folder_id = $7,
+      confidence = $8,
+      folder_id = $9,
       updated_at = NOW()
-     WHERE id = $6`,
+     WHERE id = $10`,
     [
+      status,
       analysis.topics,
       analysis.labels,
       analysis.creator,
       title,
       analysis.thumbnailUrl,
+      classification.folderId,
+      confidenceValue,
+      folderId,
       itemId,
     ]
   );
   
   console.log(`✅ Item ${itemId} processed!`);
   console.log(`   Categories: ${analysis.topics.join(', ')}`);
+  console.log(`   Folder: ${classification.folderName || 'none'} (${Math.round(classification.confidence * 100)}% confidence)`);
 }
 
 

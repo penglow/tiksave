@@ -131,7 +131,7 @@ function formatSearchResult(row: any) {
     detectedTopics: row.detected_topics || [],
     detectedLabels: row.detected_labels || [],
     predictedFolderId: row.predicted_folder_id,
-    confidence: row.confidence ? parseFloat(row.confidence) : null,
+    confidence: row.confidence != null ? parseFloat(row.confidence) : undefined,
     folderId: row.folder_id,
     folderName: row.folder_name,
     title: row.title,
