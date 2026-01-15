@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import { Config } from '../config';
 import {
   SaveItem,
@@ -26,18 +27,49 @@ export class APIError extends Error {
 const ACCESS_TOKEN_KEY = 'accessToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 
+// Platform-specific storage wrapper
+// On web, use localStorage; on native, use SecureStore
+const TokenStorage = {
+  async setItem(key: string, value: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      localStorage.setItem(key, value);
+    } else {
+      await SecureStore.setItemAsync(key, value);
+    }
+  },
+
+  async getItem(key: string): Promise<string | null> {
+    if (Platform.OS === 'web') {
+      return localStorage.getItem(key);
+    } else {
+      return await SecureStore.getItemAsync(key);
+    }
+  },
+
+  async removeItem(key: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      localStorage.removeItem(key);
+    } else {
+      await SecureStore.deleteItemAsync(key);
+    }
+  },
+};
+
 class APIService {
   private baseURL: string;
   private accessToken: string | null = null;
 
   constructor() {
     this.baseURL = Config.apiBaseURL;
+    if (__DEV__) {
+      console.log('API Service initialized with baseURL:', this.baseURL);
+    }
   }
 
   // Initialize - load stored token
   async init(): Promise<boolean> {
     try {
-      this.accessToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+      this.accessToken = await TokenStorage.getItem(ACCESS_TOKEN_KEY);
       return !!this.accessToken;
     } catch {
       return false;
@@ -52,15 +84,15 @@ class APIService {
   // Set tokens
   async setTokens(accessToken: string, refreshToken: string): Promise<void> {
     this.accessToken = accessToken;
-    await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
-    await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+    await TokenStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    await TokenStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   }
 
   // Clear tokens
   async clearTokens(): Promise<void> {
     this.accessToken = null;
-    await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
-    await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+    await TokenStorage.removeItem(ACCESS_TOKEN_KEY);
+    await TokenStorage.removeItem(REFRESH_TOKEN_KEY);
   }
 
   // Make request helper
@@ -103,6 +135,9 @@ class APIService {
     const timeoutId = setTimeout(() => controller.abort(), Config.apiTimeoutMs);
 
     try {
+      if (__DEV__) {
+        console.log(`[API] ${method} ${url}`, body ? { body } : '');
+      }
       const response = await fetch(url, {
         method,
         headers,
@@ -147,6 +182,11 @@ class APIService {
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           throw new APIError('TIMEOUT', 'Request timed out');
+        }
+        // Provide more helpful error message for "Failed to fetch"
+        if (error.message === 'Failed to fetch' || error.message.includes('fetch')) {
+          const helpfulMessage = `Cannot connect to server at ${this.baseURL}. Please ensure the backend server is running on port 3000.`;
+          throw new APIError('NETWORK_ERROR', helpfulMessage);
         }
         throw new APIError('NETWORK_ERROR', `Network error: ${error.message}`);
       }

@@ -30,7 +30,7 @@ export type MainTabScreenProps<T extends keyof MainTabParamList> = CompositeScre
 // Library Stack Navigator (main view with AI categories)
 export type LibraryStackParamList = {
   LibraryMain: undefined;
-  CategoryDetail: { categoryName: string; icon: string; color: string };
+  CategoryDetail: { categoryName: string; icon: string; color: string; subcategoryName?: string };
   VideoDetail: { item: SaveItem };
   AddVideo: undefined;
 };

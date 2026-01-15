@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -70,17 +71,37 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Video Preview */}
       <View style={styles.previewContainer}>
-        <LinearGradient
-          colors={[`${Colors.secondary}66`, `${Colors.primary}66`]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.previewGradient}
+        <TouchableOpacity 
+          style={styles.previewWrapper}
+          onPress={openInTikTok}
+          activeOpacity={0.8}
         >
-          <TouchableOpacity style={styles.playButton} onPress={openInTikTok} activeOpacity={0.8}>
-            <Ionicons name="play-circle" size={60} color={Colors.text} />
-            <Text style={styles.openText}>Open in TikTok</Text>
-          </TouchableOpacity>
-        </LinearGradient>
+          {item.thumbnailURL ? (
+            <Image 
+              source={{ 
+                uri: item.thumbnailURL,
+                cache: 'force-cache'
+              }} 
+              style={styles.previewImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <LinearGradient
+              colors={[`${Colors.secondary}66`, `${Colors.primary}66`]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.previewGradient}
+            />
+          )}
+          
+          {/* Open in TikTok Overlay */}
+          <View style={styles.previewOverlay} pointerEvents="none">
+            <TouchableOpacity style={styles.playButton} activeOpacity={1}>
+              <Ionicons name="play-circle" size={60} color={Colors.text} />
+              <Text style={styles.openText}>Open in TikTok</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </View>
 
       {/* Info Card */}
@@ -215,12 +236,30 @@ const styles = StyleSheet.create({
   previewContainer: {
     alignItems: 'center',
   },
-  previewGradient: {
+  previewWrapper: {
     width: 200,
     aspectRatio: 9 / 16,
     borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  previewGradient: {
+    width: '100%',
+    height: '100%',
+  },
+  previewOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   playButton: {
     alignItems: 'center',

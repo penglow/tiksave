@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Keyboard,
+  Image,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -205,13 +207,12 @@ export default function SearchScreen({ navigation }: Props) {
       ) : (
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           {results.map((item) => (
-            <TouchableOpacity
+            <SearchResultRow 
               key={item.id}
-              onPress={() => navigation.navigate('VideoDetail', { item })}
-              activeOpacity={0.7}
-            >
-              <SearchResultRow item={item} searchQuery={searchText} />
-            </TouchableOpacity>
+              item={item} 
+              searchQuery={searchText}
+              onNavigateToDetail={() => navigation.navigate('VideoDetail', { item })}
+            />
           ))}
         </ScrollView>
       )}
@@ -219,7 +220,15 @@ export default function SearchScreen({ navigation }: Props) {
   );
 }
 
-function SearchResultRow({ item, searchQuery }: { item: SaveItem; searchQuery: string }) {
+function SearchResultRow({ 
+  item, 
+  searchQuery,
+  onNavigateToDetail 
+}: { 
+  item: SaveItem; 
+  searchQuery: string;
+  onNavigateToDetail: () => void;
+}) {
   // Find match context in transcript
   const findMatchContext = (): string | null => {
     if (!item.transcriptText) return null;
@@ -244,20 +253,55 @@ function SearchResultRow({ item, searchQuery }: { item: SaveItem; searchQuery: s
 
   const matchContext = findMatchContext();
 
+  const openInTikTok = () => {
+    if (item.sourceURL) {
+      Linking.openURL(item.sourceURL);
+    }
+  };
+
   return (
     <View style={styles.resultRow}>
       {/* Thumbnail */}
-      <LinearGradient
-        colors={[`${Colors.secondary}4D`, `${Colors.primary}4D`]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <TouchableOpacity 
         style={styles.resultThumbnail}
+        onPress={openInTikTok}
+        activeOpacity={0.8}
       >
-        <Ionicons name="play" size={20} color="rgba(255, 255, 255, 0.6)" />
-      </LinearGradient>
+        {item.thumbnailURL ? (
+          <Image 
+            source={{ 
+              uri: item.thumbnailURL,
+              cache: 'force-cache'
+            }} 
+            style={styles.thumbnailImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <LinearGradient
+            colors={[`${Colors.secondary}4D`, `${Colors.primary}4D`]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.thumbnailPlaceholder}
+          >
+            <Ionicons name="play" size={20} color="rgba(255, 255, 255, 0.6)" />
+          </LinearGradient>
+        )}
+
+        {item.duration && (
+          <View style={styles.durationBadge}>
+            <Text style={styles.durationText}>
+              {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
 
       {/* Info */}
-      <View style={styles.resultInfo}>
+      <TouchableOpacity 
+        style={styles.resultInfo}
+        onPress={onNavigateToDetail}
+        activeOpacity={0.7}
+      >
         <Text style={styles.resultTitle} numberOfLines={2}>
           {getDisplayTitle(item)}
         </Text>
@@ -284,9 +328,14 @@ function SearchResultRow({ item, searchQuery }: { item: SaveItem; searchQuery: s
             ))}
           </View>
         )}
-      </View>
+      </TouchableOpacity>
 
-      <Ionicons name="chevron-forward" size={14} color={Colors.textQuaternary} />
+      <TouchableOpacity 
+        onPress={onNavigateToDetail}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="chevron-forward" size={14} color={Colors.textQuaternary} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -435,8 +484,34 @@ const styles = StyleSheet.create({
     width: 70,
     height: 90,
     borderRadius: BorderRadius.md,
+    backgroundColor: Colors.overlay,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbnailPlaceholder: {
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  durationBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    zIndex: 1,
+  },
+  durationText: {
+    fontSize: 10,
+    color: Colors.text,
+    fontWeight: '500',
   },
   resultInfo: {
     flex: 1,

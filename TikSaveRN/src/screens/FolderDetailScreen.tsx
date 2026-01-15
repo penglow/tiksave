@@ -33,6 +33,7 @@ type Props = FoldersStackScreenProps<'FolderDetail'>;
 export default function FolderDetailScreen({ route, navigation }: Props) {
   const { folder } = route.params;
   const [isDeleting, setIsDeleting] = useState(false);
+  const [items, setItems] = useState<SaveItem[]>([]);
 
   const performDelete = async () => {
     setIsDeleting(true);
@@ -83,7 +84,6 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
       ),
     });
   }, [navigation, handleDeleteFolder, isDeleting]);
-  const [items, setItems] = useState<SaveItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SaveItem | null>(null);

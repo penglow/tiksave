@@ -323,7 +323,7 @@ export default function SettingsScreen() {
           onPress={() => openLink('https://yourapp.com/support')}
         >
           <Text style={styles.settingLabel}>Support</Text>
-          <Ionicons name="arrow-up-forward" size={14} color={Colors.textQuaternary} />
+          <Ionicons name="arrow-forward" size={14} color={Colors.textQuaternary} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -331,7 +331,7 @@ export default function SettingsScreen() {
           onPress={() => openLink('https://yourapp.com/feedback')}
         >
           <Text style={styles.settingLabel}>Send Feedback</Text>
-          <Ionicons name="arrow-up-forward" size={14} color={Colors.textQuaternary} />
+          <Ionicons name="arrow-forward" size={14} color={Colors.textQuaternary} />
         </TouchableOpacity>
       </View>
 
@@ -390,7 +390,7 @@ export default function SettingsScreen() {
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.folderIcon}>{getDisplayIcon(folder)}</Text>
+                    <Text style={styles.folderIcon}>{getDisplayIcon(folder) || '📁'}</Text>
                     <View style={styles.folderInfo}>
                       <Text style={styles.folderName}>{folder.name}</Text>
                       <Text style={styles.folderCount}>{folder.itemCount} videos</Text>

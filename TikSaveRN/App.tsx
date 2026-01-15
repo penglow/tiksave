@@ -69,20 +69,31 @@ export default function App() {
 
     // Handle URL that launched the app
     const getInitialURL = async () => {
-      const initialUrl = await Linking.getInitialURL();
-      if (initialUrl) {
-        handleIncomingUrl(initialUrl);
+      try {
+        const initialUrl = await Linking.getInitialURL();
+        if (initialUrl) {
+          handleIncomingUrl(initialUrl);
+        }
+      } catch (error) {
+        console.error('Failed to get initial URL:', error);
       }
     };
     getInitialURL();
 
     // Listen for URLs while app is running
-    const subscription = Linking.addEventListener('url', (event) => {
-      handleIncomingUrl(event.url);
-    });
+    let subscription: { remove: () => void } | null = null;
+    try {
+      subscription = Linking.addEventListener('url', (event) => {
+        handleIncomingUrl(event.url);
+      });
+    } catch (error) {
+      console.error('Failed to set up URL listener:', error);
+    }
 
     return () => {
-      subscription.remove();
+      if (subscription) {
+        subscription.remove();
+      }
     };
   }, [loadRecentSearches, loadUserSettings, handleIncomingUrl]);
 

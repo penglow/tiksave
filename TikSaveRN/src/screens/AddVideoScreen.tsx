@@ -16,9 +16,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius } from '../config';
 import { apiService } from '../services/api';
 import { useAppStore } from '../stores/appStore';
-import { LibraryStackScreenProps } from '../navigation/types';
+import { LibraryStackScreenProps, AddStackScreenProps } from '../navigation/types';
+import type { NavigationProp } from '@react-navigation/native';
 
-type Props = LibraryStackScreenProps<'AddVideo'>;
+type Props = 
+  | LibraryStackScreenProps<'AddVideo'>
+  | AddStackScreenProps<'AddMain'>;
 
 export default function AddVideoScreen({ navigation }: Props) {
   const [isImporting, setIsImporting] = useState(false);
@@ -56,7 +59,12 @@ export default function AddVideoScreen({ navigation }: Props) {
       
       // Navigate to library after short delay
       setTimeout(() => {
-        navigation.navigate('LibraryMain');
+        // Try to navigate to LibraryMain, fallback to going back
+        try {
+          (navigation as any).navigate('LibraryMain');
+        } catch {
+          navigation.goBack();
+        }
       }, 1500);
     } catch (error) {
       console.error('Failed to import:', error);

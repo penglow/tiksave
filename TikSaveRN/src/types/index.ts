@@ -115,12 +115,21 @@ export interface FolderNode {
 
 // Get display icon for folder
 export const getDisplayIcon = (folder: Folder): string => {
-  if (folder.iconName) return folder.iconName;
+  // Check if iconName exists and is not empty
+  if (folder.iconName && folder.iconName.trim().length > 0) {
+    return folder.iconName.trim();
+  }
+  // Fallback to default icon based on folder name
   return getDefaultIconForName(folder.name);
 };
 
 const getDefaultIconForName = (name: string): string => {
-  const lowercased = name.toLowerCase();
+  // Safety check: ensure name is valid
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    return '📁';
+  }
+
+  const lowercased = name.toLowerCase().trim();
 
   // Travel destinations
   if (lowercased.includes('japan')) return '🇯🇵';
@@ -153,6 +162,7 @@ const getDefaultIconForName = (name: string): string => {
   if (lowercased.includes('comedy') || lowercased.includes('funny')) return '😂';
   if (lowercased.includes('education') || lowercased.includes('learn')) return '📚';
 
+  // Default fallback
   return '📁';
 };
 

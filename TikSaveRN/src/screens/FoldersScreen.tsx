@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -202,7 +203,7 @@ function FolderNodeView({
             end={{ x: 1, y: 1 }}
             style={styles.folderIcon}
           >
-            <Text style={styles.folderEmoji}>{getDisplayIcon(node.folder)}</Text>
+            <Text style={styles.folderEmoji}>{getDisplayIcon(node.folder) || '📁'}</Text>
           </LinearGradient>
         </View>
 
@@ -234,7 +235,7 @@ function FolderNodeView({
               activeOpacity={0.7}
             >
               <View style={styles.childIcon}>
-                <Text style={styles.childEmoji}>{getDisplayIcon(childNode.folder)}</Text>
+                <Text style={styles.childEmoji}>{getDisplayIcon(childNode.folder) || '📁'}</Text>
               </View>
               <Text style={styles.childName}>{childNode.folder.name}</Text>
               <Text style={styles.childCount}>{childNode.folder.itemCount}</Text>
@@ -499,11 +500,20 @@ const styles = StyleSheet.create({
     bottom: Spacing.xl,
     borderRadius: 28,
     overflow: 'hidden',
-    elevation: 5,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: Colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 5,
+      },
+      web: {
+        boxShadow: `0 4px 8px rgba(6, 182, 212, 0.3)`,
+      },
+    }),
   },
   fabGradient: {
     width: 56,

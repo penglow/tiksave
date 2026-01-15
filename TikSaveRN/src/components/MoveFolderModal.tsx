@@ -139,7 +139,7 @@ export default function MoveFolderModal({ visible, item, onClose, onMove }: Prop
                     activeOpacity={0.7}
                   >
                     <View style={styles.folderIcon}>
-                      <Text style={styles.folderEmoji}>{getDisplayIcon(suggestedFolder)}</Text>
+                      <Text style={styles.folderEmoji}>{getDisplayIcon(suggestedFolder) || '📁'}</Text>
                     </View>
                     <View style={styles.folderInfo}>
                       <Text style={styles.folderName}>{suggestedFolder.name}</Text>
@@ -216,7 +216,7 @@ function FolderNodeItem({
         {!hasChildren && <View style={styles.expandPlaceholder} />}
 
         <View style={[styles.folderIcon, isSelected && styles.folderIconSelected]}>
-          <Text style={styles.folderEmoji}>{getDisplayIcon(node.folder)}</Text>
+          <Text style={styles.folderEmoji}>{getDisplayIcon(node.folder) || '📁'}</Text>
         </View>
 
         <Text
@@ -253,7 +253,7 @@ function FolderNodeItem({
                   selectedId === childNode.folder.id && styles.folderIconSelected,
                 ]}
               >
-                <Text style={styles.childEmoji}>{getDisplayIcon(childNode.folder)}</Text>
+                <Text style={styles.childEmoji}>{getDisplayIcon(childNode.folder) || '📁'}</Text>
               </View>
 
               <Text

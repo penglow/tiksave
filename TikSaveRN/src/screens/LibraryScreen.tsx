@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -277,6 +278,12 @@ export default function LibraryScreen({ navigation }: Props) {
               icon: category.icon,
               color: category.color,
             })}
+            onPressSubcategory={(subcategoryName) => navigation.navigate('CategoryDetail', {
+              categoryName: category.name,
+              icon: category.icon,
+              color: category.color,
+              subcategoryName: subcategoryName,
+            })}
           />
         ))}
       </ScrollView>
@@ -289,10 +296,12 @@ function CategorySection({
   category,
   onPressItem,
   onPressCategory,
+  onPressSubcategory,
 }: {
   category: AICategory;
   onPressItem: (item: SaveItem) => void;
   onPressCategory: () => void;
+  onPressSubcategory: (subcategoryName: string) => void;
 }) {
   const hasSubcategories = category.subcategories && category.subcategories.length > 0;
   
@@ -332,7 +341,7 @@ function CategorySection({
             <TouchableOpacity
               key={sub.name}
               style={[styles.subcategoryTag, { backgroundColor: `${category.color}15` }]}
-              onPress={onPressCategory}
+              onPress={() => onPressSubcategory(sub.name)}
               activeOpacity={0.7}
             >
               <Text style={[styles.subcategoryText, { color: category.color }]}>
@@ -350,50 +359,66 @@ function CategorySection({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.videoScroll}
       >
-        {category.items.slice(0, 6).map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={styles.videoCard}
-            onPress={() => onPressItem(item)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.videoThumbnail}>
-              {item.thumbnailURL ? (
-                <Image 
-                  source={{ 
-                    uri: item.thumbnailURL,
-                    cache: 'force-cache'
-                  }} 
-                  style={styles.thumbnailImage}
-                  onError={(e) => {
-                    console.warn('❌ Failed to load thumbnail:', item.thumbnailURL?.substring(0, 80));
-                  }}
-                  onLoad={() => {
-                    console.log('✅ Thumbnail loaded');
-                  }}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={styles.thumbnailPlaceholder}>
-                  <Ionicons name="play" size={24} color={Colors.textTertiary} />
-                </View>
-              )}
-              {item.duration && (
-                <View style={styles.durationBadge}>
-                  <Text style={styles.durationText}>
-                    {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
-                  </Text>
-                </View>
-              )}
+        {category.items.slice(0, 6).map((item) => {
+          const openInTikTok = () => {
+            if (item.sourceURL) {
+              Linking.openURL(item.sourceURL);
+            }
+          };
+
+          return (
+            <View key={item.id} style={styles.videoCard}>
+              {/* Thumbnail with Open in TikTok overlay */}
+              <TouchableOpacity
+                style={styles.videoThumbnail}
+                onPress={openInTikTok}
+                activeOpacity={0.8}
+              >
+                {item.thumbnailURL ? (
+                  <Image 
+                    source={{ 
+                      uri: item.thumbnailURL,
+                      cache: 'force-cache'
+                    }} 
+                    style={styles.thumbnailImage}
+                    onError={(e) => {
+                      console.warn('❌ Failed to load thumbnail:', item.thumbnailURL?.substring(0, 80));
+                    }}
+                    onLoad={() => {
+                      console.log('✅ Thumbnail loaded');
+                    }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.thumbnailPlaceholder}>
+                    <Ionicons name="play" size={24} color={Colors.textTertiary} />
+                  </View>
+                )}
+
+                {item.duration && (
+                  <View style={styles.durationBadge}>
+                    <Text style={styles.durationText}>
+                      {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              
+              {/* Title and Creator - clickable to navigate to video details */}
+              <TouchableOpacity
+                onPress={() => onPressItem(item)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.videoTitle} numberOfLines={2}>
+                  {getDisplayTitle(item)}
+                </Text>
+                {item.creatorUsername && (
+                  <Text style={styles.creatorName}>@{item.creatorUsername}</Text>
+                )}
+              </TouchableOpacity>
             </View>
-            <Text style={styles.videoTitle} numberOfLines={2}>
-              {getDisplayTitle(item)}
-            </Text>
-            {item.creatorUsername && (
-              <Text style={styles.creatorName}>@{item.creatorUsername}</Text>
-            )}
-          </TouchableOpacity>
-        ))}
+          );
+        })}
         
         {/* See All Card */}
         {category.items.length > 6 && (
@@ -553,7 +578,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.pill,
+    borderRadius: BorderRadius.full,
     marginRight: Spacing.sm,
   },
   subcategoryText: {
@@ -594,6 +619,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.overlay,
     overflow: 'hidden',
+    position: 'relative',
   },
   thumbnailImage: {
     width: '100%',
@@ -613,6 +639,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+    zIndex: 1,
   },
   durationText: {
     fontSize: 11,
