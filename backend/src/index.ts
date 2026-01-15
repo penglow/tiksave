@@ -19,12 +19,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false, // Disable for development
+}));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? ['https://your-app-domain.com'] 
-    : '*',
+    : true, // Allow all origins in development
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // Rate limiting
@@ -70,8 +75,9 @@ async function start() {
     console.log('✅ Background worker started');
 
     // Start HTTP server
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
+      console.log(`🚀 Server also accessible on http://0.0.0.0:${PORT}`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
