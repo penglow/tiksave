@@ -48,15 +48,17 @@ REDIS_URL=redis://localhost:6379
 PORT=3000
 NODE_ENV=development
 
-# Optional: API Keys for Enhanced Features
-# These are only needed if you want to use AI-powered features
+# Azure Video Indexer Configuration (Required)
+# The app requires Azure Video Indexer for video processing and analysis
+AZURE_VIDEO_INDEXER_KEY=your_azure_key_here
+AZURE_VIDEO_INDEXER_ACCOUNT_ID=your_account_id_here
+AZURE_VIDEO_INDEXER_LOCATION=your_location_here
+
+# Optional: OpenAI API Key for Enhanced Features
 # OPENAI_API_KEY=your_openai_api_key_here
-# AZURE_VIDEO_INDEXER_KEY=your_azure_key_here
-# AZURE_VIDEO_INDEXER_ACCOUNT_ID=your_account_id_here
-# AZURE_VIDEO_INDEXER_LOCATION=your_location_here
 ```
 
-**Note:** The API keys (OpenAI, Azure Video Indexer) are optional. The app will work without them, but some AI-powered features like automatic categorization and video analysis will be disabled.
+**Note:** Azure Video Indexer is **required** for the app to function. The app relies on it for video processing and analysis. OpenAI API key is optional and only needed for additional AI-powered features like automatic categorization.
 
 ## Step 3: Install Dependencies
 

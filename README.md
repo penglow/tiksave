@@ -53,7 +53,7 @@ A smart mobile app that transforms your saved TikTok videos into an organized, s
 - Node.js + Express
 - PostgreSQL with pgvector extension (for vector embeddings)
 - Redis (for job queue and caching)
-- Optional: Azure AI Video Indexer (for advanced video analysis)
+- Azure AI Video Indexer (required for video processing and analysis)
 - Optional: OpenAI API (for AI-powered categorization)
 
 ## Setup Instructions
@@ -122,6 +122,11 @@ Quick start:
    REDIS_URL=redis://localhost:6379
    PORT=3000
    NODE_ENV=development
+   
+   # Azure Video Indexer (Required)
+   AZURE_VIDEO_INDEXER_KEY=your_azure_key_here
+   AZURE_VIDEO_INDEXER_ACCOUNT_ID=your_account_id_here
+   AZURE_VIDEO_INDEXER_LOCATION=your_location_here
    ```
 
 5. Run database migrations:
@@ -134,15 +139,11 @@ Quick start:
    npm run dev
    ```
 
-## Optional: API Keys for Enhanced Features
+## Required: Azure Video Indexer Configuration
 
-The app works without these API keys, but some features will be limited:
+The app **requires** Azure Video Indexer for video processing and analysis. This is not optional.
 
-- **OpenAI API key** - Enables AI-powered categorization and semantic search
-  - Get one at: [platform.openai.com](https://platform.openai.com/)
-  - Add to `.env`: `OPENAI_API_KEY=your_key_here`
-
-- **Azure Video Indexer** - Enables advanced video analysis and transcription
+- **Azure Video Indexer** - Required for video analysis and transcription
   - Requires an Azure account: [azure.microsoft.com](https://azure.microsoft.com/)
   - Add to `.env`:
     ```env
@@ -151,7 +152,13 @@ The app works without these API keys, but some features will be limited:
     AZURE_VIDEO_INDEXER_LOCATION=your_location_here
     ```
 
-**Note:** Without these keys, the app will still function but AI-powered features like automatic folder suggestions and video transcription will be disabled.
+## Optional: OpenAI API Key for Enhanced Features
+
+- **OpenAI API key** - Enables AI-powered categorization and semantic search
+  - Get one at: [platform.openai.com](https://platform.openai.com/)
+  - Add to `.env`: `OPENAI_API_KEY=your_key_here`
+
+**Note:** Azure Video Indexer is required for the app to function. OpenAI API key is optional and only needed for additional AI-powered features like automatic folder suggestions.
 
 ## Building for Production
 
