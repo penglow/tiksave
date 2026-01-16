@@ -249,7 +249,7 @@ class APIService {
     return this.request<SaveItem>(`/items/${id}`);
   }
 
-  async moveItemToFolder(itemId: string, folderId: string): Promise<SaveItem> {
+  async moveItemToFolder(itemId: string, folderId: string | null): Promise<SaveItem> {
     return this.request<SaveItem>(`/items/${itemId}/moveFolder`, {
       method: 'POST',
       body: { folderId },

@@ -11,6 +11,7 @@ import {
   Linking,
   Alert,
   Platform,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,7 +20,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius } from '../config';
 import { SaveItem, getDisplayTitle, needsUserReview } from '../types';
 import { apiService } from '../services/api';
-import { FoldersStackScreenProps } from '../navigation/types';
+import { LibraryStackScreenProps } from '../navigation/types';
 import MoveFolderModal from '../components/MoveFolderModal';
 import { formatDuration } from '../utils/date';
 
@@ -28,7 +29,7 @@ const COLUMN_GAP = 12;
 const PADDING = 16;
 const CARD_WIDTH = (width - PADDING * 2 - COLUMN_GAP) / 2;
 
-type Props = FoldersStackScreenProps<'FolderDetail'>;
+type Props = LibraryStackScreenProps<'FolderDetail'>;
 
 export default function FolderDetailScreen({ route, navigation }: Props) {
   const { folder } = route.params;
@@ -112,7 +113,7 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
     loadItems();
   };
 
-  const handleMoveItem = async (folderId: string) => {
+  const handleMoveItem = async (folderId: string | null) => {
     if (!selectedItem) return;
     try {
       await apiService.moveItemToFolder(selectedItem.id, folderId);
@@ -217,14 +218,33 @@ function VideoThumbnailCard({
     <View style={styles.cardContent}>
       {/* Thumbnail */}
       <View style={styles.thumbnailContainer}>
-        <LinearGradient
-          colors={[`${Colors.secondary}4D`, `${Colors.primary}4D`]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.thumbnail}
-        >
-          <Ionicons name="play" size={32} color="rgba(255, 255, 255, 0.8)" />
-        </LinearGradient>
+        {item.thumbnailURL ? (
+          <Image
+            source={{
+              uri: item.thumbnailURL,
+              cache: 'force-cache',
+            }}
+            style={styles.thumbnail}
+            resizeMode="cover"
+            onError={() => {
+              console.warn('Failed to load thumbnail:', item.thumbnailURL?.substring(0, 80));
+            }}
+          />
+        ) : (
+          <LinearGradient
+            colors={[`${Colors.secondary}4D`, `${Colors.primary}4D`]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.thumbnail}
+          >
+            <Ionicons name="play" size={32} color="rgba(255, 255, 255, 0.8)" />
+          </LinearGradient>
+        )}
+
+        {/* Play overlay */}
+        <View style={styles.playOverlay} pointerEvents="none">
+          <Ionicons name="play-circle" size={40} color="rgba(255, 255, 255, 0.9)" />
+        </View>
 
         {/* Duration badge */}
         {item.duration && (
@@ -317,8 +337,21 @@ const styles = StyleSheet.create({
   thumbnail: {
     aspectRatio: 9 / 16,
     borderRadius: BorderRadius.md,
+    width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: Colors.overlay,
+  },
+  playOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: BorderRadius.md,
   },
   durationBadge: {
     position: 'absolute',

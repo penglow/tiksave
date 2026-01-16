@@ -10,6 +10,7 @@ import {
   Linking,
   Platform,
   Modal,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
@@ -29,6 +30,7 @@ export default function SettingsScreen() {
   const { userSettings, updateUserSettings } = useAppStore();
   const [thumbnailCacheSize] = useState('0.0 MB');
   const [showFoldersModal, setShowFoldersModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [foldersLoading, setFoldersLoading] = useState(false);
   const navigation = useNavigation<any>();
@@ -48,6 +50,21 @@ export default function SettingsScreen() {
   const handleOpenFolders = () => {
     loadFolders();
     setShowFoldersModal(true);
+  };
+
+  const handleCreateFolder = async (name: string, parentId?: string, iconName?: string) => {
+    try {
+      await apiService.createFolder(name, parentId, iconName);
+      loadFolders();
+      setShowCreateModal(false);
+    } catch (error) {
+      console.error('Failed to create folder:', error);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to create collection. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to create collection. Please try again.');
+      }
+    }
   };
 
   const handleDeleteFolder = async (folder: Folder) => {
@@ -385,8 +402,11 @@ export default function SettingsScreen() {
                     style={styles.folderItem}
                     onPress={() => {
                       setShowFoldersModal(false);
-                      // Navigate to FolderDetail using root navigation
-                      (navigation as any).navigate('FolderDetail', { folder });
+                      // Navigate to FolderDetail in LibraryStack
+                      (navigation as any).navigate('Library', { 
+                        screen: 'FolderDetail', 
+                        params: { folder } 
+                      });
                     }}
                     activeOpacity={0.7}
                   >
@@ -412,8 +432,7 @@ export default function SettingsScreen() {
             <TouchableOpacity 
               style={styles.createFolderButton}
               onPress={() => {
-                setShowFoldersModal(false);
-                // TODO: Navigate to create folder or open inline modal
+                setShowCreateModal(true);
               }}
             >
               <Ionicons name="add" size={20} color={Colors.text} />
@@ -422,9 +441,246 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Create Folder Modal */}
+      <CreateFolderModal
+        visible={showCreateModal}
+        folders={folders}
+        onClose={() => setShowCreateModal(false)}
+        onCreate={handleCreateFolder}
+      />
     </ScrollView>
   );
 }
+
+// Create Folder Modal Component
+function CreateFolderModal({
+  visible,
+  folders,
+  onClose,
+  onCreate,
+}: {
+  visible: boolean;
+  folders: Folder[];
+  onClose: () => void;
+  onCreate: (name: string, parentId?: string, iconName?: string) => void;
+}) {
+  const [name, setName] = React.useState('');
+  const [selectedIcon, setSelectedIcon] = React.useState('📁');
+  const [selectedParentId, setSelectedParentId] = React.useState<string | undefined>();
+
+  const availableIcons = [
+    '📁', '🇯🇵', '🇰🇷', '🇺🇸', '🇬🇧', '🍽️', '🏨', '🎡', '🛍️', '💪',
+    '🚗', '💰', '📱', '👗', '💄', '🐾', '🎵', '📚',
+  ];
+
+  const handleCreate = () => {
+    if (name.trim()) {
+      onCreate(name.trim(), selectedParentId, selectedIcon);
+      setName('');
+      setSelectedIcon('📁');
+      setSelectedParentId(undefined);
+    }
+  };
+
+  const topLevelFolders = folders.filter((f) => !f.parentId);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={createModalStyles.overlay}>
+        <View style={createModalStyles.container}>
+          <View style={createModalStyles.header}>
+            <Text style={createModalStyles.title}>New Collection</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Icon Selector */}
+          <Text style={createModalStyles.label}>Icon</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={createModalStyles.iconScroll}>
+            {availableIcons.map((icon) => (
+              <TouchableOpacity
+                key={icon}
+                style={[
+                  createModalStyles.iconOption,
+                  selectedIcon === icon && createModalStyles.iconOptionSelected,
+                ]}
+                onPress={() => setSelectedIcon(icon)}
+              >
+                <Text style={createModalStyles.iconText}>{icon}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Name Input */}
+          <Text style={createModalStyles.label}>Name</Text>
+          <TextInput
+            style={createModalStyles.input}
+            placeholder="Collection name"
+            placeholderTextColor={Colors.textQuaternary}
+            value={name}
+            onChangeText={setName}
+            autoFocus
+          />
+
+          {/* Parent Folder */}
+          {topLevelFolders.length > 0 && (
+            <>
+              <Text style={createModalStyles.label}>Parent Collection (optional)</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={createModalStyles.parentScroll}>
+                <TouchableOpacity
+                  style={[
+                    createModalStyles.parentOption,
+                    !selectedParentId && createModalStyles.parentOptionSelected,
+                  ]}
+                  onPress={() => setSelectedParentId(undefined)}
+                >
+                  <Text style={createModalStyles.parentText}>None (Top Level)</Text>
+                </TouchableOpacity>
+                {topLevelFolders.map((folder) => (
+                  <TouchableOpacity
+                    key={folder.id}
+                    style={[
+                      createModalStyles.parentOption,
+                      selectedParentId === folder.id && createModalStyles.parentOptionSelected,
+                    ]}
+                    onPress={() => setSelectedParentId(folder.id)}
+                  >
+                    <Text style={createModalStyles.parentText}>{folder.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </>
+          )}
+
+          {/* Actions */}
+          <View style={createModalStyles.actions}>
+            <TouchableOpacity style={createModalStyles.cancelButton} onPress={onClose}>
+              <Text style={createModalStyles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[createModalStyles.createButton, !name.trim() && createModalStyles.createButtonDisabled]}
+              onPress={handleCreate}
+              disabled={!name.trim()}
+            >
+              <Text style={createModalStyles.createText}>Create</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const createModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-end',
+  },
+  container: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: Spacing.xl,
+    paddingBottom: 40,
+    maxHeight: '90%',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.textTertiary,
+    marginBottom: Spacing.sm,
+    marginTop: Spacing.lg,
+  },
+  iconScroll: {
+    flexGrow: 0,
+  },
+  iconOption: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.overlay,
+    borderRadius: BorderRadius.md,
+    marginRight: Spacing.sm,
+  },
+  iconOptionSelected: {
+    backgroundColor: `${Colors.primary}4D`,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
+  iconText: {
+    fontSize: 22,
+  },
+  input: {
+    backgroundColor: Colors.overlay,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+    fontSize: 16,
+    color: Colors.text,
+  },
+  parentScroll: {
+    flexGrow: 0,
+  },
+  parentOption: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.overlay,
+    borderRadius: BorderRadius.full,
+    marginRight: Spacing.sm,
+  },
+  parentOptionSelected: {
+    backgroundColor: `${Colors.primary}4D`,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  parentText: {
+    fontSize: 14,
+    color: Colors.text,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    marginTop: Spacing.xxl,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+  },
+  cancelText: {
+    color: Colors.text,
+    fontSize: 16,
+  },
+  createButton: {
+    flex: 1,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+  },
+  createButtonDisabled: {
+    opacity: 0.5,
+  },
+  createText: {
+    color: Colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
 
 const styles = StyleSheet.create({
   container: {

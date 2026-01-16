@@ -18,7 +18,7 @@ interface Props {
   visible: boolean;
   item: SaveItem | null;
   onClose: () => void;
-  onMove: (folderId: string) => void;
+  onMove: (folderId: string | null) => void;
 }
 
 // Build tree structure from flat folders
@@ -40,7 +40,7 @@ function buildFolderTree(folders: Folder[]): FolderNode[] {
 export default function MoveFolderModal({ visible, item, onClose, onMove }: Props) {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderNodes, setFolderNodes] = useState<FolderNode[]>([]);
-  const [selectedFolderId, setSelectedFolderId] = useState<string | undefined>();
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null | undefined>();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -63,7 +63,7 @@ export default function MoveFolderModal({ visible, item, onClose, onMove }: Prop
   };
 
   const handleMove = () => {
-    if (selectedFolderId) {
+    if (selectedFolderId !== undefined) {
       onMove(selectedFolderId);
     }
   };
@@ -88,12 +88,16 @@ export default function MoveFolderModal({ visible, item, onClose, onMove }: Prop
             <Text style={styles.title}>Move to Folder</Text>
             <TouchableOpacity
               onPress={handleMove}
-              disabled={!selectedFolderId || selectedFolderId === item.folderId}
+              disabled={
+                selectedFolderId === undefined || 
+                selectedFolderId === (item.folderId || null)
+              }
             >
               <Text
                 style={[
                   styles.moveText,
-                  (!selectedFolderId || selectedFolderId === item.folderId) && styles.moveTextDisabled,
+                  (selectedFolderId === undefined || 
+                   selectedFolderId === (item.folderId || null)) && styles.moveTextDisabled,
                 ]}
               >
                 Move
@@ -125,6 +129,32 @@ export default function MoveFolderModal({ visible, item, onClose, onMove }: Prop
             </View>
           ) : (
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+              {/* Library Option */}
+              {item.folderId && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Move To</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.folderOption,
+                      selectedFolderId === null && styles.folderOptionSelected,
+                    ]}
+                    onPress={() => setSelectedFolderId(null)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.folderIcon}>
+                      <Ionicons name="library-outline" size={18} color={Colors.primary} />
+                    </View>
+                    <View style={styles.folderInfo}>
+                      <Text style={styles.folderName}>Library</Text>
+                      <Text style={styles.confidenceText}>Move back to main library</Text>
+                    </View>
+                    {selectedFolderId === null && (
+                      <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* AI Suggestion */}
               {suggestedFolder && (
                 <View style={styles.section}>
@@ -184,7 +214,7 @@ function FolderNodeItem({
   onSelect,
 }: {
   node: FolderNode;
-  selectedId?: string;
+  selectedId?: string | null;
   currentFolderId?: string;
   onSelect: (id: string) => void;
 }) {

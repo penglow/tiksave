@@ -32,6 +32,7 @@ export type LibraryStackParamList = {
   LibraryMain: undefined;
   CategoryDetail: { categoryName: string; icon: string; color: string; subcategoryName?: string };
   VideoDetail: { item: SaveItem };
+  FolderDetail: { folder: Folder };
   AddVideo: undefined;
 };
 

@@ -14,6 +14,7 @@ import AddVideoScreen from '../screens/AddVideoScreen';
 import SearchScreen from '../screens/SearchScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import VideoDetailScreen from '../screens/VideoDetailScreen';
+import FolderDetailScreen from '../screens/FolderDetailScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const LibraryStack = createStackNavigator<LibraryStackParamList>();
@@ -45,6 +46,11 @@ function LibraryStackNavigator() {
         name="VideoDetail" 
         component={VideoDetailScreen}
         options={{ title: 'Video Details' }}
+      />
+      <LibraryStack.Screen 
+        name="FolderDetail" 
+        component={FolderDetailScreen}
+        options={({ route }) => ({ title: route.params.folder.name })}
       />
       <LibraryStack.Screen 
         name="AddVideo" 

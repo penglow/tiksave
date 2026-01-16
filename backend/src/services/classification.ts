@@ -71,13 +71,30 @@ export async function classifyItem(
   
   const bestMatch = scores[0];
   const maxScore = calculateMaxPossibleScore(input);
+  
+  // Check if we have any meaningful input signals
+  const hasInputSignals = 
+    (input.topics && input.topics.length > 0) ||
+    (input.labels && input.labels.length > 0) ||
+    (input.hashtags && input.hashtags.length > 0) ||
+    input.creatorUsername ||
+    input.transcriptText;
+  
+  // Don't assign if:
+  // 1. Best match has score 0 (no actual matches)
+  // 2. No input signals at all (can't make a meaningful classification)
+  // 3. Confidence is below threshold
   const confidence = maxScore > 0 ? Math.min(bestMatch.score / maxScore, 1) : 0;
+  const shouldAssign = 
+    bestMatch.score > 0 && 
+    hasInputSignals && 
+    confidence >= 0.3;
   
   const result = {
-    folderId: confidence >= 0.3 ? bestMatch.folderId : null,
-    folderName: confidence >= 0.3 ? bestMatch.folderName : null,
+    folderId: shouldAssign ? bestMatch.folderId : null,
+    folderName: shouldAssign ? bestMatch.folderName : null,
     confidence,
-    reasons: bestMatch.reasons,
+    reasons: bestMatch.reasons.length > 0 ? bestMatch.reasons : ['No matches found'],
     alternativeFolders: scores.slice(1, 4).map(s => ({
       folderId: s.folderId,
       folderName: s.folderName,

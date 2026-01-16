@@ -19,7 +19,7 @@ const createItemSchema = z.object({
 });
 
 const moveToFolderSchema = z.object({
-  folderId: z.string().uuid(),
+  folderId: z.string().uuid().nullable(),
 });
 
 // Create a new save item
@@ -206,19 +206,21 @@ itemsRouter.post('/:id/moveFolder', async (req, res: Response) => {
       throw new AppError('Item not found', 404);
     }
     
-    // Verify folder belongs to user
-    const folder = await query(
-      'SELECT id, name FROM folders WHERE id = $1 AND user_id = $2',
-      [folderId, authReq.userId]
-    );
-    
-    if (folder.rows.length === 0) {
-      throw new AppError('Folder not found', 404);
+    // If folderId is provided, verify folder belongs to user
+    if (folderId !== null) {
+      const folder = await query(
+        'SELECT id, name FROM folders WHERE id = $1 AND user_id = $2',
+        [folderId, authReq.userId]
+      );
+      
+      if (folder.rows.length === 0) {
+        throw new AppError('Folder not found', 404);
+      }
     }
     
     const originalFolderId = item.folderId;
     
-    // Update item
+    // Update item (folderId can be null to move back to library)
     await query(
       `UPDATE save_items 
        SET folder_id = $1, status = 'ready', updated_at = NOW()
@@ -226,8 +228,8 @@ itemsRouter.post('/:id/moveFolder', async (req, res: Response) => {
       [folderId, id]
     );
     
-    // Record training example if this was a correction
-    if (originalFolderId !== folderId) {
+    // Record training example if this was a correction (only if moving to a folder, not to library)
+    if (originalFolderId !== folderId && folderId !== null) {
       await recordTrainingExample({
         userId: authReq.userId,
         itemId: id,
