@@ -23,7 +23,7 @@ const updateFolderSchema = z.object({
 
 // Get all folders
 foldersRouter.get('/', async (req, res: Response) => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   
   const result = await query(
     `SELECT f.*, 
@@ -41,7 +41,7 @@ foldersRouter.get('/', async (req, res: Response) => {
 
 // Get single folder
 foldersRouter.get('/:id', async (req, res: Response) => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
   
   const result = await query(
@@ -61,7 +61,7 @@ foldersRouter.get('/:id', async (req, res: Response) => {
 
 // Create folder
 foldersRouter.post('/', async (req, res: Response) => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   
   try {
     const { name, parentId, iconName, colorHex } = createFolderSchema.parse(req.body);
@@ -120,7 +120,7 @@ foldersRouter.post('/', async (req, res: Response) => {
 
 // Update folder
 foldersRouter.patch('/:id', async (req, res: Response) => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
   
   try {
@@ -199,7 +199,7 @@ foldersRouter.patch('/:id', async (req, res: Response) => {
 
 // Delete folder
 foldersRouter.delete('/:id', async (req, res: Response) => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
   
   // Check if folder exists and belongs to user
@@ -237,7 +237,7 @@ const reorderSchema = z.object({
 });
 
 foldersRouter.post('/reorder', async (req, res: Response) => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   
   try {
     const { orderedIds } = reorderSchema.parse(req.body);

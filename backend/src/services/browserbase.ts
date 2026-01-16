@@ -145,10 +145,10 @@ export async function extractThumbnailWithPlaywright(url: string): Promise<{
       headless: true,
     });
 
-    const page = await browser.newPage();
-    
-    // Set a realistic user agent
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    });
+    const page = await context.newPage();
     
     // Navigate to the page and wait for it to load
     await page.goto(url, {

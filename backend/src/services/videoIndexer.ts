@@ -88,7 +88,7 @@ async function getAccessToken(config: VideoIndexerConfig): Promise<string> {
     throw new Error(`Failed to get Video Indexer access token: ${response.statusText}`);
   }
   
-  const data = await response.json();
+  const data = await response.json() as { accessToken: string };
   return data.accessToken;
 }
 
@@ -126,7 +126,7 @@ export async function indexVideo(
     throw new Error(`Failed to submit video for indexing: ${error}`);
   }
   
-  const data = await response.json();
+  const data = await response.json() as { id: string };
   return data.id; // Return the video indexer ID
 }
 
@@ -148,7 +148,7 @@ export async function getVideoIndex(videoId: string): Promise<IndexingResult> {
     throw new Error(`Failed to get video index: ${error}`);
   }
   
-  const data = await response.json();
+  const data = await response.json() as { state: string; [key: string]: unknown };
   
   return {
     videoId,
@@ -433,7 +433,7 @@ async function fetchTikTokMetadata(url: string): Promise<{
           clearTimeout(timeout);
           
           if (response.ok) {
-            const data = await response.json();
+            const data = await response.json() as { thumbnail_url?: string; title?: string };
             if (data.thumbnail_url) {
               thumbnailUrl = data.thumbnail_url;
               title = data.title;

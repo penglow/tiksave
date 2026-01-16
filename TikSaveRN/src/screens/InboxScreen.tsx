@@ -60,7 +60,7 @@ export default function InboxScreen({ navigation }: Props) {
     loadItems();
   };
 
-  const handleMoveItem = async (folderId: string) => {
+  const handleMoveItem = async (folderId: string | null) => {
     if (!selectedItem) return;
     try {
       await apiService.moveItemToFolder(selectedItem.id, folderId);

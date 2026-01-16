@@ -113,17 +113,17 @@ export function startWorker(): void {
       const classification = await classifyItem(userId, {
         topics,
         labels,
-        transcriptText: transcript,
+        transcriptText: transcript || undefined,
         hashtags: extractHashtags(rawSharedText),
-        creatorUsername: creator,
+        creatorUsername: creator || undefined,
       });
       
       // Generate embedding for semantic search (uses rich semantic context)
       const embedding = await generateItemEmbedding({
-        transcriptText: transcript,
+        transcriptText: transcript || undefined,
         detectedTopics: topics,
         detectedLabels: labels,
-        rawSharedText,
+        rawSharedText: rawSharedText || undefined,
         semanticContext: semanticData.semanticContext,
       });
       
@@ -136,7 +136,7 @@ export function startWorker(): void {
       const status = folderId ? 'ready' : 'needs_review';
       
       // Generate title from transcript or shared text
-      const title = generateTitle(transcript, rawSharedText);
+      const title = generateTitle(transcript, rawSharedText || null);
       
       // Only store confidence if it's meaningful (>= 0.1), otherwise store NULL
       const confidenceValue = classification.confidence >= 0.1 ? classification.confidence : null;

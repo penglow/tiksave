@@ -24,7 +24,7 @@ const moveToFolderSchema = z.object({
 
 // Create a new save item
 itemsRouter.post('/', async (req, res: Response) => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   
   try {
     const { sourceURL, rawSharedText } = createItemSchema.parse(req.body);
@@ -85,7 +85,7 @@ itemsRouter.post('/', async (req, res: Response) => {
 
 // Get items list
 itemsRouter.get('/', async (req, res: Response) => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   const { status, folderId, limit = '50', offset = '0' } = req.query;
   
   let whereClause = 'WHERE user_id = $1';
@@ -128,7 +128,7 @@ itemsRouter.get('/', async (req, res: Response) => {
 
 // Get single item
 itemsRouter.get('/:id', async (req, res: Response) => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
   
   const item = await getItemById(id, authReq.userId);
@@ -142,7 +142,7 @@ itemsRouter.get('/:id', async (req, res: Response) => {
 
 // Get upload URL for video
 itemsRouter.post('/:id/uploadUrl', async (req, res: Response) => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
   
   // Verify item belongs to user
@@ -166,7 +166,7 @@ itemsRouter.post('/:id/uploadUrl', async (req, res: Response) => {
 
 // Complete upload and start processing
 itemsRouter.post('/:id/completeUpload', async (req, res: Response) => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
   
   const item = await getItemById(id, authReq.userId);
@@ -194,7 +194,7 @@ itemsRouter.post('/:id/completeUpload', async (req, res: Response) => {
 
 // Move item to folder (user correction)
 itemsRouter.post('/:id/moveFolder', async (req, res: Response) => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
   
   try {
@@ -264,7 +264,7 @@ itemsRouter.post('/:id/moveFolder', async (req, res: Response) => {
 
 // Delete item
 itemsRouter.delete('/:id', async (req, res: Response) => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
   
   const result = await query(
@@ -356,7 +356,7 @@ async function processItemNow(
   const classification = await classifyItem(userId, {
     topics: analysis.topics || [],
     labels: analysis.labels || [],
-    transcriptText: null,
+    transcriptText: undefined,
     hashtags: extractHashtags(rawSharedText),
     creatorUsername: analysis.creator,
   });

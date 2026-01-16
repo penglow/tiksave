@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { z } from 'zod';
 import { query } from '../database/init.js';
 import { AppError } from '../middleware/errorHandler.js';
@@ -150,15 +150,22 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
 
 // Helper functions
 function generateTokens(userId: string) {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET is not configured');
+  }
+  
+  const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
+  // @ts-expect-error - jsonwebtoken types are incorrect for expiresIn string values
   const accessToken = jwt.sign(
     { userId },
-    process.env.JWT_SECRET!,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    jwtSecret,
+    { expiresIn }
   );
   
   const refreshToken = jwt.sign(
     { userId, type: 'refresh' },
-    process.env.JWT_SECRET!,
+    jwtSecret,
     { expiresIn: '30d' }
   );
   

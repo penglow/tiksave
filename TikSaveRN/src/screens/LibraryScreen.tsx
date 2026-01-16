@@ -709,5 +709,28 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: Spacing.sm,
   },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  sectionCount: {
+    fontSize: 13,
+    color: Colors.textTertiary,
+  },
+  itemTitle: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: Colors.text,
+  },
+  itemSubtitle: {
+    fontSize: 13,
+    color: Colors.textTertiary,
+  },
+  subcategoryTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+  },
 });
 

@@ -52,7 +52,7 @@ export const searchRouter = Router();
 
 // Search items
 searchRouter.get('/', async (req, res: Response) => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   const { q, semantic = 'true', limit = '20' } = req.query;
   
   if (!q || typeof q !== 'string' || q.trim().length === 0) {
