@@ -1,6 +1,6 @@
 import Queue from 'bull';
 import { query } from '../database/init.js';
-import { indexVideo, getVideoIndex, analyzeUrlOnly, getThumbnailUrl } from '../services/videoIndexer.js';
+import { indexVideo, getVideoIndex, analyzeUrlOnly, getThumbnailUrl, generateSemanticContext } from '../services/videoIndexer.js';
 import { classifyItem } from '../services/classification.js';
 import { generateItemEmbedding } from '../services/embeddings.js';
 import { getBlobUrl } from '../services/storage.js';
@@ -87,6 +87,28 @@ export function startWorker(): void {
       // Extract data from insights
       const { topics, labels, transcript, creator, duration } = normalizeInsights(insights, rawSharedText);
       
+      // Generate rich semantic context for better search understanding
+      console.log('   🔍 Generating semantic context...');
+      const semanticData = await generateSemanticContext({
+        title: insights.title || insights.description,
+        transcript: transcript || undefined,
+        topics: topics.length > 0 ? topics : undefined,
+        labels: labels.length > 0 ? labels : undefined,
+        keywords: insights.keywords || undefined,
+        rawSharedText: rawSharedText || undefined,
+        description: insights.description,
+      });
+      
+      if (semanticData.semanticContext) {
+        console.log(`   📄 Semantic context: ${semanticData.semanticContext.substring(0, 150)}...`);
+      }
+      
+      // Store semantic context in insights_json
+      const enhancedInsights = {
+        ...insights,
+        semanticContext: semanticData.semanticContext,
+      };
+      
       // Classify into folder
       const classification = await classifyItem(userId, {
         topics,
@@ -96,12 +118,13 @@ export function startWorker(): void {
         creatorUsername: creator,
       });
       
-      // Generate embedding for semantic search
+      // Generate embedding for semantic search (uses rich semantic context)
       const embedding = await generateItemEmbedding({
         transcriptText: transcript,
         detectedTopics: topics,
         detectedLabels: labels,
         rawSharedText,
+        semanticContext: semanticData.semanticContext,
       });
       
       // Determine final status
@@ -150,7 +173,7 @@ export function startWorker(): void {
           duration,
           creator,
           videoIndexerId,
-          JSON.stringify(insights),
+          JSON.stringify(enhancedInsights),
           embedding ? `[${embedding.join(',')}]` : null,
           itemId,
         ]

@@ -2,6 +2,51 @@ import { Router, Response } from 'express';
 import { query } from '../database/init.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { generateEmbedding } from '../services/embeddings.js';
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+/**
+ * Enhance search query with context understanding
+ * Converts simple queries like "chicken" into context-rich queries
+ * that better match semantic meaning
+ */
+async function enhanceSearchQuery(query: string): Promise<string> {
+  if (!process.env.OPENAI_API_KEY || query.length < 2) {
+    return query; // Return original if no API key or too short
+  }
+
+  try {
+    const prompt = `Transform this search query into a natural, context-rich description that captures what the user is looking for.
+
+The goal is to understand the intent and context behind the search, not just match keywords.
+
+Examples:
+- "chicken" → "videos about chicken, fried chicken, chicken recipes, chicken restaurants, or chicken food content"
+- "tokyo" → "videos about Tokyo, Tokyo travel, Tokyo food, Tokyo attractions, or Tokyo experiences"
+- "cooking" → "videos about cooking, recipes, cooking tutorials, cooking tips, or food preparation"
+- "popeyes" → "videos about Popeyes restaurant, Popeyes food, Popeyes reviews, or Popeyes chicken"
+
+Search query: "${query}"
+
+Respond with just the enhanced query description (no labels, no JSON, just natural language):`;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.5,
+      max_tokens: 100,
+    });
+
+    const enhanced = response.choices[0]?.message?.content?.trim();
+    return enhanced || query; // Fallback to original if enhancement fails
+  } catch (error) {
+    console.warn('Failed to enhance search query, using original:', error);
+    return query; // Fallback to original query
+  }
+}
 
 export const searchRouter = Router();
 
@@ -39,8 +84,11 @@ searchRouter.get('/', async (req, res: Response) => {
 // Semantic search using pgvector
 async function semanticSearch(userId: string, searchQuery: string, limit: number) {
   try {
-    // Generate embedding for search query
-    const embedding = await generateEmbedding(searchQuery);
+    // Enhance search query with context understanding using OpenAI
+    const enhancedQuery = await enhanceSearchQuery(searchQuery);
+    
+    // Generate embedding for enhanced search query
+    const embedding = await generateEmbedding(enhancedQuery);
     
     if (!embedding) {
       return [];

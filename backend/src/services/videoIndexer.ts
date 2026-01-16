@@ -691,6 +691,131 @@ Respond in JSON:
 }
 
 /**
+ * Generate rich semantic context description for better search
+ * This creates a comprehensive, context-aware description that captures the essence
+ * and meaning of the video content, enabling semantic search to understand context
+ * rather than just matching keywords.
+ */
+export async function generateSemanticContext(content: {
+  title?: string;
+  transcript?: string;
+  topics?: string[];
+  labels?: string[];
+  keywords?: string[];
+  rawSharedText?: string;
+  description?: string;
+}): Promise<{
+  semanticContext: string;
+}> {
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn('OpenAI API key not configured, skipping semantic context generation');
+    return {
+      semanticContext: '',
+    };
+  }
+
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    // Combine all available content for context understanding
+    const contentParts: string[] = [];
+    if (content.title) contentParts.push(`Title: ${content.title}`);
+    if (content.description) contentParts.push(`Description: ${content.description}`);
+    if (content.transcript) contentParts.push(`Transcript: ${content.transcript.slice(0, 3000)}`);
+    if (content.topics && content.topics.length > 0) contentParts.push(`Topics: ${content.topics.join(', ')}`);
+    if (content.labels && content.labels.length > 0) contentParts.push(`Labels: ${content.labels.join(', ')}`);
+    if (content.keywords && content.keywords.length > 0) {
+      const keywordTexts = Array.isArray(content.keywords) 
+        ? content.keywords.map((k: any) => typeof k === 'string' ? k : k.text || k.name || String(k))
+        : [];
+      if (keywordTexts.length > 0) {
+        contentParts.push(`Keywords: ${keywordTexts.join(', ')}`);
+      }
+    }
+    if (content.rawSharedText) contentParts.push(`Shared Text: ${content.rawSharedText}`);
+
+    const combinedContent = contentParts.join('\n\n');
+
+    if (!combinedContent.trim()) {
+      return {
+        semanticContext: '',
+      };
+    }
+
+    const prompt = `Analyze this video content and create a rich, comprehensive semantic context description that captures the full meaning and essence of the video.
+
+The goal is to create a natural, flowing description that enables semantic search to understand the video's context, themes, and related concepts - not just match keywords.
+
+This description should:
+- Explain what the video is about in natural language
+- Capture the main themes, topics, and concepts
+- Include related concepts, synonyms, and broader categories
+- Describe the context, setting, or situation
+- Mention related entities, brands, products, or services when relevant
+- Use natural language that captures semantic meaning
+
+Examples:
+- For a video about Popeyes: "A food review or vlog featuring Popeyes, a fast food restaurant chain known for fried chicken. The video likely shows or discusses their chicken menu items, possibly including fried chicken, chicken sandwiches, or spicy Louisiana-style chicken. This is restaurant content, fast food content, and food review content."
+- For a video about Tokyo travel: "A travel vlog or guide about Tokyo, Japan. The video likely features travel experiences, tourist attractions, cultural sites, food experiences, or travel tips. This is travel content, Japan travel content, and tourism content."
+
+Write a comprehensive 3-5 sentence description that captures the semantic context. Write it as natural, flowing prose - not a list of keywords.
+
+Content to analyze:
+${combinedContent}
+
+Respond with just the semantic context description (no JSON, no labels, just the description text):`;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.6, // Balanced temperature for natural language generation
+      max_tokens: 400,
+    });
+
+    const semanticContext = response.choices[0]?.message?.content?.trim() || '';
+    
+    if (semanticContext) {
+      console.log(`✅ Generated semantic context (${semanticContext.length} chars)`);
+      console.log(`   Context: ${semanticContext.substring(0, 150)}...`);
+    } else {
+      console.warn('⚠️ No semantic context generated');
+    }
+    
+    return {
+      semanticContext,
+    };
+  } catch (error) {
+    console.error('❌ Error generating semantic context:', error);
+    if (error instanceof Error) {
+      console.error('   Error message:', error.message);
+    }
+    return {
+      semanticContext: '',
+    };
+  }
+}
+
+// Legacy function for backwards compatibility - converts to old format
+export async function generateSemanticKeywords(content: {
+  title?: string;
+  transcript?: string;
+  topics?: string[];
+  labels?: string[];
+  keywords?: string[];
+  rawSharedText?: string;
+  description?: string;
+}): Promise<{
+  semanticKeywords: string[];
+  semanticDescription: string;
+}> {
+  const result = await generateSemanticContext(content);
+  return {
+    semanticKeywords: [], // No longer used - context is better
+    semanticDescription: result.semanticContext,
+  };
+}
+
+/**
  * Fallback topic inference when AI is not available - uses hierarchical format
  */
 function inferTopicsFallback(text: string): string[] {

@@ -1,4 +1,5 @@
 import { query } from '../database/init.js';
+import { createOrFindFolder } from './folderCreation.js';
 
 interface ClassificationInput {
   topics: string[];
@@ -27,11 +28,12 @@ export async function classifyItem(
   userId: string,
   input: ClassificationInput
 ): Promise<ClassificationResult> {
-  // Get user's folders
+  // Get user's folders including parent folder info for subfolders
   const foldersResult = await query(
-    `SELECT f.*, up.weights
+    `SELECT f.*, up.weights, parent.name as parent_name
      FROM folders f
      LEFT JOIN user_preferences up ON f.id = up.folder_id AND up.user_id = $1
+     LEFT JOIN folders parent ON f.parent_id = parent.id
      WHERE f.user_id = $1`,
     [userId]
   );
@@ -90,6 +92,36 @@ export async function classifyItem(
     hasInputSignals && 
     confidence >= 0.3;
   
+  // If no good match found but we have hierarchical topics, try creating the folder
+  if (!shouldAssign && input.topics && input.topics.length > 0) {
+    // Check for hierarchical topics (e.g., "Food > Cooking")
+    const hierarchicalTopic = input.topics.find(t => t.includes(' > '));
+    if (hierarchicalTopic) {
+      try {
+        console.log(`   📁 No matching folder found, attempting to create folder for: ${hierarchicalTopic}`);
+        const createdFolder = await createOrFindFolder(
+          userId,
+          input.topics,
+          input.labels,
+          hierarchicalTopic
+        );
+        
+        if (createdFolder) {
+          console.log(`   ✅ Created/found folder: ${createdFolder.folderName}`);
+          return {
+            folderId: createdFolder.folderId,
+            folderName: createdFolder.folderName,
+            confidence: 0.5, // Medium confidence for newly created folders
+            reasons: [`Created folder "${createdFolder.folderName}" based on topic "${hierarchicalTopic}"`],
+            alternativeFolders: [],
+          };
+        }
+      } catch (error) {
+        console.error('   ⚠️ Failed to create folder:', error);
+      }
+    }
+  }
+  
   const result = {
     folderId: shouldAssign ? bestMatch.folderId : null,
     folderName: shouldAssign ? bestMatch.folderName : null,
@@ -129,6 +161,25 @@ function scoreFolder(folder: any, input: ClassificationInput): {
   // Topic matching (high weight)
   for (const topic of input.topics) {
     const topicLower = topic.toLowerCase();
+    
+    // Check for hierarchical topics (e.g., "Food > Cooking")
+    if (topic.includes(' > ')) {
+      const [parentTopic, subTopic] = topic.split(' > ').map(t => t.trim().toLowerCase());
+      const folderParentName = folder.parent_name ? folder.parent_name.toLowerCase() : null;
+      
+      // Match subfolder: parent matches AND subfolder name matches
+      if (folderParentName && folderParentName === parentTopic && folderNameLower === subTopic) {
+        score += 50; // High score for exact hierarchical match
+        reasons.push(`Hierarchical topic "${topic}" exactly matches subfolder`);
+      } else if (folderParentName && folderParentName === parentTopic && folderNameLower.includes(subTopic)) {
+        score += 40; // Good match for parent + partial subfolder match
+        reasons.push(`Hierarchical topic "${topic}" matches parent and subfolder`);
+      } else if (folderNameLower === subTopic && !folder.parent_id) {
+        // Subfolder name matches but no parent - still good match
+        score += 35;
+        reasons.push(`Subcategory "${subTopic}" matches folder`);
+      }
+    }
     
     // Direct name match
     if (folderNameLower.includes(topicLower) || topicLower.includes(folderNameLower.split(' ')[0])) {

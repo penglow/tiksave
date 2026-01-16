@@ -39,8 +39,34 @@ export async function generateItemEmbedding(item: {
   detectedTopics?: string[];
   detectedLabels?: string[];
   rawSharedText?: string;
+  semanticContext?: string;
+  // Legacy support
+  semanticKeywords?: string[];
+  semanticDescription?: string;
 }): Promise<number[] | null> {
-  // Combine relevant text fields
+  // Prioritize semantic context - it provides rich, natural language understanding
+  // If semantic context exists, use it as the primary source with minimal additional context
+  if (item.semanticContext && item.semanticContext.trim()) {
+    // Use semantic context as the main content, with title for additional context
+    const contextParts: string[] = [];
+    
+    if (item.title) {
+      contextParts.push(item.title);
+    }
+    
+    // Add the rich semantic context - this captures meaning, not just keywords
+    contextParts.push(item.semanticContext);
+    
+    // Optionally add transcript if it adds significant value (first 500 chars to avoid overwhelming)
+    if (item.transcriptText && item.transcriptText.length > 100) {
+      contextParts.push(item.transcriptText.slice(0, 500));
+    }
+    
+    const combinedText = contextParts.join('\n\n');
+    return generateEmbedding(combinedText);
+  }
+  
+  // Fallback: Combine relevant text fields (for videos without semantic context)
   const parts: string[] = [];
   
   if (item.title) {
@@ -48,8 +74,8 @@ export async function generateItemEmbedding(item: {
   }
   
   if (item.transcriptText) {
-    // Take first 1000 chars of transcript
-    parts.push(`Transcript: ${item.transcriptText.slice(0, 1000)}`);
+    // Take first 1500 chars of transcript for better context
+    parts.push(`Transcript: ${item.transcriptText.slice(0, 1500)}`);
   }
   
   if (item.detectedTopics && item.detectedTopics.length > 0) {
@@ -61,11 +87,16 @@ export async function generateItemEmbedding(item: {
   }
   
   if (item.rawSharedText) {
-    // Extract hashtags and meaningful text
-    const hashtags = item.rawSharedText.match(/#[\w]+/g);
-    if (hashtags) {
-      parts.push(`Hashtags: ${hashtags.join(' ')}`);
+    // Extract meaningful text (not just hashtags)
+    const withoutHashtags = item.rawSharedText.replace(/#[\w]+/g, '').trim();
+    if (withoutHashtags.length > 10) {
+      parts.push(`Description: ${withoutHashtags.slice(0, 300)}`);
     }
+  }
+  
+  // Legacy support for old format
+  if (item.semanticDescription) {
+    parts.push(item.semanticDescription);
   }
   
   if (parts.length === 0) {
