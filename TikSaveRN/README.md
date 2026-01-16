@@ -8,7 +8,7 @@ A cross-platform mobile app for organizing your saved TikTok videos with AI-powe
 - **📁 Folder Organization** - Hierarchical folder structure with custom icons
 - **🔍 Smart Search** - Semantic and keyword search powered by AI
 - **🤖 AI Categorization** - Automatic folder suggestions based on video content
-- **🎨 Beautiful Dark UI** - Modern, sleek interface with gradient accents
+- **🎨 Dual Theme Support** - Light and dark themes with system preference option
 
 ## Tech Stack
 
@@ -140,8 +140,10 @@ npm run dev
 
 ## Styling
 
-The app uses a consistent dark theme with:
-- Background: `#12121F`
+The app supports dual themes (light and dark) with a system preference option:
+- **Dark Theme**: Dark backgrounds (`#12121F`) with light text
+- **Light Theme**: Light backgrounds (`#FFFFFF`) with dark text
+- **System Theme**: Automatically follows device theme preference
 - Primary: `#06B6D4` (cyan)
 - Secondary: `#A855F7` (purple)
 - Gradients for interactive elements

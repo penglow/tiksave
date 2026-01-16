@@ -8,7 +8,7 @@ A smart mobile app that transforms your saved TikTok videos into an organized, s
 - **📁 Folder Organization** - Hierarchical folder structure with custom icons
 - **🔍 Smart Search** - Semantic and keyword search powered by AI
 - **🤖 AI Categorization** - Automatic folder suggestions based on video content
-- **🎨 Beautiful Dark UI** - Modern, sleek interface with gradient accents
+- **🎨 Dual Theme Support** - Light and dark themes with system preference option
 
 ## Project Structure
 
