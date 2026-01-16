@@ -1,4 +1,4 @@
-name: Mobile App CI
+name: Android Build & Test
 
 on:
   push:
@@ -34,7 +34,7 @@ jobs:
       working-directory: ./TikSaveRN
       run: npm run typecheck
       
-  # Note: For actual iOS/Android builds, use EAS Build
+  # Note: For actual Android builds, use EAS Build
   # This workflow focuses on CI checks (linting, type checking)
-  # To build for production, use: eas build --platform ios/android
+  # To build for production, use: eas build --platform android
 

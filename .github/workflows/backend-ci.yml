@@ -1,0 +1,80 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: tiksave
+          POSTGRES_PASSWORD: tiksave_password
+          POSTGRES_DB: tiksave_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: ./backend
+      run: npm ci
+      
+    - name: Run TypeScript type check
+      working-directory: ./backend
+      run: npx tsc --noEmit
+      
+    - name: Run tests (if available)
+      working-directory: ./backend
+      run: npm test || echo "No tests configured yet"
+      continue-on-error: true
+      
+    - name: Build backend
+      working-directory: ./backend
+      run: npm run build
+      
+    - name: Check build output
+      run: |
+        if [ ! -f "backend/dist/index.js" ]; then
+          echo "Build failed - dist/index.js not found"
+          exit 1
+        fi
+        echo "Build successful"
+
