@@ -4,7 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { View, StyleSheet } from 'react-native';
 
-import { MainTabParamList, LibraryStackParamList, SearchStackParamList, AddStackParamList } from './types';
+import { MainTabParamList, LibraryStackParamList, SearchStackParamList, AddStackParamList, LibraryStackScreenProps } from './types';
 import { Colors } from '../config';
 import { useTheme } from '../hooks/useTheme';
 
@@ -42,7 +42,7 @@ function LibraryStackNavigator() {
       <LibraryStack.Screen 
         name="CategoryDetail" 
         component={CategoryDetailScreen}
-        options={({ route }) => ({ title: route.params.categoryName })}
+        options={({ route }: LibraryStackScreenProps<'CategoryDetail'>) => ({ title: route.params.categoryName })}
       />
       <LibraryStack.Screen 
         name="VideoDetail" 
@@ -52,7 +52,7 @@ function LibraryStackNavigator() {
       <LibraryStack.Screen 
         name="FolderDetail" 
         component={FolderDetailScreen}
-        options={({ route }) => ({ title: route.params.folder.name })}
+        options={({ route }: LibraryStackScreenProps<'FolderDetail'>) => ({ title: route.params.folder.name })}
       />
       <LibraryStack.Screen 
         name="AddVideo" 

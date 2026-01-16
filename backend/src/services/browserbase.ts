@@ -160,9 +160,9 @@ export async function extractThumbnailWithPlaywright(url: string): Promise<{
     await page.waitForTimeout(2000);
 
     // Extract metadata
-    const thumbnailUrl = await page.$eval('meta[property="og:image"]', (el) => el.getAttribute('content')).catch(() => null);
-    const title = await page.$eval('meta[property="og:title"]', (el) => el.getAttribute('content')).catch(() => null);
-    const description = await page.$eval('meta[property="og:description"]', (el) => el.getAttribute('content')).catch(() => null);
+    const thumbnailUrl = await page.$eval('meta[property="og:image"]', (el: Element) => el.getAttribute('content')).catch(() => null);
+    const title = await page.$eval('meta[property="og:title"]', (el: Element) => el.getAttribute('content')).catch(() => null);
+    const description = await page.$eval('meta[property="og:description"]', (el: Element) => el.getAttribute('content')).catch(() => null);
 
     await browser.close();
 
