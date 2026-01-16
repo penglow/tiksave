@@ -24,7 +24,7 @@ jobs:
         
     - name: Install dependencies
       working-directory: ./TikSaveRN
-      run: npm ci
+      run: npm ci || npm install
       
     - name: Run ESLint
       working-directory: ./TikSaveRN
