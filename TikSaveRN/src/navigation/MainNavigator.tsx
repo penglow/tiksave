@@ -6,6 +6,7 @@ import { View, StyleSheet } from 'react-native';
 
 import { MainTabParamList, LibraryStackParamList, SearchStackParamList, AddStackParamList } from './types';
 import { Colors } from '../config';
+import { useTheme } from '../hooks/useTheme';
 
 // Screens
 import LibraryScreen from '../screens/LibraryScreen';
@@ -23,13 +24,14 @@ const AddStack = createStackNavigator<AddStackParamList>();
 
 // Stack navigators for each tab
 function LibraryStackNavigator() {
+  const { colors: themeColors } = useTheme();
   return (
     <LibraryStack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.text,
+        headerStyle: { backgroundColor: themeColors.background },
+        headerTintColor: themeColors.text,
         headerTitleStyle: { fontWeight: '600' },
-        cardStyle: { backgroundColor: Colors.background },
+        cardStyle: { backgroundColor: themeColors.background },
       }}
     >
       <LibraryStack.Screen 
@@ -62,13 +64,14 @@ function LibraryStackNavigator() {
 }
 
 function AddStackNavigator() {
+  const { colors: themeColors } = useTheme();
   return (
     <AddStack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.text,
+        headerStyle: { backgroundColor: themeColors.background },
+        headerTintColor: themeColors.text,
         headerTitleStyle: { fontWeight: '600' },
-        cardStyle: { backgroundColor: Colors.background },
+        cardStyle: { backgroundColor: themeColors.background },
       }}
     >
       <AddStack.Screen 
@@ -81,13 +84,14 @@ function AddStackNavigator() {
 }
 
 function SearchStackNavigator() {
+  const { colors: themeColors } = useTheme();
   return (
     <SearchStack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.text,
+        headerStyle: { backgroundColor: themeColors.background },
+        headerTintColor: themeColors.text,
         headerTitleStyle: { fontWeight: '600' },
-        cardStyle: { backgroundColor: Colors.background },
+        cardStyle: { backgroundColor: themeColors.background },
       }}
     >
       <SearchStack.Screen 
@@ -106,20 +110,26 @@ function SearchStackNavigator() {
 
 
 export default function MainNavigator() {
+  const { colors: themeColors } = useTheme();
+  // #region agent log
+  React.useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MainNavigator.tsx:109',message:'MainNavigator render with theme',data:{tabBarBackground:themeColors.background,tabBarBorder:themeColors.border,tabBarActive:themeColors.primary},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
+  }, [themeColors.background, themeColors.border, themeColors.primary]);
+  // #endregion
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: Colors.background,
-          borderTopColor: Colors.border,
+          backgroundColor: themeColors.background,
+          borderTopColor: themeColors.border,
           borderTopWidth: 1,
           paddingTop: 8,
           paddingBottom: 8,
           height: 88,
         },
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textTertiary,
+        tabBarActiveTintColor: themeColors.primary,
+        tabBarInactiveTintColor: themeColors.textTertiary,
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '500',
@@ -138,7 +148,7 @@ export default function MainNavigator() {
                 size={size} 
                 color={color} 
               />
-              {focused && <View style={[styles.activeIndicator, { backgroundColor: Colors.primary }]} />}
+              {focused && <View style={[styles.activeIndicator, { backgroundColor: themeColors.primary }]} />}
             </View>
           ),
           tabBarLabel: 'Library',
@@ -155,7 +165,7 @@ export default function MainNavigator() {
                 size={size} 
                 color={color} 
               />
-              {focused && <View style={[styles.activeIndicator, { backgroundColor: Colors.primary }]} />}
+              {focused && <View style={[styles.activeIndicator, { backgroundColor: themeColors.primary }]} />}
             </View>
           ),
           tabBarLabel: 'Import',
@@ -172,7 +182,7 @@ export default function MainNavigator() {
                 size={size} 
                 color={color} 
               />
-              {focused && <View style={[styles.activeIndicator, { backgroundColor: Colors.primary }]} />}
+              {focused && <View style={[styles.activeIndicator, { backgroundColor: themeColors.primary }]} />}
             </View>
           ),
         }}
@@ -188,12 +198,12 @@ export default function MainNavigator() {
                 size={size} 
                 color={color} 
               />
-              {focused && <View style={[styles.activeIndicator, { backgroundColor: Colors.primary }]} />}
+              {focused && <View style={[styles.activeIndicator, { backgroundColor: themeColors.primary }]} />}
             </View>
           ),
           headerShown: true,
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.text,
+          headerStyle: { backgroundColor: themeColors.background },
+          headerTintColor: themeColors.text,
           headerTitleStyle: { fontWeight: '600' },
         }}
       />

@@ -19,6 +19,7 @@ import { SaveItem, SearchMode, getDisplayTitle } from '../types';
 import { apiService } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import { SearchStackScreenProps } from '../navigation/types';
+import { useTheme } from '../hooks/useTheme';
 
 type Props = SearchStackScreenProps<'SearchMain'>;
 
@@ -40,6 +41,7 @@ export default function SearchScreen({ navigation }: Props) {
   const inputRef = useRef<TextInput>(null);
 
   const { recentSearches, addRecentSearch, clearRecentSearches } = useAppStore();
+  const { colors: themeColors } = useTheme();
 
   const handleSearch = async (query?: string) => {
     const searchQuery = query || searchText;
@@ -75,17 +77,43 @@ export default function SearchScreen({ navigation }: Props) {
   const showInitialState = !searchText && results.length === 0 && !isLoading;
   const showNoResults = searchText && results.length === 0 && !isLoading;
 
+  const themeStyles = React.useMemo(() => ({
+    container: { ...styles.container, backgroundColor: themeColors.background },
+    searchInputContainer: { ...styles.searchInputContainer, backgroundColor: themeColors.overlay },
+    searchInput: { ...styles.searchInput, color: themeColors.text },
+    cancelButtonText: { ...styles.cancelButtonText, color: themeColors.textSecondary },
+    modeButtonText: { ...styles.modeButtonText, color: themeColors.textTertiary },
+    modeButtonTextActive: { ...styles.modeButtonTextActive, color: themeColors.primary },
+    modeIndicator: { ...styles.modeIndicator, backgroundColor: themeColors.primary },
+    noResultsTitle: { ...styles.noResultsTitle, color: themeColors.textTertiary },
+    noResultsSubtitle: { ...styles.noResultsSubtitle, color: themeColors.textQuaternary },
+    scrollView: { ...styles.scrollView, backgroundColor: themeColors.background },
+    sectionTitle: { ...styles.sectionTitle, color: themeColors.text },
+    clearButton: { ...styles.clearButton, color: themeColors.textTertiary },
+    recentText: { ...styles.recentText, color: themeColors.textSecondary },
+    suggestionBadge: { ...styles.suggestionBadge, backgroundColor: themeColors.overlay },
+    suggestionText: { ...styles.suggestionText, color: themeColors.textSecondary },
+    resultRow: { ...styles.resultRow, backgroundColor: themeColors.overlayLight },
+    resultThumbnail: { ...styles.resultThumbnail, backgroundColor: themeColors.overlay },
+    durationText: { ...styles.durationText, color: themeColors.text },
+    resultTitle: { ...styles.resultTitle, color: themeColors.text },
+    folderText: { ...styles.folderText, color: themeColors.primary },
+    matchContext: { ...styles.matchContext, color: themeColors.textTertiary },
+    topicBadge: { ...styles.topicBadge, backgroundColor: themeColors.overlay },
+    topicText: { ...styles.topicText, color: themeColors.textTertiary },
+  }), [themeColors]);
+
   return (
-    <View style={styles.container}>
+    <View style={themeStyles.container}>
       {/* Search Bar */}
       <View style={styles.searchBarContainer}>
-        <View style={styles.searchInputContainer}>
-          <Ionicons name="search" size={18} color={Colors.textTertiary} />
+        <View style={themeStyles.searchInputContainer}>
+          <Ionicons name="search" size={18} color={themeColors.textTertiary} />
           <TextInput
             ref={inputRef}
-            style={styles.searchInput}
+            style={themeStyles.searchInput}
             placeholder="Search by meaning or keywords..."
-            placeholderTextColor={Colors.textQuaternary}
+            placeholderTextColor={themeColors.textQuaternary}
             value={searchText}
             onChangeText={setSearchText}
             onSubmitEditing={() => handleSearch()}
@@ -97,7 +125,7 @@ export default function SearchScreen({ navigation }: Props) {
           />
           {searchText.length > 0 && (
             <TouchableOpacity onPress={handleClear}>
-              <Ionicons name="close-circle" size={18} color={Colors.textQuaternary} />
+              <Ionicons name="close-circle" size={18} color={themeColors.textQuaternary} />
             </TouchableOpacity>
           )}
         </View>
@@ -110,7 +138,7 @@ export default function SearchScreen({ navigation }: Props) {
               handleClear();
             }}
           >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
+            <Text style={themeStyles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -128,18 +156,18 @@ export default function SearchScreen({ navigation }: Props) {
                 <Ionicons
                   name={mode === 'semantic' ? 'bulb' : 'text'}
                   size={14}
-                  color={searchMode === mode ? Colors.primary : Colors.textTertiary}
+                  color={searchMode === mode ? themeColors.primary : themeColors.textTertiary}
                 />
                 <Text
                   style={[
-                    styles.modeButtonText,
-                    searchMode === mode && styles.modeButtonTextActive,
+                    themeStyles.modeButtonText,
+                    searchMode === mode && themeStyles.modeButtonTextActive,
                   ]}
                 >
                   {mode === 'semantic' ? 'Semantic' : 'Keyword'}
                 </Text>
               </View>
-              {searchMode === mode && <View style={styles.modeIndicator} />}
+              {searchMode === mode && <View style={themeStyles.modeIndicator} />}
             </TouchableOpacity>
           ))}
         </View>
@@ -148,17 +176,17 @@ export default function SearchScreen({ navigation }: Props) {
       {/* Content */}
       {isLoading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={themeColors.primary} />
         </View>
       ) : showInitialState ? (
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={themeStyles.scrollView} contentContainerStyle={styles.scrollContent}>
           {/* Recent Searches */}
           {recentSearches.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Recent Searches</Text>
+                <Text style={themeStyles.sectionTitle}>Recent Searches</Text>
                 <TouchableOpacity onPress={clearRecentSearches}>
-                  <Text style={styles.clearButton}>Clear</Text>
+                  <Text style={themeStyles.clearButton}>Clear</Text>
                 </TouchableOpacity>
               </View>
               {recentSearches.map((query) => (
@@ -170,8 +198,8 @@ export default function SearchScreen({ navigation }: Props) {
                     handleSearch(query);
                   }}
                 >
-                  <Ionicons name="time-outline" size={16} color={Colors.textQuaternary} />
-                  <Text style={styles.recentText}>{query}</Text>
+                  <Ionicons name="time-outline" size={16} color={themeColors.textQuaternary} />
+                  <Text style={themeStyles.recentText}>{query}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -179,18 +207,18 @@ export default function SearchScreen({ navigation }: Props) {
 
           {/* Suggestions */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Try searching for</Text>
+            <Text style={themeStyles.sectionTitle}>Try searching for</Text>
             <View style={styles.suggestionsContainer}>
               {SUGGESTIONS.map((suggestion) => (
                 <TouchableOpacity
                   key={suggestion}
-                  style={styles.suggestionBadge}
+                  style={themeStyles.suggestionBadge}
                   onPress={() => {
                     setSearchText(suggestion);
                     handleSearch(suggestion);
                   }}
                 >
-                  <Text style={styles.suggestionText}>{suggestion}</Text>
+                  <Text style={themeStyles.suggestionText}>{suggestion}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -198,19 +226,21 @@ export default function SearchScreen({ navigation }: Props) {
         </ScrollView>
       ) : showNoResults ? (
         <View style={styles.centerContainer}>
-          <Ionicons name="search" size={50} color={Colors.textQuaternary} />
-          <Text style={styles.noResultsTitle}>No results found</Text>
-          <Text style={styles.noResultsSubtitle}>
+          <Ionicons name="search" size={50} color={themeColors.textQuaternary} />
+          <Text style={themeStyles.noResultsTitle}>No results found</Text>
+          <Text style={themeStyles.noResultsSubtitle}>
             Try different keywords or{'\n'}use semantic search
           </Text>
         </View>
       ) : (
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={themeStyles.scrollView} contentContainerStyle={styles.scrollContent}>
           {results.map((item) => (
             <SearchResultRow 
               key={item.id}
               item={item} 
               searchQuery={searchText}
+              themeColors={themeColors}
+              themeStyles={themeStyles}
               onNavigateToDetail={() => navigation.navigate('VideoDetail', { item })}
             />
           ))}
@@ -223,10 +253,14 @@ export default function SearchScreen({ navigation }: Props) {
 function SearchResultRow({ 
   item, 
   searchQuery,
+  themeColors,
+  themeStyles,
   onNavigateToDetail 
 }: { 
   item: SaveItem; 
   searchQuery: string;
+  themeColors: any;
+  themeStyles: any;
   onNavigateToDetail: () => void;
 }) {
   // Find match context in transcript
@@ -260,10 +294,10 @@ function SearchResultRow({
   };
 
   return (
-    <View style={styles.resultRow}>
+    <View style={themeStyles.resultRow}>
       {/* Thumbnail */}
       <TouchableOpacity 
-        style={styles.resultThumbnail}
+        style={themeStyles.resultThumbnail}
         onPress={openInTikTok}
         activeOpacity={0.8}
       >
@@ -278,7 +312,7 @@ function SearchResultRow({
           />
         ) : (
           <LinearGradient
-            colors={[`${Colors.secondary}4D`, `${Colors.primary}4D`]}
+            colors={[`${themeColors.secondary}4D`, `${themeColors.primary}4D`]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.thumbnailPlaceholder}
@@ -289,7 +323,7 @@ function SearchResultRow({
 
         {item.duration && (
           <View style={styles.durationBadge}>
-            <Text style={styles.durationText}>
+            <Text style={themeStyles.durationText}>
               {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
             </Text>
           </View>
@@ -302,19 +336,19 @@ function SearchResultRow({
         onPress={onNavigateToDetail}
         activeOpacity={0.7}
       >
-        <Text style={styles.resultTitle} numberOfLines={2}>
+        <Text style={themeStyles.resultTitle} numberOfLines={2}>
           {getDisplayTitle(item)}
         </Text>
 
         {item.folderName && (
           <View style={styles.folderRow}>
-            <Ionicons name="folder" size={12} color={Colors.primary} />
-            <Text style={styles.folderText}>{item.folderName}</Text>
+            <Ionicons name="folder" size={12} color={themeColors.primary} />
+            <Text style={themeStyles.folderText}>{item.folderName}</Text>
           </View>
         )}
 
         {matchContext && (
-          <Text style={styles.matchContext} numberOfLines={2}>
+          <Text style={themeStyles.matchContext} numberOfLines={2}>
             {matchContext}
           </Text>
         )}
@@ -322,8 +356,8 @@ function SearchResultRow({
         {item.detectedTopics.length > 0 && (
           <View style={styles.topicsRow}>
             {item.detectedTopics.slice(0, 3).map((topic) => (
-              <View key={topic} style={styles.topicBadge}>
-                <Text style={styles.topicText}>{topic}</Text>
+              <View key={topic} style={themeStyles.topicBadge}>
+                <Text style={themeStyles.topicText}>{topic}</Text>
               </View>
             ))}
           </View>
@@ -334,7 +368,7 @@ function SearchResultRow({
         onPress={onNavigateToDetail}
         activeOpacity={0.7}
       >
-        <Ionicons name="chevron-forward" size={14} color={Colors.textQuaternary} />
+        <Ionicons name="chevron-forward" size={14} color={themeColors.textQuaternary} />
       </TouchableOpacity>
     </View>
   );

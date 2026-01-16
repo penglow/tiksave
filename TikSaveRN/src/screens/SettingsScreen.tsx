@@ -22,12 +22,19 @@ import { AppTheme, Folder, getDisplayIcon } from '../types';
 import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
 import { apiService } from '../services/api';
+import { useTheme } from '../hooks/useTheme';
 
 const APP_VERSION = '1.0.0';
 
 export default function SettingsScreen() {
   const signOut = useAuthStore((state) => state.signOut);
   const { userSettings, updateUserSettings } = useAppStore();
+  const { colors: themeColors } = useTheme();
+  // #region agent log
+  React.useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SettingsScreen.tsx:32',message:'SettingsScreen render with theme',data:{backgroundColor:themeColors.background},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
+  }, [themeColors.background]);
+  // #endregion
   const [thumbnailCacheSize] = useState('0.0 MB');
   const [showFoldersModal, setShowFoldersModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -162,40 +169,65 @@ export default function SettingsScreen() {
     Linking.openURL(url);
   };
 
+  // Create theme-aware styles
+  const themeStyles = React.useMemo(() => ({
+    sectionHeader: { ...styles.sectionHeader, color: themeColors.textTertiary },
+    sectionFooter: { ...styles.sectionFooter, color: themeColors.textQuaternary },
+    settingRow: { ...styles.settingRow, backgroundColor: themeColors.overlayLight },
+    settingRowVertical: { ...styles.settingRowVertical, backgroundColor: themeColors.overlayLight },
+    settingLabel: { ...styles.settingLabel, color: themeColors.text },
+    settingValue: { ...styles.settingValue, color: themeColors.textTertiary },
+    themeOption: { ...styles.themeOption, backgroundColor: themeColors.overlay },
+    themeOptionText: { ...styles.themeOptionText, color: themeColors.textSecondary },
+    themeOptionTextSelected: { ...styles.themeOptionTextSelected, color: themeColors.text },
+    settingDescription: { ...styles.settingDescription, color: themeColors.textTertiary },
+    modalContent: { ...styles.modalContent, backgroundColor: themeColors.backgroundSecondary },
+    modalTitle: { ...styles.modalTitle, color: themeColors.text },
+    modalSubtitle: { ...styles.modalSubtitle, color: themeColors.textTertiary },
+    loadingText: { ...styles.loadingText, color: themeColors.textTertiary },
+    emptyFoldersText: { ...styles.emptyFoldersText, color: themeColors.text },
+    emptyFoldersSubtext: { ...styles.emptyFoldersSubtext, color: themeColors.textTertiary },
+    folderItem: { ...styles.folderItem, borderBottomColor: themeColors.border },
+    folderName: { ...styles.folderName, color: themeColors.text },
+    folderCount: { ...styles.folderCount, color: themeColors.textTertiary },
+    createFolderButton: { ...styles.createFolderButton, backgroundColor: themeColors.overlay },
+    createFolderText: { ...styles.createFolderText, color: themeColors.text },
+  }), [themeColors]);
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={[styles.container, { backgroundColor: themeColors.background }]} contentContainerStyle={styles.content}>
       {/* Processing Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>PROCESSING</Text>
+        <Text style={themeStyles.sectionHeader}>PROCESSING</Text>
 
-        <View style={styles.settingRow}>
+        <View style={themeStyles.settingRow}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Enable Video Upload</Text>
+            <Text style={themeStyles.settingLabel}>Enable Video Upload</Text>
           </View>
           <Switch
             value={userSettings.enableVideoUpload}
             onValueChange={(value) => updateUserSettings({ enableVideoUpload: value })}
-            trackColor={{ false: Colors.overlay, true: Colors.primary }}
-            thumbColor={Colors.text}
+            trackColor={{ false: themeColors.overlay, true: themeColors.primary }}
+            thumbColor={themeColors.text}
           />
         </View>
 
-        <View style={styles.settingRow}>
+        <View style={themeStyles.settingRow}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Auto-file High Confidence</Text>
+            <Text style={themeStyles.settingLabel}>Auto-file High Confidence</Text>
           </View>
           <Switch
             value={userSettings.autoFileHighConfidence}
             onValueChange={(value) => updateUserSettings({ autoFileHighConfidence: value })}
-            trackColor={{ false: Colors.overlay, true: Colors.primary }}
-            thumbColor={Colors.text}
+            trackColor={{ false: themeColors.overlay, true: themeColors.primary }}
+            thumbColor={themeColors.text}
           />
         </View>
 
-        <View style={styles.settingRowVertical}>
+        <View style={themeStyles.settingRowVertical}>
           <View style={styles.settingRowTop}>
-            <Text style={styles.settingLabel}>Confidence Threshold</Text>
-            <Text style={styles.settingValue}>
+            <Text style={themeStyles.settingLabel}>Confidence Threshold</Text>
+            <Text style={themeStyles.settingValue}>
               {Math.round(userSettings.confidenceThreshold * 100)}%
             </Text>
           </View>
@@ -206,13 +238,13 @@ export default function SettingsScreen() {
             minimumValue={0.5}
             maximumValue={0.95}
             step={0.05}
-            minimumTrackTintColor={Colors.primary}
-            maximumTrackTintColor={Colors.overlay}
-            thumbTintColor={Colors.primary}
+            minimumTrackTintColor={themeColors.primary}
+            maximumTrackTintColor={themeColors.overlay}
+            thumbTintColor={themeColors.primary}
           />
         </View>
 
-        <Text style={styles.sectionFooter}>
+        <Text style={themeStyles.sectionFooter}>
           Video upload enables richer AI analysis. Without it, classification uses only shared
           text and URL.
         </Text>
@@ -220,48 +252,53 @@ export default function SettingsScreen() {
 
       {/* Organization Section - Optional Manual Folders */}
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>ORGANIZATION (OPTIONAL)</Text>
+        <Text style={themeStyles.sectionHeader}>ORGANIZATION (OPTIONAL)</Text>
 
-        <TouchableOpacity style={styles.settingRow} onPress={handleOpenFolders}>
+        <TouchableOpacity style={themeStyles.settingRow} onPress={handleOpenFolders}>
           <View style={styles.settingIconRow}>
             <View style={styles.settingIconContainer}>
-              <Ionicons name="folder" size={20} color={Colors.secondary} />
+              <Ionicons name="folder" size={20} color={themeColors.secondary} />
             </View>
             <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>My Collections</Text>
-              <Text style={styles.settingDescription}>Create custom folders for manual organization</Text>
+              <Text style={themeStyles.settingLabel}>My Collections</Text>
+              <Text style={themeStyles.settingDescription}>Create custom folders for manual organization</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={Colors.textQuaternary} />
+          <Ionicons name="chevron-forward" size={18} color={themeColors.textQuaternary} />
         </TouchableOpacity>
 
-        <Text style={styles.sectionFooter}>
+        <Text style={themeStyles.sectionFooter}>
           AI automatically categorizes your videos. Use collections for additional personal organization.
         </Text>
       </View>
 
       {/* Appearance Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>APPEARANCE</Text>
+        <Text style={themeStyles.sectionHeader}>APPEARANCE</Text>
 
-        <TouchableOpacity style={styles.settingRow}>
+        <TouchableOpacity style={themeStyles.settingRow}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Theme</Text>
+            <Text style={themeStyles.settingLabel}>Theme</Text>
           </View>
           <View style={styles.themeSelector}>
             {(['light', 'dark', 'system'] as AppTheme[]).map((theme) => (
               <TouchableOpacity
                 key={theme}
                 style={[
-                  styles.themeOption,
+                  themeStyles.themeOption,
                   userSettings.theme === theme && styles.themeOptionSelected,
                 ]}
-                onPress={() => updateUserSettings({ theme })}
+                onPress={() => {
+                  // #region agent log
+                  fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SettingsScreen.tsx:259',message:'Theme button pressed',data:{theme,currentTheme:userSettings.theme},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+                  // #endregion
+                  updateUserSettings({ theme });
+                }}
               >
                 <Text
                   style={[
-                    styles.themeOptionText,
-                    userSettings.theme === theme && styles.themeOptionTextSelected,
+                    themeStyles.themeOptionText,
+                    userSettings.theme === theme && themeStyles.themeOptionTextSelected,
                   ]}
                 >
                   {theme.charAt(0).toUpperCase() + theme.slice(1)}
@@ -271,92 +308,92 @@ export default function SettingsScreen() {
           </View>
         </TouchableOpacity>
 
-        <View style={styles.settingRow}>
+        <View style={themeStyles.settingRow}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Notifications</Text>
+            <Text style={themeStyles.settingLabel}>Notifications</Text>
           </View>
           <Switch
             value={userSettings.notificationsEnabled}
             onValueChange={(value) => updateUserSettings({ notificationsEnabled: value })}
-            trackColor={{ false: Colors.overlay, true: Colors.primary }}
-            thumbColor={Colors.text}
+            trackColor={{ false: themeColors.overlay, true: themeColors.primary }}
+            thumbColor={themeColors.text}
           />
         </View>
       </View>
 
       {/* Storage Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>STORAGE</Text>
+        <Text style={themeStyles.sectionHeader}>STORAGE</Text>
 
-        <View style={styles.settingRow}>
+        <View style={themeStyles.settingRow}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Cached Thumbnails</Text>
+            <Text style={themeStyles.settingLabel}>Cached Thumbnails</Text>
           </View>
-          <Text style={styles.settingValue}>{thumbnailCacheSize}</Text>
+          <Text style={themeStyles.settingValue}>{thumbnailCacheSize}</Text>
         </View>
 
-        <TouchableOpacity style={styles.settingRow} onPress={handleClearCache}>
+        <TouchableOpacity style={themeStyles.settingRow} onPress={handleClearCache}>
           <Text style={styles.settingLabelWarning}>Clear Thumbnail Cache</Text>
         </TouchableOpacity>
       </View>
 
       {/* Data & Privacy Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>DATA & PRIVACY</Text>
+        <Text style={themeStyles.sectionHeader}>DATA & PRIVACY</Text>
 
         <TouchableOpacity
-          style={styles.settingRow}
+          style={themeStyles.settingRow}
           onPress={() => openLink('https://yourapp.com/privacy')}
         >
-          <Text style={styles.settingLabel}>Privacy Policy</Text>
-          <Ionicons name="chevron-forward" size={18} color={Colors.textQuaternary} />
+          <Text style={themeStyles.settingLabel}>Privacy Policy</Text>
+          <Ionicons name="chevron-forward" size={18} color={themeColors.textQuaternary} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.settingRow}>
-          <Text style={styles.settingLabel}>Export My Data</Text>
-          <Ionicons name="chevron-forward" size={18} color={Colors.textQuaternary} />
+        <TouchableOpacity style={themeStyles.settingRow}>
+          <Text style={themeStyles.settingLabel}>Export My Data</Text>
+          <Ionicons name="chevron-forward" size={18} color={themeColors.textQuaternary} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.settingRow} onPress={handleDeleteData}>
+        <TouchableOpacity style={themeStyles.settingRow} onPress={handleDeleteData}>
           <Text style={styles.settingLabelDanger}>Delete All My Data</Text>
         </TouchableOpacity>
 
-        <Text style={styles.sectionFooter}>
+        <Text style={themeStyles.sectionFooter}>
           Deleting your data removes all saved videos, folders, and learning data permanently.
         </Text>
       </View>
 
       {/* About Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>ABOUT</Text>
+        <Text style={themeStyles.sectionHeader}>ABOUT</Text>
 
-        <View style={styles.settingRow}>
-          <Text style={styles.settingLabel}>Version</Text>
-          <Text style={styles.settingValue}>{APP_VERSION}</Text>
+        <View style={themeStyles.settingRow}>
+          <Text style={themeStyles.settingLabel}>Version</Text>
+          <Text style={themeStyles.settingValue}>{APP_VERSION}</Text>
         </View>
 
         <TouchableOpacity
-          style={styles.settingRow}
+          style={themeStyles.settingRow}
           onPress={() => openLink('https://yourapp.com/support')}
         >
-          <Text style={styles.settingLabel}>Support</Text>
-          <Ionicons name="arrow-forward" size={14} color={Colors.textQuaternary} />
+          <Text style={themeStyles.settingLabel}>Support</Text>
+          <Ionicons name="arrow-forward" size={14} color={themeColors.textQuaternary} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.settingRow}
+          style={themeStyles.settingRow}
           onPress={() => openLink('https://yourapp.com/feedback')}
         >
-          <Text style={styles.settingLabel}>Send Feedback</Text>
-          <Ionicons name="arrow-forward" size={14} color={Colors.textQuaternary} />
+          <Text style={themeStyles.settingLabel}>Send Feedback</Text>
+          <Ionicons name="arrow-forward" size={14} color={themeColors.textQuaternary} />
         </TouchableOpacity>
       </View>
 
       {/* Account Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>ACCOUNT</Text>
+        <Text style={themeStyles.sectionHeader}>ACCOUNT</Text>
 
-        <TouchableOpacity style={styles.settingRow} onPress={handleSignOut}>
+        <TouchableOpacity style={themeStyles.settingRow} onPress={handleSignOut}>
           <Text style={styles.settingLabelDanger}>Sign Out</Text>
         </TouchableOpacity>
       </View>
@@ -369,7 +406,7 @@ export default function SettingsScreen() {
         onRequestClose={() => setShowFoldersModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: themeColors.backgroundSecondary }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>My Collections</Text>
               <TouchableOpacity onPress={() => setShowFoldersModal(false)}>
@@ -399,7 +436,7 @@ export default function SettingsScreen() {
                 {folders.map((folder) => (
                   <TouchableOpacity
                     key={folder.id}
-                    style={styles.folderItem}
+                    style={[styles.folderItem, { borderBottomColor: themeColors.border }]}
                     onPress={() => {
                       setShowFoldersModal(false);
                       // Navigate to FolderDetail in LibraryStack
@@ -412,8 +449,8 @@ export default function SettingsScreen() {
                   >
                     <Text style={styles.folderIcon}>{getDisplayIcon(folder) || '📁'}</Text>
                     <View style={styles.folderInfo}>
-                      <Text style={styles.folderName}>{folder.name}</Text>
-                      <Text style={styles.folderCount}>{folder.itemCount} videos</Text>
+                      <Text style={themeStyles.folderName}>{folder.name}</Text>
+                      <Text style={themeStyles.folderCount}>{folder.itemCount} videos</Text>
                     </View>
                     <TouchableOpacity 
                       style={styles.folderDeleteButton}
@@ -422,7 +459,7 @@ export default function SettingsScreen() {
                         handleDeleteFolder(folder);
                       }}
                     >
-                      <Ionicons name="trash-outline" size={18} color={Colors.error} />
+                      <Ionicons name="trash-outline" size={18} color={themeColors.error} />
                     </TouchableOpacity>
                   </TouchableOpacity>
                 ))}
@@ -430,13 +467,13 @@ export default function SettingsScreen() {
             )}
 
             <TouchableOpacity 
-              style={styles.createFolderButton}
+              style={themeStyles.createFolderButton}
               onPress={() => {
                 setShowCreateModal(true);
               }}
             >
-              <Ionicons name="add" size={20} color={Colors.text} />
-              <Text style={styles.createFolderText}>Create Collection</Text>
+              <Ionicons name="add" size={20} color={themeColors.text} />
+              <Text style={themeStyles.createFolderText}>Create Collection</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -465,6 +502,7 @@ function CreateFolderModal({
   onClose: () => void;
   onCreate: (name: string, parentId?: string, iconName?: string) => void;
 }) {
+  const { colors: themeColors } = useTheme();
   const [name, setName] = React.useState('');
   const [selectedIcon, setSelectedIcon] = React.useState('📁');
   const [selectedParentId, setSelectedParentId] = React.useState<string | undefined>();
@@ -486,9 +524,9 @@ function CreateFolderModal({
   const topLevelFolders = folders.filter((f) => !f.parentId);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={createModalStyles.overlay}>
-        <View style={createModalStyles.container}>
+      <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <View style={createModalStyles.overlay}>
+          <View style={[createModalStyles.container, { backgroundColor: themeColors.backgroundSecondary }]}>
           <View style={createModalStyles.header}>
             <Text style={createModalStyles.title}>New Collection</Text>
             <TouchableOpacity onPress={onClose}>

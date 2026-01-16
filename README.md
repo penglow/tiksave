@@ -158,7 +158,7 @@ The app **requires** Azure Video Indexer for video processing and analysis. This
   - Get one at: [platform.openai.com](https://platform.openai.com/)
   - Add to `.env`: `OPENAI_API_KEY=your_key_here`
 
-**Note:** Azure Video Indexer is required for the app to function. OpenAI API key is optional and only needed for additional AI-powered features like automatic folder suggestions.
+**Note:** Azure Video Indexer is required for the app to function. OpenAI API key is optional and only needed for additional AI-powered features like semantic search.
 
 ## Building for Production
 

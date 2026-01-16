@@ -19,6 +19,7 @@ import { SaveItem, getDisplayTitle } from '../types';
 import { apiService } from '../services/api';
 import { LibraryStackScreenProps } from '../navigation/types';
 import { formatTimeAgo } from '../utils/date';
+import { useTheme } from '../hooks/useTheme';
 
 type Props = LibraryStackScreenProps<'LibraryMain'>;
 
@@ -85,6 +86,7 @@ function getCategoryConfig(topic: string): { icon: string; color: string } {
 }
 
 export default function LibraryScreen({ navigation }: Props) {
+  const { colors: themeColors } = useTheme();
   const [items, setItems] = useState<SaveItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -193,28 +195,43 @@ export default function LibraryScreen({ navigation }: Props) {
     return result.sort((a, b) => b.items.length - a.items.length);
   }, [items]);
 
+  // Create theme-aware styles
+  const themeStyles = React.useMemo(() => ({
+    loadingText: { ...styles.loadingText, color: themeColors.textTertiary },
+    emptyTitle: { ...styles.emptyTitle, color: themeColors.text },
+    emptySubtitle: { ...styles.emptySubtitle, color: themeColors.textTertiary },
+    importButtonText: { ...styles.importButtonText, color: themeColors.text },
+    statNumber: { ...styles.statNumber, color: themeColors.text },
+    statLabel: { ...styles.statLabel, color: themeColors.textTertiary },
+    sectionTitle: { ...styles.sectionTitle, color: themeColors.text },
+    sectionCount: { ...styles.sectionCount, color: themeColors.textTertiary },
+    itemTitle: { ...styles.itemTitle, color: themeColors.text },
+    itemSubtitle: { ...styles.itemSubtitle, color: themeColors.textTertiary },
+    subcategoryTitle: { ...styles.subcategoryTitle, color: themeColors.text },
+  }), [themeColors]);
+
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading your library...</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: themeColors.background }]}>
+        <ActivityIndicator size="large" color={themeColors.primary} />
+        <Text style={themeStyles.loadingText}>Loading your library...</Text>
       </View>
     );
   }
 
   if (items.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
+      <View style={[styles.emptyContainer, { backgroundColor: themeColors.background }]}>
         <LinearGradient
-          colors={[`${Colors.primary}30`, `${Colors.secondary}30`]}
+          colors={[`${themeColors.primary}30`, `${themeColors.secondary}30`]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.emptyIconContainer}
         >
           <Text style={styles.emptyIcon}>🤖</Text>
         </LinearGradient>
-        <Text style={styles.emptyTitle}>Your AI Library is Empty</Text>
-        <Text style={styles.emptySubtitle}>
+        <Text style={themeStyles.emptyTitle}>Your AI Library is Empty</Text>
+        <Text style={themeStyles.emptySubtitle}>
           Import TikTok videos and watch as AI{'\n'}automatically organizes them into categories
         </Text>
         <TouchableOpacity
@@ -223,13 +240,13 @@ export default function LibraryScreen({ navigation }: Props) {
           activeOpacity={0.8}
         >
           <LinearGradient
-            colors={[Colors.primary, Colors.secondary]}
+            colors={[themeColors.primary, themeColors.secondary]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.importButtonGradient}
           >
-            <Ionicons name="add-circle" size={20} color={Colors.text} />
-            <Text style={styles.importButtonText}>Import TikToks</Text>
+            <Ionicons name="add-circle" size={20} color={themeColors.text} />
+            <Text style={themeStyles.importButtonText}>Import TikToks</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -237,33 +254,33 @@ export default function LibraryScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       {/* Header Stats */}
-      <View style={styles.statsBar}>
+      <View style={[styles.statsBar, { backgroundColor: themeColors.backgroundSecondary, borderBottomColor: themeColors.border }]}>
         <View style={styles.stat}>
-          <Text style={styles.statNumber}>{items.length}</Text>
-          <Text style={styles.statLabel}>Videos</Text>
+          <Text style={themeStyles.statNumber}>{items.length}</Text>
+          <Text style={themeStyles.statLabel}>Videos</Text>
         </View>
-        <View style={styles.statDivider} />
+        <View style={[styles.statDivider, { backgroundColor: themeColors.border }]} />
         <View style={styles.stat}>
-          <Text style={styles.statNumber}>{categories.length}</Text>
-          <Text style={styles.statLabel}>AI Categories</Text>
+          <Text style={themeStyles.statNumber}>{categories.length}</Text>
+          <Text style={themeStyles.statLabel}>AI Categories</Text>
         </View>
-        <View style={styles.statDivider} />
+        <View style={[styles.statDivider, { backgroundColor: themeColors.border }]} />
         <View style={styles.stat}>
-          <Text style={styles.statNumber}>🤖</Text>
-          <Text style={styles.statLabel}>Auto-sorted</Text>
+          <Text style={themeStyles.statNumber}>🤖</Text>
+          <Text style={themeStyles.statLabel}>Auto-sorted</Text>
         </View>
       </View>
 
       <ScrollView
-        style={styles.scrollView}
+        style={[styles.scrollView, { backgroundColor: themeColors.background }]}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            tintColor={Colors.primary}
+            tintColor={themeColors.primary}
           />
         }
       >
@@ -303,10 +320,18 @@ function CategorySection({
   onPressCategory: () => void;
   onPressSubcategory: (subcategoryName: string) => void;
 }) {
+  const { colors: themeColors } = useTheme();
   const hasSubcategories = category.subcategories && category.subcategories.length > 0;
   
+  const themeStyles = React.useMemo(() => ({
+    sectionTitle: { ...styles.sectionTitle, color: themeColors.text },
+    sectionCount: { ...styles.sectionCount, color: themeColors.textTertiary },
+    itemTitle: { ...styles.itemTitle, color: themeColors.text },
+    itemSubtitle: { ...styles.itemSubtitle, color: themeColors.textTertiary },
+  }), [themeColors]);
+  
   return (
-    <View style={styles.categorySection}>
+    <View style={[styles.categorySection, { backgroundColor: themeColors.background }]}>
       {/* Category Header */}
       <TouchableOpacity 
         style={styles.categoryHeader}
@@ -317,17 +342,17 @@ function CategorySection({
           <Text style={styles.categoryEmoji}>{category.icon}</Text>
         </View>
         <View style={styles.categoryInfo}>
-          <Text style={styles.categoryName}>{category.name}</Text>
-          <Text style={styles.categoryCount}>
+          <Text style={[styles.categoryName, { color: themeColors.text }]}>{category.name}</Text>
+          <Text style={[styles.categoryCount, { color: themeColors.textTertiary }]}>
             {category.items.length} videos
             {hasSubcategories && ` · ${category.subcategories!.length} subcategories`}
           </Text>
         </View>
-        <View style={styles.aiTag}>
-          <Ionicons name="sparkles" size={10} color={Colors.primary} />
-          <Text style={styles.aiTagText}>AI</Text>
+        <View style={[styles.aiTag, { backgroundColor: `${themeColors.primary}20` }]}>
+          <Ionicons name="sparkles" size={10} color={themeColors.primary} />
+          <Text style={[styles.aiTagText, { color: themeColors.primary }]}>AI</Text>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={Colors.textQuaternary} />
+        <Ionicons name="chevron-forward" size={18} color={themeColors.textQuaternary} />
       </TouchableOpacity>
 
       {/* Subcategory Tags */}
@@ -391,13 +416,13 @@ function CategorySection({
                   />
                 ) : (
                   <View style={styles.thumbnailPlaceholder}>
-                    <Ionicons name="play" size={24} color={Colors.textTertiary} />
+                    <Ionicons name="play" size={24} color={themeColors.textTertiary} />
                   </View>
                 )}
 
                 {item.duration && (
                   <View style={styles.durationBadge}>
-                    <Text style={styles.durationText}>
+                    <Text style={[styles.durationText, { color: themeColors.text }]}>
                       {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
                     </Text>
                   </View>
@@ -409,11 +434,11 @@ function CategorySection({
                 onPress={() => onPressItem(item)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.videoTitle} numberOfLines={2}>
+                <Text style={[styles.videoTitle, { color: themeColors.text }]} numberOfLines={2}>
                   {getDisplayTitle(item)}
                 </Text>
                 {item.creatorUsername && (
-                  <Text style={styles.creatorName}>@{item.creatorUsername}</Text>
+                  <Text style={[styles.creatorName, { color: themeColors.textTertiary }]}>@{item.creatorUsername}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -423,14 +448,14 @@ function CategorySection({
         {/* See All Card */}
         {category.items.length > 6 && (
           <TouchableOpacity
-            style={styles.seeAllCard}
+            style={[styles.seeAllCard, { backgroundColor: themeColors.overlayLight }]}
             onPress={onPressCategory}
             activeOpacity={0.8}
           >
             <View style={[styles.seeAllCircle, { backgroundColor: `${category.color}30` }]}>
-              <Text style={styles.seeAllCount}>+{category.items.length - 6}</Text>
+              <Text style={[styles.seeAllCount, { color: themeColors.text }]}>+{category.items.length - 6}</Text>
             </View>
-            <Text style={styles.seeAllText}>See All</Text>
+            <Text style={[styles.seeAllText, { color: themeColors.textSecondary }]}>See All</Text>
           </TouchableOpacity>
         )}
       </ScrollView>

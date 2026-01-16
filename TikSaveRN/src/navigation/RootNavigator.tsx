@@ -5,6 +5,7 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { RootStackParamList } from './types';
 import { Colors } from '../config';
 import { useAuthStore } from '../stores/authStore';
+import { useTheme } from '../hooks/useTheme';
 
 import AuthScreen from '../screens/AuthScreen';
 import MainNavigator from './MainNavigator';
@@ -13,6 +14,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
   const { isAuthenticated, isInitialized, initialize } = useAuthStore();
+  const { colors: themeColors } = useTheme();
 
   useEffect(() => {
     initialize();
@@ -20,8 +22,8 @@ export default function RootNavigator() {
 
   if (!isInitialized) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+      <View style={[styles.loadingContainer, { backgroundColor: themeColors.background }]}>
+        <ActivityIndicator size="large" color={themeColors.primary} />
       </View>
     );
   }
@@ -30,7 +32,7 @@ export default function RootNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: Colors.background },
+        contentStyle: { backgroundColor: themeColors.background },
         animation: 'fade',
       }}
     >
@@ -48,7 +50,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
   },
 });
 

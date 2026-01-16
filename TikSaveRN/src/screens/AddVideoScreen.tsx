@@ -18,12 +18,14 @@ import { apiService } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import { LibraryStackScreenProps, AddStackScreenProps } from '../navigation/types';
 import type { NavigationProp } from '@react-navigation/native';
+import { useTheme } from '../hooks/useTheme';
 
 type Props = 
   | LibraryStackScreenProps<'AddVideo'>
   | AddStackScreenProps<'AddMain'>;
 
 export default function AddVideoScreen({ navigation }: Props) {
+  const { colors: themeColors } = useTheme();
   const [isImporting, setIsImporting] = useState(false);
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [manualUrl, setManualUrl] = useState('');
@@ -80,32 +82,48 @@ export default function AddVideoScreen({ navigation }: Props) {
     }
   };
 
+  // Create theme-aware styles
+  const themeStyles = React.useMemo(() => ({
+    statusText: { ...styles.statusText, color: themeColors.text },
+    statusSubtext: { ...styles.statusSubtext, color: themeColors.textTertiary },
+    devLabel: { ...styles.devLabel, color: themeColors.warning },
+    urlInput: { ...styles.urlInput, backgroundColor: themeColors.background, color: themeColors.text },
+    importBtnText: { ...styles.importBtnText, color: themeColors.text },
+    dividerText: { ...styles.dividerText, color: themeColors.textQuaternary },
+    heroTitle: { ...styles.heroTitle, color: themeColors.text },
+    heroSubtitle: { ...styles.heroSubtitle, color: themeColors.textTertiary },
+    stepsTitle: { ...styles.stepsTitle, color: themeColors.text },
+    stepTitle: { ...styles.stepTitle, color: themeColors.text },
+    stepDesc: { ...styles.stepDesc, color: themeColors.textTertiary },
+    stepNumberText: { ...styles.stepNumberText, color: themeColors.text },
+  }), [themeColors]);
+
   return (
     <ScrollView 
-      style={styles.container}
+      style={[styles.container, { backgroundColor: themeColors.background }]}
       contentContainerStyle={styles.scrollContent}
     >
       {/* Status Display */}
       {isImporting && (
-        <View style={styles.statusCard}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.statusText}>Importing & analyzing with AI...</Text>
+        <View style={[styles.statusCard, { backgroundColor: themeColors.backgroundSecondary }]}>
+          <ActivityIndicator size="large" color={themeColors.primary} />
+          <Text style={themeStyles.statusText}>Importing & analyzing with AI...</Text>
         </View>
       )}
 
       {importStatus === 'success' && !isImporting && (
-        <View style={[styles.statusCard, styles.successCard]}>
-          <Ionicons name="checkmark-circle" size={48} color={Colors.success} />
-          <Text style={styles.statusText}>Video imported!</Text>
-          <Text style={styles.statusSubtext}>AI is categorizing it now...</Text>
+        <View style={[styles.statusCard, styles.successCard, { backgroundColor: `${themeColors.success}15` }]}>
+          <Ionicons name="checkmark-circle" size={48} color={themeColors.success} />
+          <Text style={themeStyles.statusText}>Video imported!</Text>
+          <Text style={themeStyles.statusSubtext}>AI is categorizing it now...</Text>
         </View>
       )}
 
       {importStatus === 'error' && !isImporting && (
-        <View style={[styles.statusCard, styles.errorCard]}>
-          <Ionicons name="close-circle" size={48} color={Colors.error} />
-          <Text style={styles.statusText}>Import failed</Text>
-          <Text style={styles.statusSubtext}>Please try again</Text>
+        <View style={[styles.statusCard, styles.errorCard, { backgroundColor: `${themeColors.error}15` }]}>
+          <Ionicons name="close-circle" size={48} color={themeColors.error} />
+          <Text style={themeStyles.statusText}>Import failed</Text>
+          <Text style={themeStyles.statusSubtext}>Please try again</Text>
         </View>
       )}
 
@@ -113,16 +131,16 @@ export default function AddVideoScreen({ navigation }: Props) {
       {!isImporting && importStatus === 'idle' && (
         <>
           {/* Manual URL Input - Dev Mode */}
-          <View style={styles.devSection}>
+          <View style={[styles.devSection, { backgroundColor: `${themeColors.warning}15`, borderColor: `${themeColors.warning}30` }]}>
             <View style={styles.devHeader}>
-              <Ionicons name="code-slash" size={16} color={Colors.warning} />
-              <Text style={styles.devLabel}>Dev Mode: Paste URL</Text>
+              <Ionicons name="code-slash" size={16} color={themeColors.warning} />
+              <Text style={themeStyles.devLabel}>Dev Mode: Paste URL</Text>
             </View>
-            <View style={styles.urlInputContainer}>
+            <View style={[styles.urlInputContainer, { backgroundColor: themeColors.background }]}>
               <TextInput
-                style={styles.urlInput}
+                style={themeStyles.urlInput}
                 placeholder="Paste TikTok URL here..."
-                placeholderTextColor={Colors.textQuaternary}
+                placeholderTextColor={themeColors.textQuaternary}
                 value={manualUrl}
                 onChangeText={setManualUrl}
                 autoCapitalize="none"
@@ -133,18 +151,18 @@ export default function AddVideoScreen({ navigation }: Props) {
               />
               {manualUrl.length > 0 && (
                 <TouchableOpacity onPress={() => setManualUrl('')} style={styles.clearBtn}>
-                  <Ionicons name="close-circle" size={18} color={Colors.textTertiary} />
+                  <Ionicons name="close-circle" size={18} color={themeColors.textTertiary} />
                 </TouchableOpacity>
               )}
             </View>
             <TouchableOpacity
-              style={[styles.importBtn, !manualUrl.trim() && styles.importBtnDisabled]}
+              style={[styles.importBtn, { backgroundColor: themeColors.primary }, !manualUrl.trim() && styles.importBtnDisabled]}
               onPress={handleManualImport}
               disabled={!manualUrl.trim()}
               activeOpacity={0.8}
             >
-              <Ionicons name="arrow-forward" size={18} color={Colors.text} />
-              <Text style={styles.importBtnText}>Import</Text>
+              <Ionicons name="arrow-forward" size={18} color={themeColors.text} />
+              <Text style={themeStyles.importBtnText}>Import</Text>
             </TouchableOpacity>
           </View>
 
@@ -157,128 +175,128 @@ export default function AddVideoScreen({ navigation }: Props) {
           {/* Hero */}
           <View style={styles.heroSection}>
             <LinearGradient
-              colors={[`${Colors.primary}30`, `${Colors.secondary}30`]}
+              colors={[`${themeColors.primary}30`, `${themeColors.secondary}30`]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.heroIcon}
             >
               <Text style={styles.heroEmoji}>📲</Text>
             </LinearGradient>
-            <Text style={styles.heroTitle}>Share from TikTok</Text>
-            <Text style={styles.heroSubtitle}>
+            <Text style={themeStyles.heroTitle}>Share from TikTok</Text>
+            <Text style={themeStyles.heroSubtitle}>
               Import videos directly from the TikTok app
             </Text>
           </View>
 
           {/* Steps */}
-          <View style={styles.stepsContainer}>
-            <Text style={styles.stepsTitle}>How to Import</Text>
+          <View style={[styles.stepsContainer, { backgroundColor: themeColors.backgroundSecondary }]}>
+            <Text style={themeStyles.stepsTitle}>How to Import</Text>
             
             <View style={styles.step}>
               <View style={styles.stepNumberContainer}>
                 <LinearGradient
-                  colors={[Colors.primary, Colors.secondary]}
+                  colors={[themeColors.primary, themeColors.secondary]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.stepNumber}
                 >
-                  <Text style={styles.stepNumberText}>1</Text>
+                  <Text style={themeStyles.stepNumberText}>1</Text>
                 </LinearGradient>
               </View>
               <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Open TikTok</Text>
-                <Text style={styles.stepDesc}>Find a video you want to save</Text>
+                <Text style={themeStyles.stepTitle}>Open TikTok</Text>
+                <Text style={themeStyles.stepDesc}>Find a video you want to save</Text>
               </View>
               <View style={styles.stepIcon}>
                 <Text style={styles.stepEmoji}>📱</Text>
               </View>
             </View>
 
-            <View style={styles.stepConnector} />
+            <View style={[styles.stepConnector, { backgroundColor: themeColors.border }]} />
             
             <View style={styles.step}>
               <View style={styles.stepNumberContainer}>
                 <LinearGradient
-                  colors={[Colors.primary, Colors.secondary]}
+                  colors={[themeColors.primary, themeColors.secondary]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.stepNumber}
                 >
-                  <Text style={styles.stepNumberText}>2</Text>
+                  <Text style={themeStyles.stepNumberText}>2</Text>
                 </LinearGradient>
               </View>
               <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Tap Share</Text>
-                <Text style={styles.stepDesc}>Press the arrow icon on the video</Text>
+                <Text style={themeStyles.stepTitle}>Tap Share</Text>
+                <Text style={themeStyles.stepDesc}>Press the arrow icon on the video</Text>
               </View>
               <View style={styles.stepIcon}>
-                <Ionicons name="arrow-redo" size={24} color={Colors.textSecondary} />
+                <Ionicons name="arrow-redo" size={24} color={themeColors.textSecondary} />
               </View>
             </View>
 
-            <View style={styles.stepConnector} />
+            <View style={[styles.stepConnector, { backgroundColor: themeColors.border }]} />
             
             <View style={styles.step}>
               <View style={styles.stepNumberContainer}>
                 <LinearGradient
-                  colors={[Colors.primary, Colors.secondary]}
+                  colors={[themeColors.primary, themeColors.secondary]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.stepNumber}
                 >
-                  <Text style={styles.stepNumberText}>3</Text>
+                  <Text style={themeStyles.stepNumberText}>3</Text>
                 </LinearGradient>
               </View>
               <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Choose TikSave</Text>
-                <Text style={styles.stepDesc}>Select this app from the share sheet</Text>
+                <Text style={themeStyles.stepTitle}>Choose TikSave</Text>
+                <Text style={themeStyles.stepDesc}>Select this app from the share sheet</Text>
               </View>
               <View style={styles.stepIcon}>
-                <View style={styles.appIconMini}>
+                <View style={[styles.appIconMini, { backgroundColor: themeColors.overlay }]}>
                   <Text style={styles.appIconText}>🤖</Text>
                 </View>
               </View>
             </View>
 
-            <View style={styles.stepConnector} />
+            <View style={[styles.stepConnector, { backgroundColor: themeColors.border }]} />
             
             <View style={styles.step}>
               <View style={styles.stepNumberContainer}>
                 <LinearGradient
-                  colors={[Colors.primary, Colors.secondary]}
+                  colors={[themeColors.primary, themeColors.secondary]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.stepNumber}
                 >
-                  <Text style={styles.stepNumberText}>4</Text>
+                  <Text style={themeStyles.stepNumberText}>4</Text>
                 </LinearGradient>
               </View>
               <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Auto-Categorized!</Text>
-                <Text style={styles.stepDesc}>AI sorts it into the right category</Text>
+                <Text style={themeStyles.stepTitle}>Auto-Categorized!</Text>
+                <Text style={themeStyles.stepDesc}>AI sorts it into the right category</Text>
               </View>
               <View style={styles.stepIcon}>
-                <Ionicons name="sparkles" size={24} color={Colors.primary} />
+                <Ionicons name="sparkles" size={24} color={themeColors.primary} />
               </View>
             </View>
           </View>
 
           {/* AI Info */}
-          <View style={styles.aiInfo}>
+          <View style={[styles.aiInfo, { backgroundColor: `${themeColors.primary}15` }]}>
             <View style={styles.aiInfoHeader}>
-              <Ionicons name="sparkles" size={20} color={Colors.primary} />
-              <Text style={styles.aiInfoTitle}>AI Auto-Categorization</Text>
+              <Ionicons name="sparkles" size={20} color={themeColors.primary} />
+              <Text style={[styles.aiInfoTitle, { color: themeColors.primary }]}>AI Auto-Categorization</Text>
             </View>
-            <Text style={styles.aiInfoText}>
+            <Text style={[styles.aiInfoText, { color: themeColors.textSecondary }]}>
               Our AI analyzes video content, audio, hashtags, and captions to automatically 
               sort videos into categories like Food, Travel, Fitness, Fashion, and more.
             </Text>
           </View>
 
           {/* Tip */}
-          <View style={styles.tipContainer}>
-            <Ionicons name="bulb" size={20} color={Colors.warning} />
-            <Text style={styles.tipText}>
+          <View style={[styles.tipContainer, { backgroundColor: `${themeColors.warning}15` }]}>
+            <Ionicons name="bulb" size={20} color={themeColors.warning} />
+            <Text style={[styles.tipText, { color: themeColors.textSecondary }]}>
               Tip: You can share multiple videos quickly! They'll all be processed and categorized automatically.
             </Text>
           </View>

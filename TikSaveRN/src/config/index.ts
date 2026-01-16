@@ -34,8 +34,8 @@ export const Config = {
   uploadTimeoutMs: 300000,
 };
 
-// Theme Colors
-export const Colors = {
+// Theme Colors - Dark Theme
+const DarkColors = {
   // Background colors
   background: '#12121F',
   backgroundSecondary: '#1A1A2E',
@@ -63,6 +63,45 @@ export const Colors = {
 
   // Border colors
   border: 'rgba(255, 255, 255, 0.1)',
+};
+
+// Theme Colors - Light Theme
+const LightColors = {
+  // Background colors
+  background: '#FFFFFF',
+  backgroundSecondary: '#F5F5F7',
+  backgroundTertiary: 'rgba(0, 0, 0, 0.05)',
+
+  // Primary colors
+  primary: '#06B6D4', // cyan
+  secondary: '#A855F7', // purple
+
+  // Text colors
+  text: '#000000',
+  textSecondary: 'rgba(0, 0, 0, 0.7)',
+  textTertiary: 'rgba(0, 0, 0, 0.5)',
+  textQuaternary: 'rgba(0, 0, 0, 0.3)',
+
+  // Status colors
+  success: '#22C55E',
+  warning: '#F97316',
+  error: '#EF4444',
+
+  // Overlay colors
+  overlay: 'rgba(0, 0, 0, 0.1)',
+  overlayLight: 'rgba(0, 0, 0, 0.05)',
+  overlayDark: 'rgba(0, 0, 0, 0.7)',
+
+  // Border colors
+  border: 'rgba(0, 0, 0, 0.1)',
+};
+
+// Default to dark theme for backward compatibility
+export const Colors = DarkColors;
+
+// Export theme color getters
+export const getThemeColors = (isDark: boolean) => {
+  return isDark ? DarkColors : LightColors;
 };
 
 // Font families - using system fonts, but can be customized
