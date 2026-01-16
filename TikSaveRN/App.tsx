@@ -1,10 +1,11 @@
-import React, { useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { StyleSheet, useColorScheme } from 'react-native';
 import * as Linking from 'expo-linking';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 
 import RootNavigator from './src/navigation/RootNavigator';
 import { Colors, getThemeColors } from './src/config';
@@ -54,6 +55,40 @@ export default function App() {
     }
     return userSettingsTheme;
   }, [userSettingsTheme, systemColorScheme]);
+
+  // Track previous theme for overlay animation
+  const [prevTheme, setPrevTheme] = React.useState<'light' | 'dark' | null>(null);
+  const prevEffectiveThemeRef = useRef<'light' | 'dark'>(effectiveTheme);
+  
+  // Animation value for overlay fade transition
+  const overlayOpacity = useSharedValue(0);
+  const isAnimatingRef = useRef(false);
+
+  // Trigger animation when theme changes
+  useEffect(() => {
+    // Only animate if theme actually changed and we're not already animating
+    if (prevEffectiveThemeRef.current !== effectiveTheme && !isAnimatingRef.current) {
+      isAnimatingRef.current = true;
+      // Store previous theme for overlay
+      setPrevTheme(prevEffectiveThemeRef.current);
+      // Fade in overlay (black/white screen) to hide the transition
+      overlayOpacity.value = withTiming(1, {
+        duration: 200,
+        easing: Easing.out(Easing.ease),
+      }, () => {
+        // Update theme while overlay is fully opaque
+        prevEffectiveThemeRef.current = effectiveTheme;
+        // Fade out overlay to reveal new theme
+        overlayOpacity.value = withTiming(0, {
+          duration: 200,
+          easing: Easing.in(Easing.ease),
+        }, () => {
+          setPrevTheme(null);
+          isAnimatingRef.current = false;
+        });
+      });
+    }
+  }, [effectiveTheme, overlayOpacity]);
   
   // #region agent log
   React.useEffect(() => {
@@ -130,17 +165,38 @@ export default function App() {
 
   // #region agent log
   React.useEffect(() => {
-    fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:132',message:'Render values',data:{effectiveTheme,themeColorsBackground:themeColors.background,navigationThemeDark:navigationTheme.dark,statusBarStyle:effectiveTheme === 'dark' ? 'light' : 'dark',navigationContainerKey:effectiveTheme},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'D'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:132',message:'Render values',data:{effectiveTheme,themeColorsBackground:themeColors.background,navigationThemeDark:navigationTheme.dark,statusBarStyle:effectiveTheme === 'dark' ? 'light' : 'dark'},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'D'})}).catch(()=>{});
   }, [effectiveTheme, themeColors.background, navigationTheme.dark]);
   // #endregion
+
+  // Animated style for overlay transition
+  const overlayStyle = useAnimatedStyle(() => {
+    return {
+      opacity: overlayOpacity.value,
+    };
+  });
+
+  // Get overlay color (matches the new theme background for smooth transition)
+  const overlayColor = themeColors.background;
 
   return (
     <GestureHandlerRootView style={[styles.container, { backgroundColor: themeColors.background }]}>
       <SafeAreaProvider>
         <ErrorBoundary>
-          <NavigationContainer key={effectiveTheme} theme={navigationTheme}>
+          <NavigationContainer theme={navigationTheme}>
             <StatusBar style={effectiveTheme === 'dark' ? 'light' : 'dark'} />
             <RootNavigator />
+            {/* Overlay for smooth theme transition */}
+            {prevTheme !== null && (
+              <Animated.View 
+                style={[
+                  styles.overlay,
+                  { backgroundColor: overlayColor },
+                  overlayStyle
+                ]}
+                pointerEvents="none"
+              />
+            )}
           </NavigationContainer>
         </ErrorBoundary>
       </SafeAreaProvider>
@@ -151,5 +207,9 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
   },
 });
