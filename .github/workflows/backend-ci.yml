@@ -55,7 +55,7 @@ jobs:
         
     - name: Install dependencies
       working-directory: ./backend
-      run: npm ci || npm install
+      run: npm install
       
     - name: Run TypeScript type check
       working-directory: ./backend
