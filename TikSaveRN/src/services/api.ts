@@ -159,20 +159,28 @@ class APIService {
 
       // Handle response
       if (!response.ok) {
-        if (response.status === 401) {
-          await this.clearTokens();
-          throw new APIError('UNAUTHORIZED', 'Please sign in again', 401);
-        }
-
-        let message = `Server error (${response.status})`;
+        // Try to read error message from response body
+        let errorMessage = `Server error (${response.status})`;
         try {
           const errorData = await response.json();
-          message = errorData.message || message;
+          errorMessage = errorData.error || errorData.message || errorMessage;
         } catch {
           // Ignore JSON parse error
         }
 
-        throw new APIError('SERVER_ERROR', message, response.status);
+        if (response.status === 401) {
+          // For login/signup endpoints, use the actual error message from backend
+          // For other endpoints, 401 means token expired - use "Please sign in again"
+          const isAuthEndpoint = path === '/auth/signin' || path === '/auth/signup';
+          if (isAuthEndpoint) {
+            throw new APIError('UNAUTHORIZED', errorMessage, 401);
+          } else {
+            await this.clearTokens();
+            throw new APIError('UNAUTHORIZED', 'Please sign in again', 401);
+          }
+        }
+
+        throw new APIError('SERVER_ERROR', errorMessage, response.status);
       }
 
       // Handle empty responses

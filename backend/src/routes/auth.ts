@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { z } from 'zod';
@@ -20,7 +20,7 @@ const signInSchema = z.object({
 });
 
 // Sign up
-authRouter.post('/signup', async (req: Request, res: Response) => {
+authRouter.post('/signup', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password, displayName } = signUpSchema.parse(req.body);
     
@@ -64,12 +64,12 @@ authRouter.post('/signup', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });
     }
-    throw error;
+    next(error);
   }
 });
 
 // Sign in
-authRouter.post('/signin', async (req: Request, res: Response) => {
+authRouter.post('/signin', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = signInSchema.parse(req.body);
     
@@ -102,12 +102,12 @@ authRouter.post('/signin', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });
     }
-    throw error;
+    next(error);
   }
 });
 
 // Refresh token
-authRouter.post('/refresh', async (req: Request, res: Response) => {
+authRouter.post('/refresh', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { refreshToken } = req.body;
     
@@ -144,7 +144,7 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
     if (error instanceof jwt.JsonWebTokenError) {
       return res.status(401).json({ error: 'Invalid token' });
     }
-    throw error;
+    next(error);
   }
 });
 
