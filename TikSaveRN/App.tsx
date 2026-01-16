@@ -33,6 +33,12 @@ function extractTikTokUrl(text: string): string | null {
 }
 
 export default function App() {
+  // #region agent log
+  React.useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:35',message:'App component mounted',data:{platform:typeof window!=='undefined'?'web':'native'},timestamp:Date.now(),sessionId:'debug-session',runId:'web-debug',hypothesisId:'A'})}).catch(()=>{});
+  }, []);
+  // #endregion
+  
   const loadRecentSearches = useAppStore((state) => state.loadRecentSearches);
   const loadUserSettings = useAppStore((state) => state.loadUserSettings);
   const setPendingShareUrl = useAppStore((state) => state.setPendingShareUrl);

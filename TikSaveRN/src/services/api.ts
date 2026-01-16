@@ -1,5 +1,14 @@
-import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+
+// Conditional import for SecureStore (not available on web)
+let SecureStore: typeof import('expo-secure-store') | null = null;
+if (Platform.OS !== 'web') {
+  try {
+    SecureStore = require('expo-secure-store');
+  } catch {
+    // SecureStore not available
+  }
+}
 import { Config } from '../config';
 import {
   SaveItem,
@@ -33,7 +42,7 @@ const TokenStorage = {
   async setItem(key: string, value: string): Promise<void> {
     if (Platform.OS === 'web') {
       localStorage.setItem(key, value);
-    } else {
+    } else if (SecureStore) {
       await SecureStore.setItemAsync(key, value);
     }
   },
@@ -41,15 +50,16 @@ const TokenStorage = {
   async getItem(key: string): Promise<string | null> {
     if (Platform.OS === 'web') {
       return localStorage.getItem(key);
-    } else {
+    } else if (SecureStore) {
       return await SecureStore.getItemAsync(key);
     }
+    return null;
   },
 
   async removeItem(key: string): Promise<void> {
     if (Platform.OS === 'web') {
       localStorage.removeItem(key);
-    } else {
+    } else if (SecureStore) {
       await SecureStore.deleteItemAsync(key);
     }
   },
