@@ -3,22 +3,23 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Dimensions,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Colors, Spacing, BorderRadius } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline } from '../config';
 import { useAuthStore } from '../stores/authStore';
-
-const { height } = Dimensions.get('window');
+import { useTheme } from '../hooks/useTheme';
+import { AnimatedPressable } from '../components';
 
 export default function AuthScreen() {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
@@ -42,49 +43,32 @@ export default function AuthScreen() {
   const isValid = email.length > 0 && password.length > 0;
 
   return (
-    <LinearGradient
-      colors={['#12121F', '#1E142E']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.container}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <View style={styles.content}>
+        <View style={[styles.content, { paddingTop: insets.top + 60 }]}>
           {/* Logo Section */}
-          <View style={styles.logoSection}>
-            <View style={styles.logoContainer}>
-              <LinearGradient
-                colors={[Colors.primary, Colors.secondary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.logoGlow}
-              />
-              <LinearGradient
-                colors={[Colors.primary, Colors.secondary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.logoIcon}
-              >
-                <Ionicons name="play-circle" size={50} color={Colors.text} />
-              </LinearGradient>
+          <Animated.View entering={FadeIn.duration(400)} style={styles.logoSection}>
+            <View style={[styles.logoIcon, { backgroundColor: colors.text }]}>
+              <Ionicons name="play" size={28} color={colors.background} />
             </View>
 
-            <Text style={styles.title}>TikSave</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: colors.text }]}>TikSave</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
               Organize your TikTok saves{'\n'}with AI-powered folders
             </Text>
-          </View>
+          </Animated.View>
 
           {/* Form Section */}
-          <View style={styles.formSection}>
-            <View style={styles.inputContainer}>
+          <Animated.View entering={FadeIn.duration(400).delay(100)} style={styles.formSection}>
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>EMAIL</Text>
               <TextInput
-                style={styles.input}
-                placeholder="Email"
-                placeholderTextColor={Colors.textTertiary}
+                style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                placeholder="you@example.com"
+                placeholderTextColor={colors.textQuaternary}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -93,63 +77,65 @@ export default function AuthScreen() {
               />
             </View>
 
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={[styles.input, { paddingRight: 50 }]}
-                placeholder="Password"
-                placeholderTextColor={Colors.textTertiary}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-              />
-              <TouchableOpacity
-                style={styles.eyeButton}
-                onPress={() => setShowPassword(!showPassword)}
-              >
-                <Ionicons
-                  name={showPassword ? 'eye-off' : 'eye'}
-                  size={20}
-                  color={Colors.textTertiary}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>PASSWORD</Text>
+              <View style={styles.passwordWrapper}>
+                <TextInput
+                  style={[styles.input, styles.passwordInput, { borderColor: colors.border, color: colors.text }]}
+                  placeholder="••••••••"
+                  placeholderTextColor={colors.textQuaternary}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
                 />
-              </TouchableOpacity>
+                <AnimatedPressable
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={18}
+                    color={colors.textTertiary}
+                  />
+                </AnimatedPressable>
+              </View>
             </View>
 
-            {error && <Text style={styles.errorText}>{error}</Text>}
+            {error && (
+              <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+            )}
 
-            <TouchableOpacity
-              style={[styles.submitButton, !isValid && styles.submitButtonDisabled]}
+            <AnimatedPressable
+              style={[
+                styles.submitButton,
+                { backgroundColor: colors.text },
+                !isValid && styles.submitButtonDisabled
+              ]}
               onPress={handleSubmit}
               disabled={!isValid || isLoading}
-              activeOpacity={0.8}
+              haptic
             >
-              <LinearGradient
-                colors={[Colors.primary, Colors.secondary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.submitButtonGradient}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color={Colors.text} />
-                ) : (
-                  <Text style={styles.submitButtonText}>
-                    {isSignUp ? 'Create Account' : 'Sign In'}
-                  </Text>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
+              {isLoading ? (
+                <ActivityIndicator color={colors.background} size="small" />
+              ) : (
+                <Text style={[styles.submitButtonText, { color: colors.background }]}>
+                  {isSignUp ? 'Create Account' : 'Sign In'}
+                </Text>
+              )}
+            </AnimatedPressable>
 
-            <TouchableOpacity style={styles.toggleButton} onPress={toggleMode}>
-              <Text style={styles.toggleButtonText}>
+            <AnimatedPressable style={styles.toggleButton} onPress={toggleMode}>
+              <Text style={[styles.toggleButtonText, { color: colors.textSecondary }]}>
                 {isSignUp
                   ? "Already have an account? Sign In"
                   : "Don't have an account? Sign Up"}
               </Text>
-            </TouchableOpacity>
-          </View>
+            </AnimatedPressable>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -162,96 +148,81 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: Spacing.xxl,
+    paddingHorizontal: Spacing.lg,
     justifyContent: 'center',
   },
   logoSection: {
     alignItems: 'center',
-    marginBottom: height * 0.08,
-  },
-  logoContainer: {
-    marginBottom: Spacing.lg,
-    position: 'relative',
-  },
-  logoGlow: {
-    position: 'absolute',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    opacity: 0.3,
-    top: -10,
-    left: -10,
+    marginBottom: Spacing.xxl,
   },
   logoIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 56,
+    height: 56,
+    borderRadius: BorderRadius.md,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
   title: {
-    fontSize: 42,
-    fontWeight: '900',
-    color: Colors.text,
-    marginBottom: Spacing.md,
+    fontSize: 32,
+    fontWeight: '700',
     letterSpacing: -1,
+    marginBottom: Spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: Colors.textSecondary,
+    ...Typography.body,
     textAlign: 'center',
-    lineHeight: 24,
   },
   formSection: {
-    gap: Spacing.lg,
+    gap: Spacing.md,
   },
-  inputContainer: {
-    position: 'relative',
+  inputGroup: {
+    gap: Spacing.xs,
+  },
+  inputLabel: {
+    ...Typography.label,
+    marginLeft: Spacing.xs,
   },
   input: {
-    backgroundColor: Colors.overlay,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    fontSize: 16,
-    color: Colors.text,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    ...Typography.body,
+  },
+  passwordWrapper: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingRight: 48,
   },
   eyeButton: {
     position: 'absolute',
-    right: Spacing.lg,
+    right: Spacing.md,
     top: '50%',
-    transform: [{ translateY: -10 }],
+    transform: [{ translateY: -9 }],
   },
   errorText: {
-    color: Colors.error,
-    fontSize: 14,
+    ...Typography.caption,
     textAlign: 'center',
-    marginTop: -Spacing.sm,
   },
   submitButton: {
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
     marginTop: Spacing.sm,
   },
   submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  submitButtonGradient: {
-    paddingVertical: Spacing.lg,
-    alignItems: 'center',
+    opacity: 0.3,
   },
   submitButtonText: {
-    color: Colors.text,
-    fontSize: 17,
-    fontWeight: '600',
+    ...Typography.bodyStrong,
   },
   toggleButton: {
     alignItems: 'center',
     paddingVertical: Spacing.sm,
   },
   toggleButtonText: {
-    color: Colors.textSecondary,
-    fontSize: 14,
+    ...Typography.caption,
   },
 });
-

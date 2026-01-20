@@ -5,106 +5,73 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  TouchableOpacity,
-  ActivityIndicator,
   Image,
   Linking,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 
-import { Colors, Spacing, BorderRadius } from '../config';
+import { Spacing, BorderRadius, Typography, CategoryColors, Hairline } from '../config';
 import { SaveItem, getDisplayTitle } from '../types';
 import { apiService } from '../services/api';
 import { LibraryStackScreenProps } from '../navigation/types';
-import { formatTimeAgo } from '../utils/date';
 import { useTheme } from '../hooks/useTheme';
+import { AnimatedPressable, AnimatedListItem, Skeleton, SkeletonVideoCard, AnimatedText } from '../components';
 
 type Props = LibraryStackScreenProps<'LibraryMain'>;
 
-// AI Category with auto-detected icon and color
 interface AICategory {
   name: string;
-  icon: string;
   items: SaveItem[];
   color: string;
-  subcategories?: { name: string; items: SaveItem[] }[];
 }
 
-const CATEGORY_CONFIG: Record<string, { icon: string; color: string }> = {
-  food: { icon: '🍜', color: '#F97316' },
-  travel: { icon: '✈️', color: '#06B6D4' },
-  fitness: { icon: '💪', color: '#22C55E' },
-  fashion: { icon: '👗', color: '#EC4899' },
-  beauty: { icon: '💄', color: '#F472B6' },
-  tech: { icon: '📱', color: '#8B5CF6' },
-  finance: { icon: '💰', color: '#10B981' },
-  comedy: { icon: '😂', color: '#FBBF24' },
-  music: { icon: '🎵', color: '#EF4444' },
-  dance: { icon: '💃', color: '#A855F7' },
-  pets: { icon: '🐾', color: '#F59E0B' },
-  diy: { icon: '🔨', color: '#6366F1' },
-  education: { icon: '📚', color: '#14B8A6' },
-  gaming: { icon: '🎮', color: '#7C3AED' },
-  sports: { icon: '⚽', color: '#059669' },
-  art: { icon: '🎨', color: '#DB2777' },
-  nature: { icon: '🌿', color: '#16A34A' },
-  lifestyle: { icon: '✨', color: '#D946EF' },
-  news: { icon: '📰', color: '#64748B' },
-  shopping: { icon: '🛍️', color: '#F43F5E' },
-  uncategorized: { icon: '📁', color: '#6B7280' },
-};
-
-function getCategoryConfig(topic: string): { icon: string; color: string } {
+function getCategoryColor(topic: string): string {
   const lower = topic.toLowerCase();
-  
-  // Check for exact matches first
-  if (CATEGORY_CONFIG[lower]) return CATEGORY_CONFIG[lower];
-  
-  // Check for partial matches
-  for (const [key, config] of Object.entries(CATEGORY_CONFIG)) {
-    if (lower.includes(key) || key.includes(lower)) return config;
+
+  const colorMap: Record<string, keyof typeof CategoryColors> = {
+    food: 'food', recipe: 'food', cooking: 'food', restaurant: 'food',
+    travel: 'travel', trip: 'travel', vacation: 'travel', destination: 'travel',
+    fitness: 'fitness', workout: 'fitness', gym: 'fitness', exercise: 'fitness',
+    fashion: 'fashion', style: 'fashion', outfit: 'fashion',
+    beauty: 'beauty', makeup: 'beauty', skincare: 'beauty',
+    tech: 'tech', technology: 'tech', gadget: 'tech',
+    finance: 'finance', money: 'finance', investing: 'finance',
+    comedy: 'comedy', funny: 'comedy', humor: 'comedy',
+    music: 'music', song: 'music',
+    dance: 'dance', dancing: 'dance', choreography: 'dance',
+    pets: 'pets', dog: 'pets', cat: 'pets', animal: 'pets',
+    diy: 'diy', craft: 'diy', handmade: 'diy',
+    education: 'education', learn: 'education', tutorial: 'education',
+    gaming: 'gaming', game: 'gaming', esports: 'gaming',
+    sports: 'sports', athlete: 'sports', basketball: 'sports',
+    art: 'art', painting: 'art', artist: 'art',
+    nature: 'nature', outdoor: 'nature', wildlife: 'nature',
+    lifestyle: 'lifestyle', life: 'lifestyle', daily: 'lifestyle',
+  };
+
+  for (const [key, colorKey] of Object.entries(colorMap)) {
+    if (lower.includes(key)) {
+      return CategoryColors[colorKey];
+    }
   }
-  
-  // Food related
-  if (['recipe', 'cooking', 'restaurant', 'eating', 'cafe', 'ramen', 'sushi'].some(w => lower.includes(w))) {
-    return CATEGORY_CONFIG.food;
-  }
-  
-  // Travel related
-  if (['japan', 'korea', 'hotel', 'trip', 'vacation', 'explore', 'destination'].some(w => lower.includes(w))) {
-    return CATEGORY_CONFIG.travel;
-  }
-  
-  // Fitness related
-  if (['workout', 'gym', 'exercise', 'training', 'health'].some(w => lower.includes(w))) {
-    return CATEGORY_CONFIG.fitness;
-  }
-  
-  return CATEGORY_CONFIG.uncategorized;
+
+  return CategoryColors.default;
 }
 
 export default function LibraryScreen({ navigation }: Props) {
-  const { colors: themeColors } = useTheme();
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [items, setItems] = useState<SaveItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const loadItems = useCallback(async () => {
-    console.log('🔄 Loading items...');
     try {
       const allItems = await apiService.getItems();
       const readyItems = allItems.filter(item => item.status === 'ready');
-      
-      // Debug: Check thumbnails
-      const withThumbnails = readyItems.filter(item => item.thumbnailURL);
-      console.log('📦 Got items:', readyItems.length, 'total');
-      console.log('📷 Items with thumbnails:', withThumbnails.length);
-      if (withThumbnails.length > 0) {
-        console.log('📷 Sample thumbnail URL:', withThumbnails[0].thumbnailURL?.substring(0, 100));
-      }
-      
       setItems(readyItems);
     } catch (error) {
       console.error('Failed to load items:', error);
@@ -125,340 +92,255 @@ export default function LibraryScreen({ navigation }: Props) {
     loadItems();
   };
 
-  // Group items by AI-detected topics (supports "Parent > Subcategory" format)
+  // Group items by AI-detected topics
   const categories = useMemo(() => {
-    // First, group by parent category
-    const parentMap = new Map<string, {
-      items: SaveItem[];
-      subcategories: Map<string, SaveItem[]>;
-    }>();
-    
+    const categoryMap = new Map<string, SaveItem[]>();
+
     for (const item of items) {
-      const primaryTopic = item.detectedTopics?.[0] || 'Saved';
-      
-      // Parse hierarchical category (e.g., "Food > Japanese Street Food")
-      let parentName = primaryTopic;
-      let subName: string | null = null;
-      
+      let primaryTopic = item.detectedTopics?.[0] || 'Saved';
+
+      // Handle hierarchical topics (e.g., "Food > Japanese")
       if (primaryTopic.includes(' > ')) {
-        const parts = primaryTopic.split(' > ');
-        parentName = parts[0].trim();
-        subName = parts[1]?.trim() || null;
+        primaryTopic = primaryTopic.split(' > ')[0].trim();
       }
-      
-      // Normalize parent name
-      parentName = parentName.charAt(0).toUpperCase() + parentName.slice(1);
-      
-      if (!parentMap.has(parentName)) {
-        parentMap.set(parentName, { items: [], subcategories: new Map() });
+
+      primaryTopic = primaryTopic.charAt(0).toUpperCase() + primaryTopic.slice(1);
+
+      if (!categoryMap.has(primaryTopic)) {
+        categoryMap.set(primaryTopic, []);
       }
-      
-      const parent = parentMap.get(parentName)!;
-      parent.items.push(item);
-      
-      // Add to subcategory if exists
-      if (subName) {
-        if (!parent.subcategories.has(subName)) {
-          parent.subcategories.set(subName, []);
-        }
-        parent.subcategories.get(subName)!.push(item);
-      }
+      categoryMap.get(primaryTopic)!.push(item);
     }
-    
-    // Convert to array
+
     const result: AICategory[] = [];
-    for (const [name, data] of parentMap) {
-      const config = getCategoryConfig(name);
-      
-      // Build subcategories array
-      const subcategories: { name: string; items: SaveItem[] }[] = [];
-      for (const [subName, subItems] of data.subcategories) {
-        subcategories.push({
-          name: subName,
-          items: subItems.sort((a, b) => 
-            new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
-          ),
-        });
-      }
-      
+    for (const [name, categoryItems] of categoryMap) {
       result.push({
         name,
-        icon: config.icon,
-        color: config.color,
-        items: data.items.sort((a, b) => 
+        color: getCategoryColor(name),
+        items: categoryItems.sort((a, b) =>
           new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
         ),
-        subcategories: subcategories.sort((a, b) => b.items.length - a.items.length),
       });
     }
-    
+
     return result.sort((a, b) => b.items.length - a.items.length);
   }, [items]);
 
-  // Create theme-aware styles
-  const themeStyles = React.useMemo(() => ({
-    loadingText: { ...styles.loadingText, color: themeColors.textTertiary },
-    emptyTitle: { ...styles.emptyTitle, color: themeColors.text },
-    emptySubtitle: { ...styles.emptySubtitle, color: themeColors.textTertiary },
-    importButtonText: { ...styles.importButtonText, color: themeColors.text },
-    statNumber: { ...styles.statNumber, color: themeColors.text },
-    statLabel: { ...styles.statLabel, color: themeColors.textTertiary },
-    sectionTitle: { ...styles.sectionTitle, color: themeColors.text },
-    sectionCount: { ...styles.sectionCount, color: themeColors.textTertiary },
-    itemTitle: { ...styles.itemTitle, color: themeColors.text },
-    itemSubtitle: { ...styles.itemSubtitle, color: themeColors.textTertiary },
-    subcategoryTitle: { ...styles.subcategoryTitle, color: themeColors.text },
-  }), [themeColors]);
-
+  // Loading state
   if (isLoading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: themeColors.background }]}>
-        <ActivityIndicator size="large" color={themeColors.primary} />
-        <Text style={themeStyles.loadingText}>Loading your library...</Text>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>Library</AnimatedText>
+        </View>
+        <View style={styles.skeletonContainer}>
+          {[0, 1, 2].map((i) => (
+            <View key={i} style={styles.skeletonCategory}>
+              <Skeleton width={100} height={20} style={{ marginBottom: 12 }} />
+              <View style={styles.skeletonRow}>
+                <SkeletonVideoCard />
+                <SkeletonVideoCard />
+                <SkeletonVideoCard />
+              </View>
+            </View>
+          ))}
+        </View>
       </View>
     );
   }
 
+  // Empty state
   if (items.length === 0) {
     return (
-      <View style={[styles.emptyContainer, { backgroundColor: themeColors.background }]}>
-        <LinearGradient
-          colors={[`${themeColors.primary}30`, `${themeColors.secondary}30`]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.emptyIconContainer}
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>Library</AnimatedText>
+        </View>
+        <Animated.View
+          entering={FadeIn.duration(300)}
+          style={styles.emptyContainer}
         >
-          <Text style={styles.emptyIcon}>🤖</Text>
-        </LinearGradient>
-        <Text style={themeStyles.emptyTitle}>Your AI Library is Empty</Text>
-        <Text style={themeStyles.emptySubtitle}>
-          Import TikTok videos and watch as AI{'\n'}automatically organizes them into categories
-        </Text>
-        <TouchableOpacity
-          style={styles.importButton}
-          onPress={() => navigation.navigate('AddVideo')}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={[themeColors.primary, themeColors.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.importButtonGradient}
+          <View style={[styles.emptyIconWrapper, { backgroundColor: colors.accentSubtle }]}>
+            <Ionicons name="grid-outline" size={32} color={colors.textTertiary} />
+          </View>
+          <AnimatedText delay={100} style={[styles.emptyTitle, { color: colors.text }]}>
+            No videos yet
+          </AnimatedText>
+          <AnimatedText delay={200} style={[styles.emptySubtitle, { color: colors.textTertiary }]}>
+            Import TikToks to see them{'\n'}organized by AI
+          </AnimatedText>
+          <AnimatedPressable
+            style={[styles.importButton, { borderColor: colors.border }]}
+            onPress={() => navigation.navigate('AddVideo')}
+            haptic
           >
-            <Ionicons name="add-circle" size={20} color={themeColors.text} />
-            <Text style={themeStyles.importButtonText}>Import TikToks</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <Ionicons name="add" size={18} color={colors.text} />
+            <Text style={[styles.importButtonText, { color: colors.text }]}>
+              Import videos
+            </Text>
+          </AnimatedPressable>
+        </Animated.View>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
-      {/* Header Stats */}
-      <View style={[styles.statsBar, { backgroundColor: themeColors.backgroundSecondary, borderBottomColor: themeColors.border }]}>
-        <View style={styles.stat}>
-          <Text style={themeStyles.statNumber}>{items.length}</Text>
-          <Text style={themeStyles.statLabel}>Videos</Text>
-        </View>
-        <View style={[styles.statDivider, { backgroundColor: themeColors.border }]} />
-        <View style={styles.stat}>
-          <Text style={themeStyles.statNumber}>{categories.length}</Text>
-          <Text style={themeStyles.statLabel}>AI Categories</Text>
-        </View>
-        <View style={[styles.statDivider, { backgroundColor: themeColors.border }]} />
-        <View style={styles.stat}>
-          <Text style={themeStyles.statNumber}>🤖</Text>
-          <Text style={themeStyles.statLabel}>Auto-sorted</Text>
-        </View>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>Library</AnimatedText>
+        <Text style={[styles.headerCount, { color: colors.textTertiary }]}>
+          {items.length} videos
+        </Text>
       </View>
 
       <ScrollView
-        style={[styles.scrollView, { backgroundColor: themeColors.background }]}
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            tintColor={themeColors.primary}
+            tintColor={colors.text}
           />
         }
       >
-        {/* AI Categories */}
-        {categories.map((category) => (
-          <CategorySection
+        {categories.map((category, categoryIndex) => (
+          <AnimatedListItem
             key={category.name}
-            category={category}
-            onPressItem={(item) => navigation.navigate('VideoDetail', { item })}
-            onPressCategory={() => navigation.navigate('CategoryDetail', { 
-              categoryName: category.name,
-              icon: category.icon,
-              color: category.color,
-            })}
-            onPressSubcategory={(subcategoryName) => navigation.navigate('CategoryDetail', {
-              categoryName: category.name,
-              icon: category.icon,
-              color: category.color,
-              subcategoryName: subcategoryName,
-            })}
-          />
+            index={categoryIndex}
+            direction="fade"
+            style={styles.categorySection}
+          >
+            {/* Category Header */}
+            <AnimatedPressable
+              style={styles.categoryHeader}
+              onPress={() => navigation.navigate('CategoryDetail', {
+                categoryName: category.name,
+                icon: '',
+                color: category.color,
+              })}
+            >
+              <View style={styles.categoryTitleRow}>
+                <Text style={[styles.categoryName, { color: colors.text }]}>
+                  {category.name}
+                </Text>
+                <View style={[styles.categoryDot, { backgroundColor: category.color }]} />
+              </View>
+              <View style={styles.categoryMeta}>
+                <Text style={[styles.categoryCount, { color: colors.textTertiary }]}>
+                  {category.items.length} videos
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.textQuaternary} />
+              </View>
+            </AnimatedPressable>
+
+            {/* Video Row */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.videoRow}
+            >
+              {category.items.slice(0, 6).map((item, itemIndex) => (
+                <VideoCard
+                  key={item.id}
+                  item={item}
+                  index={itemIndex}
+                  onPress={() => navigation.navigate('VideoDetail', { item })}
+                  onPlayPress={() => item.sourceURL && Linking.openURL(item.sourceURL)}
+                />
+              ))}
+
+              {/* See More Card */}
+              {category.items.length > 6 && (
+                <AnimatedPressable
+                  style={[styles.seeMoreCard, { backgroundColor: colors.accentSubtle }]}
+                  onPress={() => navigation.navigate('CategoryDetail', {
+                    categoryName: category.name,
+                    icon: '',
+                    color: category.color,
+                  })}
+                >
+                  <Text style={[styles.seeMoreCount, { color: colors.text }]}>
+                    +{category.items.length - 6}
+                  </Text>
+                  <Text style={[styles.seeMoreLabel, { color: colors.textTertiary }]}>
+                    more
+                  </Text>
+                </AnimatedPressable>
+              )}
+            </ScrollView>
+          </AnimatedListItem>
         ))}
+
+        {/* Bottom padding */}
+        <View style={{ height: Spacing.xxl }} />
       </ScrollView>
     </View>
   );
 }
 
-// Category Section Component
-function CategorySection({
-  category,
-  onPressItem,
-  onPressCategory,
-  onPressSubcategory,
+// Video Card Component
+function VideoCard({
+  item,
+  index,
+  onPress,
+  onPlayPress,
 }: {
-  category: AICategory;
-  onPressItem: (item: SaveItem) => void;
-  onPressCategory: () => void;
-  onPressSubcategory: (subcategoryName: string) => void;
+  item: SaveItem;
+  index: number;
+  onPress: () => void;
+  onPlayPress: () => void;
 }) {
-  const { colors: themeColors } = useTheme();
-  const hasSubcategories = category.subcategories && category.subcategories.length > 0;
-  
-  const themeStyles = React.useMemo(() => ({
-    sectionTitle: { ...styles.sectionTitle, color: themeColors.text },
-    sectionCount: { ...styles.sectionCount, color: themeColors.textTertiary },
-    itemTitle: { ...styles.itemTitle, color: themeColors.text },
-    itemSubtitle: { ...styles.itemSubtitle, color: themeColors.textTertiary },
-  }), [themeColors]);
-  
+  const { colors } = useTheme();
+
   return (
-    <View style={[styles.categorySection, { backgroundColor: themeColors.background }]}>
-      {/* Category Header */}
-      <TouchableOpacity 
-        style={styles.categoryHeader}
-        onPress={onPressCategory}
-        activeOpacity={0.7}
+    <View style={styles.videoCard}>
+      {/* Thumbnail */}
+      <AnimatedPressable
+        style={styles.thumbnailWrapper}
+        onPress={onPlayPress}
+        scaleOnPress={0.98}
       >
-        <View style={[styles.categoryIcon, { backgroundColor: `${category.color}20` }]}>
-          <Text style={styles.categoryEmoji}>{category.icon}</Text>
-        </View>
-        <View style={styles.categoryInfo}>
-          <Text style={[styles.categoryName, { color: themeColors.text }]}>{category.name}</Text>
-          <Text style={[styles.categoryCount, { color: themeColors.textTertiary }]}>
-            {category.items.length} videos
-            {hasSubcategories && ` · ${category.subcategories!.length} subcategories`}
-          </Text>
-        </View>
-        <View style={[styles.aiTag, { backgroundColor: `${themeColors.primary}20` }]}>
-          <Ionicons name="sparkles" size={10} color={themeColors.primary} />
-          <Text style={[styles.aiTagText, { color: themeColors.primary }]}>AI</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={themeColors.textQuaternary} />
-      </TouchableOpacity>
-
-      {/* Subcategory Tags */}
-      {hasSubcategories && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.subcategoryScroll}
-        >
-          {category.subcategories!.map((sub) => (
-            <TouchableOpacity
-              key={sub.name}
-              style={[styles.subcategoryTag, { backgroundColor: `${category.color}15` }]}
-              onPress={() => onPressSubcategory(sub.name)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.subcategoryText, { color: category.color }]}>
-                {sub.name}
-              </Text>
-              <Text style={styles.subcategoryCount}>{sub.items.length}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
-
-      {/* Horizontal Video Scroll */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.videoScroll}
-      >
-        {category.items.slice(0, 6).map((item) => {
-          const openInTikTok = () => {
-            if (item.sourceURL) {
-              Linking.openURL(item.sourceURL);
-            }
-          };
-
-          return (
-            <View key={item.id} style={styles.videoCard}>
-              {/* Thumbnail with Open in TikTok overlay */}
-              <TouchableOpacity
-                style={styles.videoThumbnail}
-                onPress={openInTikTok}
-                activeOpacity={0.8}
-              >
-                {item.thumbnailURL ? (
-                  <Image 
-                    source={{ 
-                      uri: item.thumbnailURL,
-                      cache: 'force-cache'
-                    }} 
-                    style={styles.thumbnailImage}
-                    onError={(e) => {
-                      console.warn('❌ Failed to load thumbnail:', item.thumbnailURL?.substring(0, 80));
-                    }}
-                    onLoad={() => {
-                      console.log('✅ Thumbnail loaded');
-                    }}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.thumbnailPlaceholder}>
-                    <Ionicons name="play" size={24} color={themeColors.textTertiary} />
-                  </View>
-                )}
-
-                {item.duration && (
-                  <View style={styles.durationBadge}>
-                    <Text style={[styles.durationText, { color: themeColors.text }]}>
-                      {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-              
-              {/* Title and Creator - clickable to navigate to video details */}
-              <TouchableOpacity
-                onPress={() => onPressItem(item)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.videoTitle, { color: themeColors.text }]} numberOfLines={2}>
-                  {getDisplayTitle(item)}
-                </Text>
-                {item.creatorUsername && (
-                  <Text style={[styles.creatorName, { color: themeColors.textTertiary }]}>@{item.creatorUsername}</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          );
-        })}
-        
-        {/* See All Card */}
-        {category.items.length > 6 && (
-          <TouchableOpacity
-            style={[styles.seeAllCard, { backgroundColor: themeColors.overlayLight }]}
-            onPress={onPressCategory}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.seeAllCircle, { backgroundColor: `${category.color}30` }]}>
-              <Text style={[styles.seeAllCount, { color: themeColors.text }]}>+{category.items.length - 6}</Text>
-            </View>
-            <Text style={[styles.seeAllText, { color: themeColors.textSecondary }]}>See All</Text>
-          </TouchableOpacity>
+        {item.thumbnailURL ? (
+          <Image
+            source={{ uri: item.thumbnailURL, cache: 'force-cache' }}
+            style={styles.thumbnail}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.accentSubtle }]}>
+            <Ionicons name="play" size={24} color={colors.textTertiary} />
+          </View>
         )}
-      </ScrollView>
+
+        {/* Duration Badge */}
+        {item.duration && (
+          <View style={styles.durationBadge}>
+            <Text style={styles.durationText}>
+              {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
+            </Text>
+          </View>
+        )}
+      </AnimatedPressable>
+
+      {/* Info */}
+      <AnimatedPressable
+        style={styles.videoInfo}
+        onPress={onPress}
+        noScale
+        opacityOnPress={0.6}
+      >
+        <Text style={[styles.videoTitle, { color: colors.text }]} numberOfLines={2}>
+          {getDisplayTitle(item)}
+        </Text>
+        {item.creatorUsername && (
+          <Text style={[styles.creatorName, { color: colors.textTertiary }]}>
+            @{item.creatorUsername}
+          </Text>
+        )}
+      </AnimatedPressable>
     </View>
   );
 }
@@ -466,271 +348,171 @@ function CategorySection({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
+  },
+  headerTitle: {
+    ...Typography.displayMd,
+  },
+  headerCount: {
+    ...Typography.caption,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: Spacing.xxl,
+    paddingBottom: Spacing.xl,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
+
+  // Loading state
+  skeletonContainer: {
+    padding: Spacing.md,
   },
-  loadingText: {
-    marginTop: Spacing.lg,
-    color: Colors.textTertiary,
-    fontSize: 14,
+  skeletonCategory: {
+    marginBottom: Spacing.xl,
   },
+  skeletonRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+
+  // Empty state
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
-    paddingHorizontal: Spacing.xxl,
-  },
-  emptyIconContainer: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
     justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.xxl,
+    paddingHorizontal: Spacing.xl,
   },
-  emptyIcon: {
-    fontSize: 60,
+  emptyIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
   },
   emptyTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-    textAlign: 'center',
+    ...Typography.heading,
+    marginBottom: Spacing.xs,
   },
   emptySubtitle: {
-    fontSize: 15,
-    color: Colors.textTertiary,
+    ...Typography.body,
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: Spacing.xxl,
+    marginBottom: Spacing.lg,
   },
   importButton: {
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-  },
-  importButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xxl,
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
   },
   importButtonText: {
-    color: Colors.text,
-    fontSize: 16,
-    fontWeight: '600',
+    ...Typography.bodyStrong,
   },
-  statsBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.xl,
-    backgroundColor: Colors.backgroundSecondary,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  stat: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: Colors.textTertiary,
-    marginTop: 2,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: Colors.border,
-  },
+
+  // Category section
   categorySection: {
-    marginTop: Spacing.xl,
+    marginBottom: Spacing.xl,
   },
   categoryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
   },
-  categoryIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.md,
-    justifyContent: 'center',
+  categoryTitleRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  categoryEmoji: {
-    fontSize: 22,
-  },
-  categoryInfo: {
-    flex: 1,
-    marginLeft: Spacing.md,
-  },
-  categoryName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  categoryCount: {
-    fontSize: 13,
-    color: Colors.textTertiary,
-  },
-  subcategoryScroll: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
     gap: Spacing.sm,
   },
-  subcategoryTag: {
+  categoryName: {
+    ...Typography.heading,
+  },
+  categoryDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  categoryMeta: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  categoryCount: {
+    ...Typography.caption,
+  },
+
+  // Video row
+  videoRow: {
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-    marginRight: Spacing.sm,
-  },
-  subcategoryText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  subcategoryCount: {
-    fontSize: 11,
-    color: Colors.textTertiary,
-    marginLeft: Spacing.xs,
-  },
-  aiTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: `${Colors.primary}20`,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.full,
-    marginRight: Spacing.sm,
-  },
-  aiTagText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  videoScroll: {
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   videoCard: {
     width: 140,
-    marginRight: Spacing.md,
   },
-  videoThumbnail: {
+  thumbnailWrapper: {
     width: 140,
-    height: 180,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.overlay,
+    height: 186,
+    borderRadius: BorderRadius.none,
     overflow: 'hidden',
-    position: 'relative',
   },
-  thumbnailImage: {
+  thumbnail: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
   },
   thumbnailPlaceholder: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   durationBadge: {
     position: 'absolute',
     bottom: 6,
     right: 6,
-    backgroundColor: 'rgba(0,0,0,0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
-    zIndex: 1,
+    borderRadius: BorderRadius.xs,
   },
   durationText: {
     fontSize: 11,
-    color: Colors.text,
     fontWeight: '500',
+    color: '#ffffff',
+  },
+  videoInfo: {
+    paddingTop: Spacing.xs,
   },
   videoTitle: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: Colors.text,
-    marginTop: Spacing.sm,
-    lineHeight: 18,
+    ...Typography.captionStrong,
+    lineHeight: 16,
   },
   creatorName: {
-    fontSize: 11,
-    color: Colors.textTertiary,
+    fontSize: 12,
     marginTop: 2,
   },
-  seeAllCard: {
-    width: 100,
-    height: 180,
-    justifyContent: 'center',
+
+  // See more card
+  seeMoreCard: {
+    width: 80,
+    height: 186,
+    borderRadius: BorderRadius.sm,
     alignItems: 'center',
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.overlayLight,
-    marginRight: Spacing.lg,
-  },
-  seeAllCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
     justifyContent: 'center',
-    alignItems: 'center',
   },
-  seeAllCount: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.text,
+  seeMoreCount: {
+    ...Typography.headingSm,
   },
-  seeAllText: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginTop: Spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  sectionCount: {
-    fontSize: 13,
-    color: Colors.textTertiary,
-  },
-  itemTitle: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: Colors.text,
-  },
-  itemSubtitle: {
-    fontSize: 13,
-    color: Colors.textTertiary,
-  },
-  subcategoryTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.text,
+  seeMoreLabel: {
+    ...Typography.caption,
   },
 });
-

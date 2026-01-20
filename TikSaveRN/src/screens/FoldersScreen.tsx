@@ -5,24 +5,24 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  TouchableOpacity,
   ActivityIndicator,
   Modal,
   TextInput,
-  Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Colors, Spacing, BorderRadius } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline } from '../config';
 import { Folder, FolderNode, getDisplayIcon } from '../types';
 import { apiService } from '../services/api';
 import { FoldersStackScreenProps } from '../navigation/types';
+import { useTheme } from '../hooks/useTheme';
+import { AnimatedPressable, AnimatedListItem } from '../components';
 
 type Props = FoldersStackScreenProps<'FoldersList'>;
 
-// Build tree structure from flat folders
 function buildFolderTree(folders: Folder[]): FolderNode[] {
   const topLevel = folders.filter((f) => !f.parentId);
 
@@ -39,6 +39,8 @@ function buildFolderTree(folders: Folder[]): FolderNode[] {
 }
 
 export default function FoldersScreen({ navigation }: Props) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderNodes, setFolderNodes] = useState<FolderNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,38 +82,43 @@ export default function FoldersScreen({ navigation }: Props) {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading...</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="small" color={colors.text} />
       </View>
     );
   }
 
   if (folderNodes.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
-        <View style={styles.emptyIconContainer}>
-          <Ionicons name="folder-open" size={50} color={Colors.secondary} />
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Folders</Text>
         </View>
-        <Text style={styles.emptyTitle}>No folders yet</Text>
-        <Text style={styles.emptySubtitle}>
-          Create folders to organize{'\n'}your saved TikToks
-        </Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setShowAddModal(true)}
-          activeOpacity={0.8}
+
+        <Animated.View
+          entering={FadeIn.duration(300)}
+          style={styles.emptyContainer}
         >
-          <LinearGradient
-            colors={[Colors.primary, Colors.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.addButtonGradient}
+          <View style={[styles.emptyIconWrapper, { backgroundColor: colors.accentSubtle }]}>
+            <Ionicons name="folder-open-outline" size={32} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            No folders yet
+          </Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textTertiary }]}>
+            Create folders to organize{'\n'}your saved videos
+          </Text>
+          <AnimatedPressable
+            style={[styles.createButton, { borderColor: colors.border }]}
+            onPress={() => setShowAddModal(true)}
+            haptic
           >
-            <Ionicons name="add" size={20} color={Colors.text} />
-            <Text style={styles.addButtonText}>Add Folder</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <Ionicons name="add" size={18} color={colors.text} />
+            <Text style={[styles.createButtonText, { color: colors.text }]}>
+              Create folder
+            </Text>
+          </AnimatedPressable>
+        </Animated.View>
 
         <AddFolderModal
           visible={showAddModal}
@@ -124,42 +131,40 @@ export default function FoldersScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Folders</Text>
+        <AnimatedPressable
+          style={[styles.addButton, { backgroundColor: colors.text }]}
+          onPress={() => setShowAddModal(true)}
+          haptic
+        >
+          <Ionicons name="add" size={18} color={colors.background} />
+        </AnimatedPressable>
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            tintColor={Colors.primary}
+            tintColor={colors.text}
           />
         }
       >
-        {folderNodes.map((node) => (
-          <FolderNodeView
-            key={node.folder.id}
-            node={node}
-            onSelect={(folder) => navigation.navigate('FolderDetail', { folder })}
-          />
+        {folderNodes.map((node, index) => (
+          <AnimatedListItem key={node.folder.id} index={index} direction="fade">
+            <FolderNodeView
+              node={node}
+              onSelect={(folder) => navigation.navigate('FolderDetail', { folder })}
+            />
+          </AnimatedListItem>
         ))}
       </ScrollView>
-
-      {/* Add Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setShowAddModal(true)}
-        activeOpacity={0.8}
-      >
-        <LinearGradient
-          colors={[Colors.primary, Colors.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.fabGradient}
-        >
-          <Ionicons name="add" size={28} color={Colors.text} />
-        </LinearGradient>
-      </TouchableOpacity>
 
       <AddFolderModal
         visible={showAddModal}
@@ -171,7 +176,6 @@ export default function FoldersScreen({ navigation }: Props) {
   );
 }
 
-// Folder Node View
 function FolderNodeView({
   node,
   onSelect,
@@ -179,13 +183,14 @@ function FolderNodeView({
   node: FolderNode;
   onSelect: (folder: Folder) => void;
 }) {
+  const { colors } = useTheme();
   const [isExpanded, setIsExpanded] = useState(true);
   const hasChildren = node.children.length > 0;
 
   return (
     <View style={styles.nodeContainer}>
-      <TouchableOpacity
-        style={styles.folderRow}
+      <AnimatedPressable
+        style={[styles.folderRow, { borderBottomColor: colors.border }]}
         onPress={() => {
           if (hasChildren) {
             setIsExpanded(!isExpanded);
@@ -194,53 +199,43 @@ function FolderNodeView({
           }
         }}
         onLongPress={() => onSelect(node.folder)}
-        activeOpacity={0.7}
       >
-        <View style={styles.folderIconContainer}>
-          <LinearGradient
-            colors={[`${Colors.primary}4D`, `${Colors.secondary}4D`]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.folderIcon}
-          >
-            <Text style={styles.folderEmoji}>{getDisplayIcon(node.folder) || '📁'}</Text>
-          </LinearGradient>
-        </View>
+        <Text style={styles.folderEmoji}>{getDisplayIcon(node.folder) || '📁'}</Text>
 
         <View style={styles.folderInfo}>
-          <Text style={styles.folderName}>{node.folder.name}</Text>
-          <Text style={styles.folderItemCount}>{node.folder.itemCount} items</Text>
+          <Text style={[styles.folderName, { color: colors.text }]}>{node.folder.name}</Text>
+          <Text style={[styles.folderItemCount, { color: colors.textTertiary }]}>
+            {node.folder.itemCount} videos
+          </Text>
         </View>
 
         {hasChildren ? (
           <Ionicons
             name="chevron-down"
             size={16}
-            color={Colors.textQuaternary}
+            color={colors.textQuaternary}
             style={{ transform: [{ rotate: isExpanded ? '0deg' : '-90deg' }] }}
           />
         ) : (
-          <Ionicons name="chevron-forward" size={16} color={Colors.textQuaternary} />
+          <Ionicons name="chevron-forward" size={16} color={colors.textQuaternary} />
         )}
-      </TouchableOpacity>
+      </AnimatedPressable>
 
-      {/* Children */}
       {isExpanded && hasChildren && (
         <View style={styles.childrenContainer}>
           {node.children.map((childNode) => (
-            <TouchableOpacity
+            <AnimatedPressable
               key={childNode.folder.id}
-              style={styles.childRow}
+              style={[styles.childRow, { borderBottomColor: colors.border }]}
               onPress={() => onSelect(childNode.folder)}
-              activeOpacity={0.7}
             >
-              <View style={styles.childIcon}>
-                <Text style={styles.childEmoji}>{getDisplayIcon(childNode.folder) || '📁'}</Text>
-              </View>
-              <Text style={styles.childName}>{childNode.folder.name}</Text>
-              <Text style={styles.childCount}>{childNode.folder.itemCount}</Text>
-              <Ionicons name="chevron-forward" size={12} color={Colors.textQuaternary} />
-            </TouchableOpacity>
+              <Text style={styles.childEmoji}>{getDisplayIcon(childNode.folder) || '📁'}</Text>
+              <Text style={[styles.childName, { color: colors.text }]}>{childNode.folder.name}</Text>
+              <Text style={[styles.childCount, { color: colors.textQuaternary }]}>
+                {childNode.folder.itemCount}
+              </Text>
+              <Ionicons name="chevron-forward" size={12} color={colors.textQuaternary} />
+            </AnimatedPressable>
           ))}
         </View>
       )}
@@ -248,7 +243,6 @@ function FolderNodeView({
   );
 }
 
-// Add Folder Modal
 function AddFolderModal({
   visible,
   folders,
@@ -260,14 +254,12 @@ function AddFolderModal({
   onClose: () => void;
   onCreate: (name: string, parentId?: string, iconName?: string) => void;
 }) {
+  const { colors } = useTheme();
   const [name, setName] = useState('');
   const [selectedIcon, setSelectedIcon] = useState('📁');
   const [selectedParentId, setSelectedParentId] = useState<string | undefined>();
 
-  const availableIcons = [
-    '📁', '🇯🇵', '🇰🇷', '🇺🇸', '🇬🇧', '🍽️', '🏨', '🎡', '🛍️', '💪',
-    '🚗', '💰', '📱', '👗', '💄', '🐾', '🎵', '📚',
-  ];
+  const icons = ['📁', '🍽️', '✈️', '💪', '👗', '🎵', '📱', '💰', '🐾', '📚'];
 
   const handleCreate = () => {
     if (name.trim()) {
@@ -282,75 +274,96 @@ function AddFolderModal({
   const topLevelFolders = folders.filter((f) => !f.parentId);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+        <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>New Folder</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>New Folder</Text>
+            <AnimatedPressable onPress={onClose}>
+              <Ionicons name="close" size={22} color={colors.text} />
+            </AnimatedPressable>
           </View>
 
-          {/* Icon Selector */}
-          <Text style={styles.label}>Icon</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.iconScroll}>
-            {availableIcons.map((icon) => (
-              <TouchableOpacity
+          <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>ICON</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.iconPicker}>
+            {icons.map((icon) => (
+              <AnimatedPressable
                 key={icon}
-                style={[styles.iconOption, selectedIcon === icon && styles.iconOptionSelected]}
+                style={[
+                  styles.iconOption,
+                  {
+                    backgroundColor: selectedIcon === icon ? colors.accentSubtle : 'transparent',
+                    borderColor: selectedIcon === icon ? colors.text : colors.border,
+                  },
+                ]}
                 onPress={() => setSelectedIcon(icon)}
               >
-                <Text style={styles.iconOptionText}>{icon}</Text>
-              </TouchableOpacity>
+                <Text style={styles.iconText}>{icon}</Text>
+              </AnimatedPressable>
             ))}
           </ScrollView>
 
-          {/* Name Input */}
-          <Text style={styles.label}>Name</Text>
+          <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>NAME</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
             placeholder="Folder name"
-            placeholderTextColor={Colors.textQuaternary}
+            placeholderTextColor={colors.textQuaternary}
             value={name}
             onChangeText={setName}
+            autoFocus
           />
 
-          {/* Parent Folder */}
-          <Text style={styles.label}>Parent Folder (optional)</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.parentScroll}>
-            <TouchableOpacity
-              style={[styles.parentOption, !selectedParentId && styles.parentOptionSelected]}
-              onPress={() => setSelectedParentId(undefined)}
-            >
-              <Text style={styles.parentOptionText}>None (Top Level)</Text>
-            </TouchableOpacity>
-            {topLevelFolders.map((folder) => (
-              <TouchableOpacity
-                key={folder.id}
-                style={[
-                  styles.parentOption,
-                  selectedParentId === folder.id && styles.parentOptionSelected,
-                ]}
-                onPress={() => setSelectedParentId(folder.id)}
-              >
-                <Text style={styles.parentOptionText}>{folder.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          {topLevelFolders.length > 0 && (
+            <>
+              <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>PARENT (OPTIONAL)</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.parentPicker}>
+                <AnimatedPressable
+                  style={[
+                    styles.parentOption,
+                    {
+                      backgroundColor: !selectedParentId ? colors.accentSubtle : 'transparent',
+                      borderColor: !selectedParentId ? colors.text : colors.border,
+                    },
+                  ]}
+                  onPress={() => setSelectedParentId(undefined)}
+                >
+                  <Text style={[styles.parentText, { color: colors.text }]}>None</Text>
+                </AnimatedPressable>
+                {topLevelFolders.map((folder) => (
+                  <AnimatedPressable
+                    key={folder.id}
+                    style={[
+                      styles.parentOption,
+                      {
+                        backgroundColor: selectedParentId === folder.id ? colors.accentSubtle : 'transparent',
+                        borderColor: selectedParentId === folder.id ? colors.text : colors.border,
+                      },
+                    ]}
+                    onPress={() => setSelectedParentId(folder.id)}
+                  >
+                    <Text style={[styles.parentText, { color: colors.text }]}>{folder.name}</Text>
+                  </AnimatedPressable>
+                ))}
+              </ScrollView>
+            </>
+          )}
 
-          {/* Actions */}
           <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.createButton, !name.trim() && styles.createButtonDisabled]}
+            <AnimatedPressable style={styles.cancelButton} onPress={onClose}>
+              <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</Text>
+            </AnimatedPressable>
+            <AnimatedPressable
+              style={[
+                styles.saveButton,
+                { backgroundColor: colors.text },
+                !name.trim() && styles.saveButtonDisabled,
+              ]}
               onPress={handleCreate}
               disabled={!name.trim()}
+              haptic
             >
-              <Text style={styles.createButtonText}>Create</Text>
-            </TouchableOpacity>
+              <Text style={[styles.saveButtonText, { color: colors.background }]}>Create</Text>
+            </AnimatedPressable>
           </View>
         </View>
       </View>
@@ -361,271 +374,202 @@ function AddFolderModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: Spacing.lg,
-    gap: Spacing.md,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
   },
-  loadingText: {
-    marginTop: Spacing.lg,
-    color: Colors.textTertiary,
-    fontSize: 14,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.background,
-    paddingHorizontal: Spacing.xxl,
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
   },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(168, 85, 247, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.xxl,
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-  },
-  emptySubtitle: {
-    fontSize: 15,
-    color: Colors.textTertiary,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: Spacing.xxl,
+  headerTitle: {
+    ...Typography.displayMd,
   },
   addButton: {
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  addButtonGradient: {
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: Spacing.xl,
+  },
+
+  // Empty state
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xl,
+  },
+  emptyIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+  },
+  emptyTitle: {
+    ...Typography.heading,
+    marginBottom: Spacing.xs,
+  },
+  emptySubtitle: {
+    ...Typography.body,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+  },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+  },
+  createButtonText: {
+    ...Typography.bodyStrong,
+  },
+
+  // Folder node
+  nodeContainer: {},
+  folderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
     paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xxl,
-  },
-  addButtonText: {
-    color: Colors.text,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  nodeContainer: {
-    gap: Spacing.sm,
-  },
-  folderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.xl,
-  },
-  folderIconContainer: {},
-  folderIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.md,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: Hairline,
   },
   folderEmoji: {
-    fontSize: 22,
+    fontSize: 20,
   },
   folderInfo: {
     flex: 1,
-    gap: 2,
   },
   folderName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
+    ...Typography.bodyStrong,
   },
   folderItemCount: {
-    fontSize: 13,
-    color: Colors.textTertiary,
+    ...Typography.caption,
   },
   childrenContainer: {
-    marginLeft: Spacing.xxl,
-    gap: Spacing.xs,
+    marginLeft: Spacing.xl,
   },
   childRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
-  },
-  childIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.overlay,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderBottomWidth: Hairline,
   },
   childEmoji: {
     fontSize: 16,
   },
   childName: {
+    ...Typography.bodySm,
     flex: 1,
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
   },
   childCount: {
-    fontSize: 12,
-    color: Colors.textQuaternary,
+    ...Typography.caption,
   },
-  fab: {
-    position: 'absolute',
-    right: Spacing.xl,
-    bottom: Spacing.xl,
-    borderRadius: 28,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: Colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 5,
-      },
-      web: {
-        boxShadow: `0 4px 8px rgba(6, 182, 212, 0.3)`,
-      },
-    }),
-  },
-  fabGradient: {
-    width: 56,
-    height: 56,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  // Modal styles
+
+  // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: Colors.backgroundSecondary,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: Spacing.xl,
-    paddingBottom: 40,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    paddingBottom: Spacing.xl,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.text,
+    ...Typography.heading,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.textTertiary,
+  inputLabel: {
+    ...Typography.label,
     marginBottom: Spacing.sm,
-    marginTop: Spacing.lg,
+    marginTop: Spacing.md,
   },
-  iconScroll: {
+  iconPicker: {
     flexGrow: 0,
   },
   iconOption: {
     width: 44,
     height: 44,
-    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.overlay,
-    borderRadius: BorderRadius.md,
-    marginRight: Spacing.sm,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    marginRight: Spacing.xs,
   },
-  iconOptionSelected: {
-    backgroundColor: `${Colors.primary}4D`,
-    borderWidth: 2,
-    borderColor: Colors.primary,
+  iconText: {
+    fontSize: 20,
   },
-  iconOptionText: {
-    fontSize: 22,
+  textInput: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    ...Typography.body,
   },
-  input: {
-    backgroundColor: Colors.overlay,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    fontSize: 16,
-    color: Colors.text,
-  },
-  parentScroll: {
+  parentPicker: {
     flexGrow: 0,
   },
   parentOption: {
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.overlay,
-    borderRadius: BorderRadius.full,
-    marginRight: Spacing.sm,
-  },
-  parentOptionSelected: {
-    backgroundColor: `${Colors.primary}4D`,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderRadius: BorderRadius.sm,
+    marginRight: Spacing.xs,
   },
-  parentOptionText: {
-    fontSize: 14,
-    color: Colors.text,
+  parentText: {
+    ...Typography.caption,
   },
   modalActions: {
     flexDirection: 'row',
     gap: Spacing.md,
-    marginTop: Spacing.xxl,
+    marginTop: Spacing.lg,
   },
   cancelButton: {
     flex: 1,
-    paddingVertical: Spacing.md,
     alignItems: 'center',
+    paddingVertical: Spacing.md,
   },
   cancelButtonText: {
-    color: Colors.text,
-    fontSize: 16,
+    ...Typography.body,
   },
-  createButton: {
+  saveButton: {
     flex: 1,
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md,
     alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
   },
-  createButtonDisabled: {
-    opacity: 0.5,
+  saveButtonDisabled: {
+    opacity: 0.3,
   },
-  createButtonText: {
-    color: Colors.text,
-    fontSize: 16,
-    fontWeight: '600',
+  saveButtonText: {
+    ...Typography.bodyStrong,
   },
 });
-

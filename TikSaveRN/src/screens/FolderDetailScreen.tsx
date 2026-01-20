@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  TouchableOpacity,
   ActivityIndicator,
   Dimensions,
   Linking,
@@ -13,19 +12,21 @@ import {
   Platform,
   Image,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Colors, Spacing, BorderRadius } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline } from '../config';
 import { SaveItem, getDisplayTitle, needsUserReview } from '../types';
 import { apiService } from '../services/api';
 import { LibraryStackScreenProps } from '../navigation/types';
+import { useTheme } from '../hooks/useTheme';
+import { AnimatedPressable, AnimatedListItem, AnimatedText } from '../components';
 import MoveFolderModal from '../components/MoveFolderModal';
 import { formatDuration } from '../utils/date';
 
 const { width } = Dimensions.get('window');
-const COLUMN_GAP = 12;
+const COLUMN_GAP = 8;
 const PADDING = 16;
 const CARD_WIDTH = (width - PADDING * 2 - COLUMN_GAP) / 2;
 
@@ -33,8 +34,13 @@ type Props = LibraryStackScreenProps<'FolderDetail'>;
 
 export default function FolderDetailScreen({ route, navigation }: Props) {
   const { folder } = route.params;
+  const { colors } = useTheme();
   const [isDeleting, setIsDeleting] = useState(false);
   const [items, setItems] = useState<SaveItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<SaveItem | null>(null);
+  const [showMoveModal, setShowMoveModal] = useState(false);
 
   const performDelete = async () => {
     setIsDeleting(true);
@@ -44,20 +50,19 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
     } catch (error) {
       console.error('Failed to delete folder:', error);
       if (Platform.OS === 'web') {
-        window.alert('Failed to delete folder. Please try again.');
+        window.alert('Failed to delete folder.');
       } else {
-        Alert.alert('Error', 'Failed to delete folder. Please try again.');
+        Alert.alert('Error', 'Failed to delete folder.');
       }
       setIsDeleting(false);
     }
   };
 
   const handleDeleteFolder = useCallback(() => {
-    const message = `Delete "${folder.name}" and all ${items.length} video${items.length !== 1 ? 's' : ''} inside? This cannot be undone.`;
-    
+    const message = `Delete "${folder.name}"?`;
+
     if (Platform.OS === 'web') {
-      const confirmed = window.confirm(message);
-      if (confirmed) {
+      if (window.confirm(message)) {
         performDelete();
       }
     } else {
@@ -66,29 +71,25 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
         { text: 'Delete', style: 'destructive', onPress: performDelete },
       ]);
     }
-  }, [folder.id, folder.name, items.length, navigation]);
+  }, [folder.id, folder.name, navigation]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity
+        <AnimatedPressable
           onPress={handleDeleteFolder}
           disabled={isDeleting}
           style={styles.headerButton}
         >
           <Ionicons
             name="trash-outline"
-            size={22}
-            color={isDeleting ? Colors.textQuaternary : Colors.error}
+            size={20}
+            color={isDeleting ? colors.textQuaternary : colors.error}
           />
-        </TouchableOpacity>
+        </AnimatedPressable>
       ),
     });
-  }, [navigation, handleDeleteFolder, isDeleting]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<SaveItem | null>(null);
-  const [showMoveModal, setShowMoveModal] = useState(false);
+  }, [navigation, handleDeleteFolder, isDeleting, colors]);
 
   const loadItems = useCallback(async () => {
     try {
@@ -125,69 +126,66 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleDeleteItem = async (item: SaveItem) => {
-    try {
-      await apiService.deleteItem(item.id);
-      loadItems();
-    } catch (error) {
-      console.error('Failed to delete item:', error);
-    }
-  };
-
   const openInTikTok = (url: string) => {
     Linking.openURL(url);
   };
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="small" color={colors.text} />
       </View>
     );
   }
 
   if (items.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
-        <Ionicons name="folder-outline" size={60} color={Colors.textQuaternary} />
-        <Text style={styles.emptyTitle}>No videos in {folder.name}</Text>
-        <Text style={styles.emptySubtitle}>
+      <View style={[styles.emptyContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.emptyIconWrapper, { backgroundColor: colors.accentSubtle }]}>
+          <Ionicons name="folder-open-outline" size={32} color={colors.textTertiary} />
+        </View>
+        <AnimatedText delay={100} style={[styles.emptyTitle, { color: colors.text }]}>
+          No videos in {folder.name}
+        </AnimatedText>
+        <AnimatedText delay={200} style={[styles.emptySubtitle, { color: colors.textTertiary }]}>
           Videos will appear here when{'\n'}they're filed into this folder
-        </Text>
+        </AnimatedText>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            tintColor={Colors.primary}
+            tintColor={colors.text}
           />
         }
       >
         <View style={styles.grid}>
-          {items.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.card}
-              onPress={() => navigation.navigate('VideoDetail', { item })}
-              onLongPress={() => {
-                setSelectedItem(item);
-                setShowMoveModal(true);
-              }}
-              activeOpacity={0.8}
-            >
-              <VideoThumbnailCard
-                item={item}
-                onOpenTikTok={() => openInTikTok(item.sourceURL)}
-              />
-            </TouchableOpacity>
+          {items.map((item, index) => (
+            <AnimatedListItem key={item.id} index={index} direction="fade">
+              <AnimatedPressable
+                style={styles.card}
+                onPress={() => navigation.navigate('VideoDetail', { item })}
+                onLongPress={() => {
+                  setSelectedItem(item);
+                  setShowMoveModal(true);
+                }}
+                scaleOnPress={0.98}
+              >
+                <VideoThumbnailCard
+                  item={item}
+                  onOpenTikTok={() => openInTikTok(item.sourceURL)}
+                />
+              </AnimatedPressable>
+            </AnimatedListItem>
           ))}
         </View>
       </ScrollView>
@@ -212,6 +210,7 @@ function VideoThumbnailCard({
   item: SaveItem;
   onOpenTikTok: () => void;
 }) {
+  const { colors } = useTheme();
   const showsNeedsReview = needsUserReview(item);
 
   return (
@@ -220,31 +219,15 @@ function VideoThumbnailCard({
       <View style={styles.thumbnailContainer}>
         {item.thumbnailURL ? (
           <Image
-            source={{
-              uri: item.thumbnailURL,
-              cache: 'force-cache',
-            }}
+            source={{ uri: item.thumbnailURL, cache: 'force-cache' }}
             style={styles.thumbnail}
             resizeMode="cover"
-            onError={() => {
-              console.warn('Failed to load thumbnail:', item.thumbnailURL?.substring(0, 80));
-            }}
           />
         ) : (
-          <LinearGradient
-            colors={[`${Colors.secondary}4D`, `${Colors.primary}4D`]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.thumbnail}
-          >
-            <Ionicons name="play" size={32} color="rgba(255, 255, 255, 0.8)" />
-          </LinearGradient>
+          <View style={[styles.thumbnail, styles.thumbnailPlaceholder, { backgroundColor: colors.accentSubtle }]}>
+            <Ionicons name="play" size={24} color={colors.textTertiary} />
+          </View>
         )}
-
-        {/* Play overlay */}
-        <View style={styles.playOverlay} pointerEvents="none">
-          <Ionicons name="play-circle" size={40} color="rgba(255, 255, 255, 0.9)" />
-        </View>
 
         {/* Duration badge */}
         {item.duration && (
@@ -255,20 +238,20 @@ function VideoThumbnailCard({
 
         {/* Needs review indicator */}
         {showsNeedsReview && (
-          <View style={styles.reviewBadge}>
-            <Ionicons name="alert-circle" size={14} color={Colors.warning} />
+          <View style={[styles.reviewBadge, { backgroundColor: colors.warningSubtle }]}>
+            <Ionicons name="alert-circle" size={12} color={colors.warning} />
           </View>
         )}
       </View>
 
       {/* Info */}
-      <Text style={styles.cardTitle} numberOfLines={2}>
+      <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>
         {getDisplayTitle(item)}
       </Text>
 
       {item.creatorUsername && (
-        <Text style={styles.creatorName} numberOfLines={1}>
-          {item.creatorUsername}
+        <Text style={[styles.creatorName, { color: colors.textTertiary }]} numberOfLines={1}>
+          @{item.creatorUsername}
         </Text>
       )}
     </View>
@@ -278,11 +261,10 @@ function VideoThumbnailCard({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   headerButton: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
   },
   scrollView: {
     flex: 1,
@@ -294,28 +276,29 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
-    paddingHorizontal: Spacing.xxl,
+    paddingHorizontal: Spacing.xl,
+  },
+  emptyIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.textTertiary,
-    marginTop: Spacing.xl,
+    ...Typography.heading,
+    marginBottom: Spacing.xs,
     textAlign: 'center',
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: Colors.textQuaternary,
+    ...Typography.body,
     textAlign: 'center',
-    marginTop: Spacing.sm,
-    lineHeight: 20,
   },
   grid: {
     flexDirection: 'row',
@@ -326,64 +309,48 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
   },
   cardContent: {
-    backgroundColor: Colors.overlayLight,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   thumbnailContainer: {
     position: 'relative',
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   thumbnail: {
     aspectRatio: 9 / 16,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.none,
     width: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.overlay,
   },
-  playOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  thumbnailPlaceholder: {
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    borderRadius: BorderRadius.md,
   },
   durationBadge: {
     position: 'absolute',
-    bottom: Spacing.sm,
-    right: Spacing.sm,
-    backgroundColor: Colors.overlayDark,
-    paddingHorizontal: 6,
+    bottom: 6,
+    right: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingHorizontal: 5,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: BorderRadius.xs,
   },
   durationText: {
-    color: Colors.text,
-    fontSize: 11,
-    fontWeight: '600',
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '500',
   },
   reviewBadge: {
     position: 'absolute',
-    top: Spacing.sm,
-    left: Spacing.sm,
-    backgroundColor: Colors.overlayDark,
+    top: 6,
+    left: 6,
     padding: 4,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   cardTitle: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: Colors.text,
-    marginBottom: 2,
+    ...Typography.captionStrong,
+    lineHeight: 16,
   },
   creatorName: {
     fontSize: 11,
-    color: Colors.textTertiary,
+    marginTop: 2,
   },
 });
-

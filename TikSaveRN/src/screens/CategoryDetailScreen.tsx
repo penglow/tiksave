@@ -1,22 +1,25 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   RefreshControl,
-  TouchableOpacity,
   ActivityIndicator,
   Image,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Colors, Spacing, BorderRadius } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline } from '../config';
 import { SaveItem, getDisplayTitle } from '../types';
 import { apiService } from '../services/api';
 import { LibraryStackScreenProps } from '../navigation/types';
 import { formatTimeAgo } from '../utils/date';
+import { useTheme } from '../hooks/useTheme';
+import { AnimatedPressable, AnimatedListItem, AnimatedText } from '../components';
 
 type Props = LibraryStackScreenProps<'CategoryDetail'>;
 
@@ -26,7 +29,8 @@ interface Subcategory {
 }
 
 export default function CategoryDetailScreen({ route, navigation }: Props) {
-  const { categoryName, icon, color, subcategoryName } = route.params;
+  const { categoryName, color, subcategoryName } = route.params;
+  const { colors } = useTheme();
   const [items, setItems] = useState<SaveItem[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,52 +39,45 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
   const loadItems = useCallback(async () => {
     try {
       const allItems = await apiService.getItems();
-      
-      // Filter items that belong to this category (handles hierarchical "Parent > Subcategory" format)
+
       const categoryItems = allItems.filter(item => {
         if (item.status !== 'ready') return false;
         const primaryTopic = item.detectedTopics?.[0] || 'Saved';
-        
-        // Parse hierarchical category
+
         let parentName = primaryTopic;
         let subName: string | null = null;
-        
+
         if (primaryTopic.includes(' > ')) {
           const parts = primaryTopic.split(' > ');
           parentName = parts[0].trim();
           subName = parts[1]?.trim() || null;
         }
-        
-        // Normalize parent name for comparison
+
         parentName = parentName.charAt(0).toUpperCase() + parentName.slice(1);
-        
-        // If subcategoryName is provided, filter by both parent and subcategory
+
         if (subcategoryName) {
           return parentName === categoryName && subName === subcategoryName;
         }
-        
-        // Otherwise, filter by parent category only
+
         return parentName === categoryName;
       });
 
       if (subcategoryName) {
-        // Show videos for the selected subcategory
-        setItems(categoryItems.sort((a, b) => 
+        setItems(categoryItems.sort((a, b) =>
           new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
         ));
       } else {
-        // Group items by subcategory
         const subcategoryMap = new Map<string, SaveItem[]>();
-        
+
         for (const item of categoryItems) {
           const primaryTopic = item.detectedTopics?.[0] || 'Saved';
           let subName: string | null = null;
-          
+
           if (primaryTopic.includes(' > ')) {
             const parts = primaryTopic.split(' > ');
             subName = parts[1]?.trim() || null;
           }
-          
+
           if (subName) {
             if (!subcategoryMap.has(subName)) {
               subcategoryMap.set(subName, []);
@@ -88,19 +85,19 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
             subcategoryMap.get(subName)!.push(item);
           }
         }
-        
-        // Convert to array and sort by item count
+
         const subcategoriesList: Subcategory[] = [];
         for (const [name, subItems] of subcategoryMap) {
           subcategoriesList.push({
             name,
-            items: subItems.sort((a, b) => 
+            items: subItems.sort((a, b) =>
               new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
             ),
           });
         }
-        
+
         setSubcategories(subcategoriesList.sort((a, b) => b.items.length - a.items.length));
+        setItems(categoryItems);
       }
     } catch (error) {
       console.error('Failed to load items:', error);
@@ -121,18 +118,175 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
     loadItems();
   };
 
-  const renderVideoItem = ({ item }: { item: SaveItem }) => (
-    <TouchableOpacity
-      style={styles.videoItem}
-      onPress={() => navigation.navigate('VideoDetail', { item })}
-      activeOpacity={0.8}
+  const renderVideoItem = ({ item, index }: { item: SaveItem; index: number }) => (
+    <AnimatedListItem index={index} direction="fade">
+      <VideoRow
+        item={item}
+        onPress={() => navigation.navigate('VideoDetail', { item })}
+      />
+    </AnimatedListItem>
+  );
+
+  const renderSubcategoryItem = ({ item: subcategory, index }: { item: Subcategory; index: number }) => (
+    <AnimatedListItem index={index} direction="fade">
+      <AnimatedPressable
+        style={[styles.subcategoryRow, { borderBottomColor: colors.border }]}
+        onPress={() => navigation.navigate('CategoryDetail', {
+          categoryName,
+          icon: '',
+          color,
+          subcategoryName: subcategory.name,
+        })}
+      >
+        <View style={styles.subcategoryInfo}>
+          <Text style={[styles.subcategoryName, { color: colors.text }]}>
+            {subcategory.name}
+          </Text>
+          <Text style={[styles.subcategoryCount, { color: colors.textTertiary }]}>
+            {subcategory.items.length} videos
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={colors.textQuaternary} />
+      </AnimatedPressable>
+    </AnimatedListItem>
+  );
+
+  if (isLoading) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="small" color={colors.text} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
+        <View style={styles.headerTitleRow}>
+          <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>
+            {subcategoryName || categoryName}
+          </AnimatedText>
+          <View style={[styles.categoryDot, { backgroundColor: color }]} />
+        </View>
+        <Text style={[styles.headerSubtitle, { color: colors.textTertiary }]}>
+          {subcategoryName
+            ? `${items.length} videos`
+            : `${items.length} videos · ${subcategories.length} subcategories`
+          }
+        </Text>
+      </Animated.View>
+
+      {subcategoryName ? (
+        <FlatList
+          data={items}
+          renderItem={renderVideoItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.text}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <AnimatedText delay={100} style={[styles.emptyText, { color: colors.textTertiary }]}>
+                No videos in this category
+              </AnimatedText>
+            </View>
+          }
+        />
+      ) : (
+        <FlatList
+          data={subcategories.length > 0 ? subcategories : []}
+          renderItem={renderSubcategoryItem}
+          keyExtractor={(item) => item.name}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.text}
+            />
+          }
+          ListHeaderComponent={
+            subcategories.length > 0 ? (
+              <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
+                SUBCATEGORIES
+              </Text>
+            ) : null
+          }
+          ListFooterComponent={
+            items.length > 0 ? (
+              <View style={styles.allVideosSection}>
+                <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
+                  ALL VIDEOS
+                </Text>
+                {items.slice(0, 10).map((item, index) => (
+                  <AnimatedListItem key={item.id} index={index} direction="fade">
+                    <VideoRow
+                      item={item}
+                      onPress={() => navigation.navigate('VideoDetail', { item })}
+                    />
+                  </AnimatedListItem>
+                ))}
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={
+            items.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <AnimatedText delay={100} style={[styles.emptyText, { color: colors.textTertiary }]}>
+                  No videos in this category
+                </AnimatedText>
+              </View>
+            ) : null
+          }
+        />
+      )}
+    </View>
+  );
+}
+
+function VideoRow({
+  item,
+  onPress
+}: {
+  item: SaveItem;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+
+  const openInTikTok = () => {
+    if (item.sourceURL) {
+      Linking.openURL(item.sourceURL);
+    }
+  };
+
+  return (
+    <AnimatedPressable
+      style={[styles.videoRow, { borderBottomColor: colors.border }]}
+      onPress={onPress}
     >
-      <View style={styles.thumbnail}>
+      {/* Thumbnail */}
+      <AnimatedPressable
+        style={styles.thumbnail}
+        onPress={openInTikTok}
+        scaleOnPress={0.98}
+      >
         {item.thumbnailURL ? (
-          <Image source={{ uri: item.thumbnailURL }} style={styles.thumbnailImage} />
+          <Image
+            source={{ uri: item.thumbnailURL, cache: 'force-cache' }}
+            style={styles.thumbnailImage}
+            resizeMode="cover"
+          />
         ) : (
-          <View style={styles.thumbnailPlaceholder}>
-            <Ionicons name="play" size={24} color={Colors.textTertiary} />
+          <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.accentSubtle }]}>
+            <Ionicons name="play" size={18} color={colors.textTertiary} />
           </View>
         )}
         {item.duration && (
@@ -142,204 +296,87 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
             </Text>
           </View>
         )}
-      </View>
-      
+      </AnimatedPressable>
+
+      {/* Info */}
       <View style={styles.videoInfo}>
-        <Text style={styles.videoTitle} numberOfLines={2}>
+        <Text style={[styles.videoTitle, { color: colors.text }]} numberOfLines={2}>
           {getDisplayTitle(item)}
         </Text>
         {item.creatorUsername && (
-          <Text style={styles.creatorName}>@{item.creatorUsername}</Text>
+          <Text style={[styles.creatorName, { color: colors.textTertiary }]}>
+            @{item.creatorUsername}
+          </Text>
         )}
-        <View style={styles.metaRow}>
-          <Text style={styles.timeAgo}>{formatTimeAgo(item.dateAdded)}</Text>
-          {item.detectedTopics.length > 1 && (
-            <View style={styles.extraTopics}>
-              {item.detectedTopics.slice(1, 3).map(topic => (
-                <View key={topic} style={styles.topicBadge}>
-                  <Text style={styles.topicText}>{topic}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderSubcategoryItem = ({ item: subcategory }: { item: Subcategory }) => (
-    <TouchableOpacity
-      style={styles.subcategoryCard}
-      onPress={() => navigation.navigate('CategoryDetail', {
-        categoryName,
-        icon,
-        color,
-        subcategoryName: subcategory.name,
-      })}
-      activeOpacity={0.8}
-    >
-      <View style={[styles.subcategoryIcon, { backgroundColor: `${color}20` }]}>
-        <Text style={styles.subcategoryEmoji}>{icon}</Text>
-      </View>
-      <View style={styles.subcategoryInfo}>
-        <Text style={styles.subcategoryName}>{subcategory.name}</Text>
-        <Text style={styles.subcategoryCount}>{subcategory.items.length} videos</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={Colors.textQuaternary} />
-    </TouchableOpacity>
-  );
-
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      {/* Category Header */}
-      <View style={styles.header}>
-        <View style={[styles.categoryIcon, { backgroundColor: `${color}20` }]}>
-          <Text style={styles.categoryEmoji}>{icon}</Text>
-        </View>
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>
-            {subcategoryName ? `${categoryName} > ${subcategoryName}` : categoryName}
-          </Text>
-          <Text style={styles.headerSubtitle}>
-            {subcategoryName 
-              ? `${items.length} videos • AI categorized`
-              : `${subcategories.length} subcategories • AI categorized`
-            }
-          </Text>
-        </View>
-        <View style={styles.aiTag}>
-          <Ionicons name="sparkles" size={12} color={Colors.primary} />
-          <Text style={styles.aiTagText}>AI</Text>
-        </View>
+        <Text style={[styles.timeAgo, { color: colors.textQuaternary }]}>
+          {formatTimeAgo(item.dateAdded)}
+        </Text>
       </View>
 
-      {subcategoryName ? (
-        <FlatList
-          data={items}
-          renderItem={renderVideoItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              tintColor={Colors.primary}
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No videos in this subcategory</Text>
-            </View>
-          }
-        />
-      ) : (
-        <FlatList
-          data={subcategories}
-          renderItem={renderSubcategoryItem}
-          keyExtractor={(item) => item.name}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              tintColor={Colors.primary}
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No subcategories found</Text>
-            </View>
-          }
-        />
-      )}
-    </View>
+      <Ionicons name="chevron-forward" size={14} color={colors.textQuaternary} />
+    </AnimatedPressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
   },
   header: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
+  },
+  headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.lg,
-    backgroundColor: Colors.backgroundSecondary,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  categoryIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: BorderRadius.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  categoryEmoji: {
-    fontSize: 26,
-  },
-  headerInfo: {
-    flex: 1,
-    marginLeft: Spacing.md,
+    gap: Spacing.sm,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text,
+    ...Typography.displayMd,
+  },
+  categoryDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   headerSubtitle: {
-    fontSize: 13,
-    color: Colors.textTertiary,
-    marginTop: 2,
-  },
-  aiTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: `${Colors.primary}20`,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.full,
-  },
-  aiTagText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.primary,
+    ...Typography.caption,
+    marginTop: Spacing.xs,
   },
   listContent: {
-    padding: Spacing.lg,
-    gap: Spacing.md,
+    paddingBottom: Spacing.xl,
   },
-  videoItem: {
+  sectionLabel: {
+    ...Typography.label,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  allVideosSection: {
+    marginTop: Spacing.lg,
+  },
+  videoRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.overlayLight,
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: Hairline,
+    gap: Spacing.sm,
   },
   thumbnail: {
-    width: 120,
-    height: 160,
-    backgroundColor: Colors.overlay,
+    width: 70,
+    height: 93,
+    borderRadius: BorderRadius.none,
+    overflow: 'hidden',
   },
   thumbnailImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
   },
   thumbnailPlaceholder: {
     flex: 1,
@@ -348,99 +385,55 @@ const styles = StyleSheet.create({
   },
   durationBadge: {
     position: 'absolute',
-    bottom: 6,
-    right: 6,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: BorderRadius.xs,
   },
   durationText: {
-    fontSize: 11,
-    color: Colors.text,
+    fontSize: 10,
     fontWeight: '500',
+    color: '#ffffff',
   },
   videoInfo: {
     flex: 1,
-    padding: Spacing.md,
-    justifyContent: 'center',
+    gap: 2,
   },
   videoTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.text,
-    lineHeight: 20,
+    ...Typography.captionStrong,
+    lineHeight: 16,
   },
   creatorName: {
-    fontSize: 13,
-    color: Colors.textTertiary,
-    marginTop: 4,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: Spacing.sm,
-    flexWrap: 'wrap',
-    gap: Spacing.xs,
+    fontSize: 12,
   },
   timeAgo: {
-    fontSize: 12,
-    color: Colors.textQuaternary,
+    fontSize: 11,
+    marginTop: 2,
   },
-  extraTopics: {
+  subcategoryRow: {
     flexDirection: 'row',
-    gap: 4,
-    marginLeft: Spacing.sm,
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: Hairline,
   },
-  topicBadge: {
-    backgroundColor: Colors.overlay,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+  subcategoryInfo: {
+    flex: 1,
   },
-  topicText: {
-    fontSize: 10,
-    color: Colors.textSecondary,
+  subcategoryName: {
+    ...Typography.bodyStrong,
+  },
+  subcategoryCount: {
+    ...Typography.caption,
+    marginTop: 2,
   },
   emptyContainer: {
     padding: Spacing.xxl,
     alignItems: 'center',
   },
   emptyText: {
-    fontSize: 15,
-    color: Colors.textTertiary,
-  },
-  subcategoryCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.overlayLight,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  subcategoryIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: BorderRadius.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  subcategoryEmoji: {
-    fontSize: 24,
-  },
-  subcategoryInfo: {
-    flex: 1,
-    marginLeft: Spacing.md,
-  },
-  subcategoryName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  subcategoryCount: {
-    fontSize: 13,
-    color: Colors.textTertiary,
-    marginTop: 2,
+    ...Typography.body,
   },
 });
-

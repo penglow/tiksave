@@ -5,23 +5,28 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Colors, Spacing, BorderRadius } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline } from '../config';
 import { SaveItem, getDisplayTitle, isLoadingStatus } from '../types';
 import { apiService } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import { InboxStackScreenProps } from '../navigation/types';
+import { useTheme } from '../hooks/useTheme';
+import { AnimatedPressable, AnimatedListItem } from '../components';
 import MoveFolderModal from '../components/MoveFolderModal';
 import { formatTimeAgo } from '../utils/date';
 
 type Props = InboxStackScreenProps<'InboxMain'>;
 
 export default function InboxScreen({ navigation }: Props) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [items, setItems] = useState<SaveItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -38,7 +43,6 @@ export default function InboxScreen({ navigation }: Props) {
       );
       setItems(sorted);
 
-      // Update inbox count
       const needsReviewCount = sorted.filter((item) => item.status === 'needs_review').length;
       setUnreadInboxCount(needsReviewCount);
     } catch (error) {
@@ -80,94 +84,170 @@ export default function InboxScreen({ navigation }: Props) {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading...</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="small" color={colors.text} />
       </View>
     );
   }
 
   if (items.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
-        <View style={styles.emptyIconContainer}>
-          <Ionicons name="file-tray" size={50} color={Colors.primary} />
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Inbox</Text>
         </View>
-        <Text style={styles.emptyTitle}>Your inbox is empty</Text>
-        <Text style={styles.emptySubtitle}>
-          Share a TikTok video to get started.{'\n'}It will appear here for processing.
-        </Text>
+        <Animated.View
+          entering={FadeIn.duration(300)}
+          style={styles.emptyContainer}
+        >
+          <View style={[styles.emptyIconWrapper, { backgroundColor: colors.accentSubtle }]}>
+            <Ionicons name="file-tray-outline" size={32} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            Inbox is empty
+          </Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textTertiary }]}>
+            Share a TikTok video to get started.{'\n'}It will appear here for processing.
+          </Text>
+        </Animated.View>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Inbox</Text>
+        {needsReviewItems.length > 0 && (
+          <View style={[styles.badge, { backgroundColor: colors.warning }]}>
+            <Text style={styles.badgeText}>{needsReviewItems.length}</Text>
+          </View>
+        )}
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            tintColor={Colors.primary}
+            tintColor={colors.text}
           />
         }
       >
         {/* Processing Section */}
         {processingItems.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="cog" size={18} color={Colors.primary} />
-              <Text style={styles.sectionTitle}>Processing</Text>
-              <Text style={styles.sectionCount}>{processingItems.length}</Text>
+          <AnimatedListItem index={0} direction="fade">
+            <View style={styles.section}>
+              <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
+                PROCESSING
+              </Text>
+              {processingItems.map((item, index) => (
+                <View
+                  key={item.id}
+                  style={[styles.itemRow, { borderBottomColor: colors.border }]}
+                >
+                  <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.accentSubtle }]}>
+                    <ActivityIndicator size="small" color={colors.text} />
+                  </View>
+                  <View style={styles.itemContent}>
+                    <Text style={[styles.itemTitle, { color: colors.text }]} numberOfLines={1}>
+                      {getDisplayTitle(item)}
+                    </Text>
+                    <Text style={[styles.statusText, { color: colors.textTertiary }]}>
+                      {item.status.replace('_', ' ')}
+                    </Text>
+                  </View>
+                </View>
+              ))}
             </View>
-            {processingItems.map((item) => (
-              <ProcessingItemRow key={item.id} item={item} />
-            ))}
-          </View>
+          </AnimatedListItem>
         )}
 
         {/* Needs Review Section */}
         {needsReviewItems.length > 0 && (
-          <View style={[styles.section, styles.reviewSection]}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="alert-circle" size={18} color={Colors.warning} />
-              <Text style={styles.sectionTitle}>Needs Review</Text>
-              <Text style={styles.sectionCount}>{needsReviewItems.length}</Text>
+          <AnimatedListItem index={1} direction="fade">
+            <View style={styles.section}>
+              <Text style={[styles.sectionLabel, { color: colors.warning }]}>
+                NEEDS REVIEW
+              </Text>
+              {needsReviewItems.map((item) => (
+                <AnimatedPressable
+                  key={item.id}
+                  style={[styles.itemRow, { borderBottomColor: colors.border }]}
+                  onPress={() => {
+                    setSelectedItem(item);
+                    setShowMoveModal(true);
+                  }}
+                >
+                  <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.warningSubtle }]}>
+                    <Ionicons name="alert-circle" size={18} color={colors.warning} />
+                  </View>
+                  <View style={styles.itemContent}>
+                    <Text style={[styles.itemTitle, { color: colors.text }]} numberOfLines={2}>
+                      {getDisplayTitle(item)}
+                    </Text>
+                    {item.folderName && (
+                      <Text style={[styles.suggestedText, { color: colors.warning }]}>
+                        Suggested: {item.folderName}
+                      </Text>
+                    )}
+                    {item.detectedTopics.length > 0 && (
+                      <View style={styles.topicsRow}>
+                        {item.detectedTopics.slice(0, 2).map((topic) => (
+                          <Text
+                            key={topic}
+                            style={[styles.topicText, { color: colors.textQuaternary }]}
+                          >
+                            {topic}
+                          </Text>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={14} color={colors.textQuaternary} />
+                </AnimatedPressable>
+              ))}
             </View>
-            {needsReviewItems.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                onPress={() => {
-                  setSelectedItem(item);
-                  setShowMoveModal(true);
-                }}
-                activeOpacity={0.7}
-              >
-                <NeedsReviewItemRow item={item} />
-              </TouchableOpacity>
-            ))}
-          </View>
+          </AnimatedListItem>
         )}
 
         {/* Recently Filed Section */}
         {recentlyFiledItems.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
-              <Text style={styles.sectionTitle}>Recently Filed</Text>
+          <AnimatedListItem index={2} direction="fade">
+            <View style={styles.section}>
+              <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
+                RECENTLY FILED
+              </Text>
+              {recentlyFiledItems.map((item) => (
+                <AnimatedPressable
+                  key={item.id}
+                  style={[styles.itemRow, { borderBottomColor: colors.border }]}
+                  onPress={() => navigation.navigate('VideoDetail', { item })}
+                >
+                  <View style={[styles.thumbnailSmall, { backgroundColor: colors.successSubtle }]}>
+                    <Ionicons name="checkmark" size={14} color={colors.success} />
+                  </View>
+                  <View style={styles.itemContent}>
+                    <Text style={[styles.itemTitle, { color: colors.text }]} numberOfLines={1}>
+                      {getDisplayTitle(item)}
+                    </Text>
+                    {item.folderName && (
+                      <Text style={[styles.folderText, { color: colors.textTertiary }]}>
+                        {item.folderName}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={[styles.timeAgo, { color: colors.textQuaternary }]}>
+                    {formatTimeAgo(item.dateAdded)}
+                  </Text>
+                </AnimatedPressable>
+              ))}
             </View>
-            {recentlyFiledItems.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                onPress={() => navigation.navigate('VideoDetail', { item })}
-                activeOpacity={0.7}
-              >
-                <RecentlyFiledItemRow item={item} />
-              </TouchableOpacity>
-            ))}
-          </View>
+          </AnimatedListItem>
         )}
       </ScrollView>
 
@@ -184,225 +264,120 @@ export default function InboxScreen({ navigation }: Props) {
   );
 }
 
-// Processing Item Row
-function ProcessingItemRow({ item }: { item: SaveItem }) {
-  return (
-    <View style={styles.itemRow}>
-      <View style={styles.thumbnailPlaceholder}>
-        <ActivityIndicator size="small" color={Colors.primary} />
-      </View>
-      <View style={styles.itemContent}>
-        <Text style={styles.itemTitle} numberOfLines={1}>
-          {getDisplayTitle(item)}
-        </Text>
-        <Text style={styles.statusText}>{item.status.replace('_', ' ')}</Text>
-      </View>
-    </View>
-  );
-}
-
-// Needs Review Item Row
-function NeedsReviewItemRow({ item }: { item: SaveItem }) {
-  return (
-    <View style={styles.itemRow}>
-      <View style={styles.thumbnailPlaceholder}>
-        <Ionicons name="play" size={20} color={Colors.textTertiary} />
-      </View>
-      <View style={styles.itemContent}>
-        <Text style={styles.itemTitle} numberOfLines={2}>
-          {getDisplayTitle(item)}
-        </Text>
-        {item.folderName && (
-          <View style={styles.suggestedFolder}>
-            <Ionicons name="folder" size={12} color={Colors.warning} />
-            <Text style={styles.suggestedFolderText}>Suggested: {item.folderName}</Text>
-          </View>
-        )}
-        <View style={styles.topicsRow}>
-          {item.detectedTopics.slice(0, 2).map((topic) => (
-            <View key={topic} style={styles.topicBadge}>
-              <Text style={styles.topicText}>{topic}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-      <Ionicons name="chevron-forward" size={16} color={Colors.textQuaternary} />
-    </View>
-  );
-}
-
-// Recently Filed Item Row
-function RecentlyFiledItemRow({ item }: { item: SaveItem }) {
-  return (
-    <View style={styles.itemRow}>
-      <View style={styles.thumbnailSmall}>
-        <Ionicons name="play" size={16} color={Colors.textTertiary} />
-      </View>
-      <View style={styles.itemContent}>
-        <Text style={styles.itemTitle} numberOfLines={1}>
-          {getDisplayTitle(item)}
-        </Text>
-        {item.folderName && (
-          <View style={styles.folderRow}>
-            <Ionicons name="folder" size={12} color={Colors.success} />
-            <Text style={styles.folderText}>{item.folderName}</Text>
-          </View>
-        )}
-      </View>
-      <Text style={styles.timeAgo}>{formatTimeAgo(item.dateAdded)}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: Spacing.lg,
-    gap: Spacing.lg,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
   },
-  loadingText: {
-    marginTop: Spacing.lg,
-    color: Colors.textTertiary,
-    fontSize: 14,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    paddingHorizontal: Spacing.xxl,
-  },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(6, 182, 212, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.xxl,
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-  },
-  emptySubtitle: {
-    fontSize: 15,
-    color: Colors.textTertiary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  section: {
-    backgroundColor: Colors.overlayLight,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  reviewSection: {
-    backgroundColor: 'rgba(249, 115, 22, 0.1)',
-  },
-  sectionHeader: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
   },
-  sectionTitle: {
-    fontSize: 16,
+  headerTitle: {
+    ...Typography.displayMd,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  badgeText: {
+    fontSize: 11,
     fontWeight: '600',
-    color: Colors.text,
+    color: '#ffffff',
+  },
+  scrollView: {
     flex: 1,
   },
-  sectionCount: {
-    fontSize: 14,
-    color: Colors.textTertiary,
+  scrollContent: {
+    paddingBottom: Spacing.xl,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xl,
+  },
+  emptyIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+  },
+  emptyTitle: {
+    ...Typography.heading,
+    marginBottom: Spacing.xs,
+  },
+  emptySubtitle: {
+    ...Typography.body,
+    textAlign: 'center',
+  },
+  section: {
+    marginBottom: Spacing.lg,
+  },
+  sectionLabel: {
+    ...Typography.label,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: Hairline,
   },
   thumbnailPlaceholder: {
-    width: 50,
-    height: 50,
+    width: 40,
+    height: 40,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
   },
   thumbnailSmall: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
   },
   itemContent: {
     flex: 1,
-    gap: Spacing.xs,
+    gap: 2,
   },
   itemTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.text,
+    ...Typography.captionStrong,
   },
   statusText: {
-    fontSize: 12,
-    color: Colors.primary,
+    ...Typography.caption,
     textTransform: 'capitalize',
   },
-  suggestedFolder: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  suggestedFolderText: {
+  suggestedText: {
     fontSize: 12,
-    color: Colors.warning,
   },
   topicsRow: {
     flexDirection: 'row',
     gap: Spacing.xs,
-    flexWrap: 'wrap',
-  },
-  topicBadge: {
-    backgroundColor: Colors.overlay,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    marginTop: 2,
   },
   topicText: {
     fontSize: 11,
-    color: Colors.textSecondary,
-  },
-  folderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
   },
   folderText: {
     fontSize: 12,
-    color: Colors.success,
   },
   timeAgo: {
-    fontSize: 12,
-    color: Colors.textQuaternary,
+    fontSize: 11,
   },
 });
-

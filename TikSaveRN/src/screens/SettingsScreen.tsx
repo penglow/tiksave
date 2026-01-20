@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   Switch,
   Alert,
   Linking,
@@ -13,34 +12,32 @@ import {
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Slider from '@react-native-community/slider';
 import { useNavigation } from '@react-navigation/native';
-import type { MainTabScreenProps } from '../navigation/types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Colors, Spacing, BorderRadius } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline } from '../config';
 import { AppTheme, Folder, getDisplayIcon } from '../types';
 import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
 import { apiService } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
+import { AnimatedPressable, AnimatedListItem, AnimatedSection, AnimatedText } from '../components';
 
 const APP_VERSION = '1.0.0';
 
 export default function SettingsScreen() {
   const signOut = useAuthStore((state) => state.signOut);
   const { userSettings, updateUserSettings } = useAppStore();
-  const { colors: themeColors } = useTheme();
-  // #region agent log
-  React.useEffect(() => {
-    fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SettingsScreen.tsx:32',message:'SettingsScreen render with theme',data:{backgroundColor:themeColors.background},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'F'})}).catch(()=>{});
-  }, [themeColors.background]);
-  // #endregion
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
+
   const [thumbnailCacheSize] = useState('0.0 MB');
   const [showFoldersModal, setShowFoldersModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [foldersLoading, setFoldersLoading] = useState(false);
-  const navigation = useNavigation<any>();
 
   const loadFolders = async () => {
     setFoldersLoading(true);
@@ -67,29 +64,27 @@ export default function SettingsScreen() {
     } catch (error) {
       console.error('Failed to create folder:', error);
       if (Platform.OS === 'web') {
-        window.alert('Failed to create collection. Please try again.');
+        window.alert('Failed to create collection.');
       } else {
-        Alert.alert('Error', 'Failed to create collection. Please try again.');
+        Alert.alert('Error', 'Failed to create collection.');
       }
     }
   };
 
   const handleDeleteFolder = async (folder: Folder) => {
-    const confirmMessage = `Delete "${folder.name}"? Videos in this folder will be moved back to your library.`;
-    
+    const message = `Delete "${folder.name}"? Videos will move back to library.`;
+
     if (Platform.OS === 'web') {
-      const confirmed = window.confirm(confirmMessage);
-      if (confirmed) {
+      if (window.confirm(message)) {
         try {
           await apiService.deleteFolder(folder.id);
           loadFolders();
         } catch (error) {
-          console.error('Failed to delete folder:', error);
-          window.alert('Failed to delete folder. Please try again.');
+          window.alert('Failed to delete folder.');
         }
       }
     } else {
-      Alert.alert('Delete Folder', confirmMessage, [
+      Alert.alert('Delete Folder', message, [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
@@ -99,8 +94,7 @@ export default function SettingsScreen() {
               await apiService.deleteFolder(folder.id);
               loadFolders();
             } catch (error) {
-              console.error('Failed to delete folder:', error);
-              Alert.alert('Error', 'Failed to delete folder. Please try again.');
+              Alert.alert('Error', 'Failed to delete folder.');
             }
           },
         },
@@ -110,374 +104,178 @@ export default function SettingsScreen() {
 
   const handleSignOut = async () => {
     if (Platform.OS === 'web') {
-      // Use browser's confirm dialog on web since Alert.alert doesn't work properly
-      const confirmed = window.confirm('Are you sure you want to sign out?');
-      if (confirmed) {
+      if (window.confirm('Sign out?')) {
         await signOut();
       }
     } else {
-      Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      Alert.alert('Sign Out', 'Are you sure?', [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            await signOut();
-          },
-        },
+        { text: 'Sign Out', style: 'destructive', onPress: signOut },
       ]);
     }
   };
 
   const handleDeleteData = () => {
+    const message = 'Delete all data? This cannot be undone.';
     if (Platform.OS === 'web') {
-      const confirmed = window.confirm(
-        'Delete All Data?\n\nThis will permanently delete all your saved videos, folders, and learning data. This action cannot be undone.'
-      );
-      if (confirmed) {
-        // TODO: Implement data deletion
-        window.alert('All data has been deleted.');
+      if (window.confirm(message)) {
+        window.alert('All data deleted.');
       }
     } else {
-      Alert.alert(
-        'Delete All Data?',
-        'This will permanently delete all your saved videos, folders, and learning data. This action cannot be undone.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: () => {
-              // TODO: Implement data deletion
-              Alert.alert('Success', 'All data has been deleted.');
-            },
-          },
-        ]
-      );
+      Alert.alert('Delete Data', message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => Alert.alert('Deleted') },
+      ]);
     }
   };
 
   const handleClearCache = () => {
     if (Platform.OS === 'web') {
-      window.alert('Thumbnail cache cleared.');
+      window.alert('Cache cleared.');
     } else {
-      Alert.alert('Success', 'Thumbnail cache cleared.');
+      Alert.alert('Success', 'Cache cleared.');
     }
   };
 
-  const openLink = (url: string) => {
-    Linking.openURL(url);
-  };
-
-  // Create theme-aware styles
-  const themeStyles = React.useMemo(() => ({
-    sectionHeader: { ...styles.sectionHeader, color: themeColors.textTertiary },
-    sectionFooter: { ...styles.sectionFooter, color: themeColors.textQuaternary },
-    settingRow: { ...styles.settingRow, backgroundColor: themeColors.overlayLight },
-    settingRowVertical: { ...styles.settingRowVertical, backgroundColor: themeColors.overlayLight },
-    settingLabel: { ...styles.settingLabel, color: themeColors.text },
-    settingValue: { ...styles.settingValue, color: themeColors.textTertiary },
-    themeOption: { ...styles.themeOption, backgroundColor: themeColors.overlay },
-    themeOptionText: { ...styles.themeOptionText, color: themeColors.textSecondary },
-    themeOptionTextSelected: { ...styles.themeOptionTextSelected, color: themeColors.text },
-    settingDescription: { ...styles.settingDescription, color: themeColors.textTertiary },
-    modalContent: { ...styles.modalContent, backgroundColor: themeColors.backgroundSecondary },
-    modalTitle: { ...styles.modalTitle, color: themeColors.text },
-    modalSubtitle: { ...styles.modalSubtitle, color: themeColors.textTertiary },
-    loadingText: { ...styles.loadingText, color: themeColors.textTertiary },
-    emptyFoldersText: { ...styles.emptyFoldersText, color: themeColors.text },
-    emptyFoldersSubtext: { ...styles.emptyFoldersSubtext, color: themeColors.textTertiary },
-    folderItem: { ...styles.folderItem, borderBottomColor: themeColors.border },
-    folderName: { ...styles.folderName, color: themeColors.text },
-    folderCount: { ...styles.folderCount, color: themeColors.textTertiary },
-    createFolderButton: { ...styles.createFolderButton, backgroundColor: themeColors.overlay },
-    createFolderText: { ...styles.createFolderText, color: themeColors.text },
-  }), [themeColors]);
+  const openLink = (url: string) => Linking.openURL(url);
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: themeColors.background }]} contentContainerStyle={styles.content}>
-      {/* Processing Section */}
-      <View style={styles.section}>
-        <Text style={themeStyles.sectionHeader}>PROCESSING</Text>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.md }]}
+    >
+      {/* Header */}
+      <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
+        <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>
+          Settings
+        </AnimatedText>
+      </Animated.View>
 
-        <View style={themeStyles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Text style={themeStyles.settingLabel}>Enable Video Upload</Text>
-          </View>
-          <Switch
-            value={userSettings.enableVideoUpload}
-            onValueChange={(value) => updateUserSettings({ enableVideoUpload: value })}
-            trackColor={{ false: themeColors.overlay, true: themeColors.primary }}
-            thumbColor={themeColors.text}
+      {/* Organization Section */}
+      <AnimatedListItem index={0} direction="fade">
+        <SettingSection label="ORGANIZATION">
+          <SettingRow
+            icon="folder-outline"
+            title="Collections"
+            subtitle="Create custom folders"
+            onPress={handleOpenFolders}
+            showChevron
           />
-        </View>
-
-        <View style={themeStyles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Text style={themeStyles.settingLabel}>Auto-file High Confidence</Text>
-          </View>
-          <Switch
-            value={userSettings.autoFileHighConfidence}
-            onValueChange={(value) => updateUserSettings({ autoFileHighConfidence: value })}
-            trackColor={{ false: themeColors.overlay, true: themeColors.primary }}
-            thumbColor={themeColors.text}
-          />
-        </View>
-
-        <View style={themeStyles.settingRowVertical}>
-          <View style={styles.settingRowTop}>
-            <Text style={themeStyles.settingLabel}>Confidence Threshold</Text>
-            <Text style={themeStyles.settingValue}>
-              {Math.round(userSettings.confidenceThreshold * 100)}%
-            </Text>
-          </View>
-          <Slider
-            style={styles.slider}
-            value={userSettings.confidenceThreshold}
-            onValueChange={(value) => updateUserSettings({ confidenceThreshold: value })}
-            minimumValue={0.5}
-            maximumValue={0.95}
-            step={0.05}
-            minimumTrackTintColor={themeColors.primary}
-            maximumTrackTintColor={themeColors.overlay}
-            thumbTintColor={themeColors.primary}
-          />
-        </View>
-
-        <Text style={themeStyles.sectionFooter}>
-          Video upload enables richer AI analysis. Without it, classification uses only shared
-          text and URL.
-        </Text>
-      </View>
-
-      {/* Organization Section - Optional Manual Folders */}
-      <View style={styles.section}>
-        <Text style={themeStyles.sectionHeader}>ORGANIZATION (OPTIONAL)</Text>
-
-        <TouchableOpacity style={themeStyles.settingRow} onPress={handleOpenFolders}>
-          <View style={styles.settingIconRow}>
-            <View style={styles.settingIconContainer}>
-              <Ionicons name="folder" size={20} color={themeColors.secondary} />
-            </View>
-            <View style={styles.settingInfo}>
-              <Text style={themeStyles.settingLabel}>My Collections</Text>
-              <Text style={themeStyles.settingDescription}>Create custom folders for manual organization</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={themeColors.textQuaternary} />
-        </TouchableOpacity>
-
-        <Text style={themeStyles.sectionFooter}>
-          AI automatically categorizes your videos. Use collections for additional personal organization.
-        </Text>
-      </View>
+        </SettingSection>
+      </AnimatedListItem>
 
       {/* Appearance Section */}
-      <View style={styles.section}>
-        <Text style={themeStyles.sectionHeader}>APPEARANCE</Text>
-
-        <TouchableOpacity style={themeStyles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Text style={themeStyles.settingLabel}>Theme</Text>
-          </View>
-          <View style={styles.themeSelector}>
-            {(['light', 'dark', 'system'] as AppTheme[]).map((theme) => (
-              <TouchableOpacity
-                key={theme}
-                style={[
-                  themeStyles.themeOption,
-                  userSettings.theme === theme && styles.themeOptionSelected,
-                ]}
-                onPress={() => {
-                  // #region agent log
-                  fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SettingsScreen.tsx:259',message:'Theme button pressed',data:{theme,currentTheme:userSettings.theme},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-                  // #endregion
-                  updateUserSettings({ theme });
-                }}
-              >
-                <Text
+      <AnimatedListItem index={1} direction="fade">
+        <SettingSection label="APPEARANCE">
+          <View style={[styles.row, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.rowTitle, { color: colors.text }]}>Theme</Text>
+            <View style={styles.themeSelector}>
+              {(['light', 'dark', 'system'] as AppTheme[]).map((theme) => (
+                <AnimatedPressable
+                  key={theme}
                   style={[
-                    themeStyles.themeOptionText,
-                    userSettings.theme === theme && themeStyles.themeOptionTextSelected,
+                    styles.themeOption,
+                    { borderColor: userSettings.theme === theme ? colors.text : colors.border },
                   ]}
+                  onPress={() => updateUserSettings({ theme })}
+                  haptic
                 >
-                  {theme.charAt(0).toUpperCase() + theme.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text style={[
+                    styles.themeOptionText,
+                    { color: userSettings.theme === theme ? colors.text : colors.textTertiary },
+                  ]}>
+                    {theme.charAt(0).toUpperCase() + theme.slice(1)}
+                  </Text>
+                </AnimatedPressable>
+              ))}
+            </View>
           </View>
-        </TouchableOpacity>
 
-        <View style={themeStyles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Text style={themeStyles.settingLabel}>Notifications</Text>
+          <View style={[styles.row, { borderBottomWidth: 0 }]}>
+            <Text style={[styles.rowTitle, { color: colors.text }]}>Notifications</Text>
+            <Switch
+              value={userSettings.notificationsEnabled}
+              onValueChange={(value) => updateUserSettings({ notificationsEnabled: value })}
+              trackColor={{ false: colors.accentSubtle, true: colors.text }}
+              thumbColor={colors.background}
+              style={styles.switch}
+            />
           </View>
-          <Switch
-            value={userSettings.notificationsEnabled}
-            onValueChange={(value) => updateUserSettings({ notificationsEnabled: value })}
-            trackColor={{ false: themeColors.overlay, true: themeColors.primary }}
-            thumbColor={themeColors.text}
-          />
-        </View>
-      </View>
+        </SettingSection>
+      </AnimatedListItem>
 
       {/* Storage Section */}
-      <View style={styles.section}>
-        <Text style={themeStyles.sectionHeader}>STORAGE</Text>
-
-        <View style={themeStyles.settingRow}>
-          <View style={styles.settingInfo}>
-            <Text style={themeStyles.settingLabel}>Cached Thumbnails</Text>
+      <AnimatedListItem index={2} direction="fade">
+        <SettingSection label="STORAGE">
+          <View style={[styles.row, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.rowTitle, { color: colors.text }]}>Cached Thumbnails</Text>
+            <Text style={[styles.rowValue, { color: colors.textTertiary }]}>{thumbnailCacheSize}</Text>
           </View>
-          <Text style={themeStyles.settingValue}>{thumbnailCacheSize}</Text>
+          <SettingRow
+            title="Clear Cache"
+            onPress={handleClearCache}
+            titleColor={colors.warning}
+          />
+        </SettingSection>
+      </AnimatedListItem>
+
+      {/* Privacy Section */}
+      <AnimatedListItem index={3} direction="fade">
+        <SettingSection label="PRIVACY">
+          <SettingRow
+            title="Privacy Policy"
+            onPress={() => openLink('https://yourapp.com/privacy')}
+            showChevron
+          />
+          <SettingRow
+            title="Export Data"
+            onPress={() => { }}
+            showChevron
+          />
+        </SettingSection>
+      </AnimatedListItem>
+
+      {/* Danger Zone */}
+      <AnimatedListItem index={4} direction="fade">
+        <SettingSection label="DANGER ZONE" labelColor={colors.error}>
+          <SettingRow
+            title="Delete All Data"
+            onPress={handleDeleteData}
+            titleColor={colors.error}
+          />
+          <SettingRow
+            title="Sign Out"
+            onPress={handleSignOut}
+            titleColor={colors.error}
+          />
+        </SettingSection>
+      </AnimatedListItem>
+
+      {/* Version */}
+      <AnimatedListItem index={5} direction="fade">
+        <View style={styles.versionContainer}>
+          <Text style={[styles.versionText, { color: colors.textQuaternary }]}>
+            Version {APP_VERSION}
+          </Text>
         </View>
+      </AnimatedListItem>
 
-        <TouchableOpacity style={themeStyles.settingRow} onPress={handleClearCache}>
-          <Text style={styles.settingLabelWarning}>Clear Thumbnail Cache</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Data & Privacy Section */}
-      <View style={styles.section}>
-        <Text style={themeStyles.sectionHeader}>DATA & PRIVACY</Text>
-
-        <TouchableOpacity
-          style={themeStyles.settingRow}
-          onPress={() => openLink('https://yourapp.com/privacy')}
-        >
-          <Text style={themeStyles.settingLabel}>Privacy Policy</Text>
-          <Ionicons name="chevron-forward" size={18} color={themeColors.textQuaternary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={themeStyles.settingRow}>
-          <Text style={themeStyles.settingLabel}>Export My Data</Text>
-          <Ionicons name="chevron-forward" size={18} color={themeColors.textQuaternary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={themeStyles.settingRow} onPress={handleDeleteData}>
-          <Text style={styles.settingLabelDanger}>Delete All My Data</Text>
-        </TouchableOpacity>
-
-        <Text style={themeStyles.sectionFooter}>
-          Deleting your data removes all saved videos, folders, and learning data permanently.
-        </Text>
-      </View>
-
-      {/* About Section */}
-      <View style={styles.section}>
-        <Text style={themeStyles.sectionHeader}>ABOUT</Text>
-
-        <View style={themeStyles.settingRow}>
-          <Text style={themeStyles.settingLabel}>Version</Text>
-          <Text style={themeStyles.settingValue}>{APP_VERSION}</Text>
-        </View>
-
-        <TouchableOpacity
-          style={themeStyles.settingRow}
-          onPress={() => openLink('https://yourapp.com/support')}
-        >
-          <Text style={themeStyles.settingLabel}>Support</Text>
-          <Ionicons name="arrow-forward" size={14} color={themeColors.textQuaternary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={themeStyles.settingRow}
-          onPress={() => openLink('https://yourapp.com/feedback')}
-        >
-          <Text style={themeStyles.settingLabel}>Send Feedback</Text>
-          <Ionicons name="arrow-forward" size={14} color={themeColors.textQuaternary} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Account Section */}
-      <View style={styles.section}>
-        <Text style={themeStyles.sectionHeader}>ACCOUNT</Text>
-
-        <TouchableOpacity style={themeStyles.settingRow} onPress={handleSignOut}>
-          <Text style={styles.settingLabelDanger}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* My Collections Modal */}
-      <Modal
+      {/* Folders Modal */}
+      <FoldersModal
         visible={showFoldersModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowFoldersModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: themeColors.backgroundSecondary }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>My Collections</Text>
-              <TouchableOpacity onPress={() => setShowFoldersModal(false)}>
-                <Ionicons name="close" size={24} color={Colors.text} />
-              </TouchableOpacity>
-            </View>
-            
-            <Text style={styles.modalSubtitle}>
-              Optional: Create personal collections for custom organization
-            </Text>
-
-            {foldersLoading ? (
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading...</Text>
-              </View>
-            ) : folders.length === 0 ? (
-              <View style={styles.emptyFolders}>
-                <Ionicons name="folder-open" size={40} color={Colors.textQuaternary} />
-                <Text style={styles.emptyFoldersText}>No collections yet</Text>
-                <Text style={styles.emptyFoldersSubtext}>
-                  AI categories handle organization automatically.{'\n'}
-                  Create collections for additional grouping.
-                </Text>
-              </View>
-            ) : (
-              <ScrollView style={styles.foldersList}>
-                {folders.map((folder) => (
-                  <TouchableOpacity
-                    key={folder.id}
-                    style={[styles.folderItem, { borderBottomColor: themeColors.border }]}
-                    onPress={() => {
-                      setShowFoldersModal(false);
-                      // Navigate to FolderDetail in LibraryStack
-                      (navigation as any).navigate('Library', { 
-                        screen: 'FolderDetail', 
-                        params: { folder } 
-                      });
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.folderIcon}>{getDisplayIcon(folder) || '📁'}</Text>
-                    <View style={styles.folderInfo}>
-                      <Text style={themeStyles.folderName}>{folder.name}</Text>
-                      <Text style={themeStyles.folderCount}>{folder.itemCount} videos</Text>
-                    </View>
-                    <TouchableOpacity 
-                      style={styles.folderDeleteButton}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleDeleteFolder(folder);
-                      }}
-                    >
-                      <Ionicons name="trash-outline" size={18} color={themeColors.error} />
-                    </TouchableOpacity>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-
-            <TouchableOpacity 
-              style={themeStyles.createFolderButton}
-              onPress={() => {
-                setShowCreateModal(true);
-              }}
-            >
-              <Ionicons name="add" size={20} color={themeColors.text} />
-              <Text style={themeStyles.createFolderText}>Create Collection</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        folders={folders}
+        loading={foldersLoading}
+        onClose={() => setShowFoldersModal(false)}
+        onCreatePress={() => setShowCreateModal(true)}
+        onFolderPress={(folder) => {
+          setShowFoldersModal(false);
+          navigation.navigate('Library', {
+            screen: 'FolderDetail',
+            params: { folder },
+          });
+        }}
+        onDeletePress={handleDeleteFolder}
+      />
 
       {/* Create Folder Modal */}
       <CreateFolderModal
@@ -490,7 +288,163 @@ export default function SettingsScreen() {
   );
 }
 
-// Create Folder Modal Component
+// Setting Section wrapper
+function SettingSection({
+  label,
+  labelColor,
+  children
+}: {
+  label: string;
+  labelColor?: string;
+  children: React.ReactNode;
+}) {
+  const { colors } = useTheme();
+
+  return (
+    <View style={styles.section}>
+      <Text style={[styles.sectionLabel, { color: labelColor || colors.textTertiary }]}>
+        {label}
+      </Text>
+      <View style={[styles.sectionContent, { borderColor: colors.border }]}>
+        {children}
+      </View>
+    </View>
+  );
+}
+
+// Setting Row
+function SettingRow({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  showChevron,
+  titleColor,
+}: {
+  icon?: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle?: string;
+  onPress?: () => void;
+  showChevron?: boolean;
+  titleColor?: string;
+}) {
+  const { colors } = useTheme();
+
+  return (
+    <AnimatedPressable
+      style={[styles.row, { borderBottomColor: colors.border }]}
+      onPress={onPress}
+      disabled={!onPress}
+    >
+      {icon && (
+        <Ionicons name={icon} size={18} color={colors.textSecondary} style={styles.rowIcon} />
+      )}
+      <View style={styles.rowContent}>
+        <Text style={[styles.rowTitle, { color: titleColor || colors.text }]}>{title}</Text>
+        {subtitle && (
+          <Text style={[styles.rowSubtitle, { color: colors.textTertiary }]}>{subtitle}</Text>
+        )}
+      </View>
+      {showChevron && (
+        <Ionicons name="chevron-forward" size={16} color={colors.textQuaternary} />
+      )}
+    </AnimatedPressable>
+  );
+}
+
+// Folders Modal
+function FoldersModal({
+  visible,
+  folders,
+  loading,
+  onClose,
+  onCreatePress,
+  onFolderPress,
+  onDeletePress,
+}: {
+  visible: boolean;
+  folders: Folder[];
+  loading: boolean;
+  onClose: () => void;
+  onCreatePress: () => void;
+  onFolderPress: (folder: Folder) => void;
+  onDeletePress: (folder: Folder) => void;
+}) {
+  const { colors } = useTheme();
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <View style={styles.modalHeader}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Collections</Text>
+            <AnimatedPressable onPress={onClose}>
+              <Ionicons name="close" size={22} color={colors.text} />
+            </AnimatedPressable>
+          </View>
+
+          {loading ? (
+            <View style={styles.modalLoading}>
+              <Text style={[styles.modalLoadingText, { color: colors.textTertiary }]}>
+                Loading...
+              </Text>
+            </View>
+          ) : folders.length === 0 ? (
+            <View style={styles.modalEmpty}>
+              <Ionicons name="folder-open-outline" size={32} color={colors.textQuaternary} />
+              <Text style={[styles.modalEmptyTitle, { color: colors.text }]}>
+                No collections
+              </Text>
+              <Text style={[styles.modalEmptySubtitle, { color: colors.textTertiary }]}>
+                Create folders for custom organization
+              </Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.foldersList}>
+              {folders.map((folder) => (
+                <AnimatedPressable
+                  key={folder.id}
+                  style={[styles.folderItem, { borderBottomColor: colors.border }]}
+                  onPress={() => onFolderPress(folder)}
+                >
+                  <Text style={styles.folderIcon}>{getDisplayIcon(folder) || '📁'}</Text>
+                  <View style={styles.folderInfo}>
+                    <Text style={[styles.folderName, { color: colors.text }]}>{folder.name}</Text>
+                    <Text style={[styles.folderCount, { color: colors.textTertiary }]}>
+                      {folder.itemCount} videos
+                    </Text>
+                  </View>
+                  <AnimatedPressable
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      onDeletePress(folder);
+                    }}
+                    style={styles.folderDelete}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={colors.error} />
+                  </AnimatedPressable>
+                </AnimatedPressable>
+              ))}
+            </ScrollView>
+          )}
+
+          <AnimatedPressable
+            style={[styles.createButton, { borderColor: colors.border }]}
+            onPress={onCreatePress}
+            haptic
+          >
+            <Ionicons name="add" size={18} color={colors.text} />
+            <Text style={[styles.createButtonText, { color: colors.text }]}>
+              Create Collection
+            </Text>
+          </AnimatedPressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// Create Folder Modal
 function CreateFolderModal({
   visible,
   folders,
@@ -502,108 +456,83 @@ function CreateFolderModal({
   onClose: () => void;
   onCreate: (name: string, parentId?: string, iconName?: string) => void;
 }) {
-  const { colors: themeColors } = useTheme();
-  const [name, setName] = React.useState('');
-  const [selectedIcon, setSelectedIcon] = React.useState('📁');
-  const [selectedParentId, setSelectedParentId] = React.useState<string | undefined>();
+  const { colors } = useTheme();
+  const [name, setName] = useState('');
+  const [selectedIcon, setSelectedIcon] = useState('📁');
 
-  const availableIcons = [
-    '📁', '🇯🇵', '🇰🇷', '🇺🇸', '🇬🇧', '🍽️', '🏨', '🎡', '🛍️', '💪',
-    '🚗', '💰', '📱', '👗', '💄', '🐾', '🎵', '📚',
-  ];
+  const icons = ['📁', '🍽️', '✈️', '💪', '👗', '🎵', '📱', '💰', '🐾', '📚'];
 
   const handleCreate = () => {
     if (name.trim()) {
-      onCreate(name.trim(), selectedParentId, selectedIcon);
+      onCreate(name.trim(), undefined, selectedIcon);
       setName('');
       setSelectedIcon('📁');
-      setSelectedParentId(undefined);
     }
   };
 
-  const topLevelFolders = folders.filter((f) => !f.parentId);
-
   return (
-      <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-        <View style={createModalStyles.overlay}>
-          <View style={[createModalStyles.container, { backgroundColor: themeColors.backgroundSecondary }]}>
-          <View style={createModalStyles.header}>
-            <Text style={createModalStyles.title}>New Collection</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <View style={styles.modalHeader}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>New Collection</Text>
+            <AnimatedPressable onPress={onClose}>
+              <Ionicons name="close" size={22} color={colors.text} />
+            </AnimatedPressable>
           </View>
 
-          {/* Icon Selector */}
-          <Text style={createModalStyles.label}>Icon</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={createModalStyles.iconScroll}>
-            {availableIcons.map((icon) => (
-              <TouchableOpacity
+          <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>ICON</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.iconPicker}>
+            {icons.map((icon) => (
+              <AnimatedPressable
                 key={icon}
                 style={[
-                  createModalStyles.iconOption,
-                  selectedIcon === icon && createModalStyles.iconOptionSelected,
+                  styles.iconOption,
+                  {
+                    backgroundColor: selectedIcon === icon ? colors.accentSubtle : 'transparent',
+                    borderColor: selectedIcon === icon ? colors.text : colors.border,
+                  },
                 ]}
                 onPress={() => setSelectedIcon(icon)}
               >
-                <Text style={createModalStyles.iconText}>{icon}</Text>
-              </TouchableOpacity>
+                <Text style={styles.iconText}>{icon}</Text>
+              </AnimatedPressable>
             ))}
           </ScrollView>
 
-          {/* Name Input */}
-          <Text style={createModalStyles.label}>Name</Text>
+          <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>NAME</Text>
           <TextInput
-            style={createModalStyles.input}
+            style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
             placeholder="Collection name"
-            placeholderTextColor={Colors.textQuaternary}
+            placeholderTextColor={colors.textQuaternary}
             value={name}
             onChangeText={setName}
             autoFocus
           />
 
-          {/* Parent Folder */}
-          {topLevelFolders.length > 0 && (
-            <>
-              <Text style={createModalStyles.label}>Parent Collection (optional)</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={createModalStyles.parentScroll}>
-                <TouchableOpacity
-                  style={[
-                    createModalStyles.parentOption,
-                    !selectedParentId && createModalStyles.parentOptionSelected,
-                  ]}
-                  onPress={() => setSelectedParentId(undefined)}
-                >
-                  <Text style={createModalStyles.parentText}>None (Top Level)</Text>
-                </TouchableOpacity>
-                {topLevelFolders.map((folder) => (
-                  <TouchableOpacity
-                    key={folder.id}
-                    style={[
-                      createModalStyles.parentOption,
-                      selectedParentId === folder.id && createModalStyles.parentOptionSelected,
-                    ]}
-                    onPress={() => setSelectedParentId(folder.id)}
-                  >
-                    <Text style={createModalStyles.parentText}>{folder.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </>
-          )}
-
-          {/* Actions */}
-          <View style={createModalStyles.actions}>
-            <TouchableOpacity style={createModalStyles.cancelButton} onPress={onClose}>
-              <Text style={createModalStyles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[createModalStyles.createButton, !name.trim() && createModalStyles.createButtonDisabled]}
+          <View style={styles.modalActions}>
+            <AnimatedPressable
+              style={styles.cancelButton}
+              onPress={onClose}
+            >
+              <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+                Cancel
+              </Text>
+            </AnimatedPressable>
+            <AnimatedPressable
+              style={[
+                styles.saveButton,
+                { backgroundColor: colors.text },
+                !name.trim() && styles.saveButtonDisabled,
+              ]}
               onPress={handleCreate}
               disabled={!name.trim()}
+              haptic
             >
-              <Text style={createModalStyles.createText}>Create</Text>
-            </TouchableOpacity>
+              <Text style={[styles.saveButtonText, { color: colors.background }]}>
+                Create
+              </Text>
+            </AnimatedPressable>
           </View>
         </View>
       </View>
@@ -611,282 +540,130 @@ function CreateFolderModal({
   );
 }
 
-const createModalStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'flex-end',
-  },
-  container: {
-    backgroundColor: Colors.backgroundSecondary,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: Spacing.xl,
-    paddingBottom: 40,
-    maxHeight: '90%',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.textTertiary,
-    marginBottom: Spacing.sm,
-    marginTop: Spacing.lg,
-  },
-  iconScroll: {
-    flexGrow: 0,
-  },
-  iconOption: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.overlay,
-    borderRadius: BorderRadius.md,
-    marginRight: Spacing.sm,
-  },
-  iconOptionSelected: {
-    backgroundColor: `${Colors.primary}4D`,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-  },
-  iconText: {
-    fontSize: 22,
-  },
-  input: {
-    backgroundColor: Colors.overlay,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    fontSize: 16,
-    color: Colors.text,
-  },
-  parentScroll: {
-    flexGrow: 0,
-  },
-  parentOption: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.overlay,
-    borderRadius: BorderRadius.full,
-    marginRight: Spacing.sm,
-  },
-  parentOptionSelected: {
-    backgroundColor: `${Colors.primary}4D`,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-  },
-  parentText: {
-    fontSize: 14,
-    color: Colors.text,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginTop: Spacing.xxl,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-  },
-  cancelText: {
-    color: Colors.text,
-    fontSize: 16,
-  },
-  createButton: {
-    flex: 1,
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-  },
-  createButtonDisabled: {
-    opacity: 0.5,
-  },
-  createText: {
-    color: Colors.text,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   content: {
-    padding: Spacing.lg,
-    paddingBottom: Spacing.xxxl,
+    padding: Spacing.md,
+    paddingBottom: Spacing.xxl,
   },
+  header: {
+    marginBottom: Spacing.lg,
+  },
+  headerTitle: {
+    ...Typography.displayMd,
+  },
+
+  // Section
   section: {
-    marginBottom: Spacing.xxl,
+    marginBottom: Spacing.lg,
   },
-  sectionHeader: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textTertiary,
-    letterSpacing: 0.5,
-    marginBottom: Spacing.md,
-    marginLeft: Spacing.sm,
-  },
-  sectionFooter: {
-    fontSize: 12,
-    color: Colors.textQuaternary,
-    marginTop: Spacing.md,
-    marginLeft: Spacing.sm,
-    lineHeight: 18,
-  },
-  settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.overlayLight,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginBottom: 2,
-  },
-  settingRowVertical: {
-    backgroundColor: Colors.overlayLight,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginBottom: 2,
-  },
-  settingRowTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  sectionLabel: {
+    ...Typography.label,
     marginBottom: Spacing.sm,
+    marginLeft: Spacing.xs,
   },
-  settingInfo: {
+  sectionContent: {
+    borderTopWidth: Hairline,
+    borderBottomWidth: Hairline,
+  },
+
+  // Row
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderBottomWidth: Hairline,
+  },
+  rowIcon: {
+    marginRight: Spacing.sm,
+  },
+  rowContent: {
     flex: 1,
   },
-  settingLabel: {
-    fontSize: 15,
-    color: Colors.text,
+  rowTitle: {
+    ...Typography.body,
   },
-  settingLabelWarning: {
-    fontSize: 15,
-    color: Colors.warning,
+  rowSubtitle: {
+    ...Typography.caption,
+    marginTop: 2,
   },
-  settingLabelDanger: {
-    fontSize: 15,
-    color: Colors.error,
+  rowValue: {
+    ...Typography.body,
   },
-  settingValue: {
-    fontSize: 15,
-    color: Colors.textTertiary,
-  },
-  slider: {
-    width: '100%',
-    height: 40,
-  },
+
+  // Theme selector
   themeSelector: {
     flexDirection: 'row',
     gap: Spacing.xs,
   },
   themeOption: {
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
+    borderWidth: 1,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.overlay,
-  },
-  themeOptionSelected: {
-    backgroundColor: Colors.primary,
   },
   themeOptionText: {
-    fontSize: 13,
-    color: Colors.textSecondary,
+    ...Typography.captionStrong,
   },
-  themeOptionTextSelected: {
-    color: Colors.text,
-    fontWeight: '600',
+  switch: {
+    transform: [{ scale: 0.85 }],
   },
-  settingIconRow: {
-    flexDirection: 'row',
+
+  // Version
+  versionContainer: {
     alignItems: 'center',
-    flex: 1,
+    paddingVertical: Spacing.xl,
   },
-  settingIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: `${Colors.secondary}20`,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: Spacing.md,
+  versionText: {
+    ...Typography.caption,
   },
-  settingDescription: {
-    fontSize: 12,
-    color: Colors.textTertiary,
-    marginTop: 2,
-  },
+
+  // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: Colors.backgroundSecondary,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: Spacing.xl,
-    paddingBottom: 40,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    paddingBottom: Spacing.xl,
     maxHeight: '80%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  modalSubtitle: {
-    fontSize: 13,
-    color: Colors.textTertiary,
     marginBottom: Spacing.lg,
   },
-  loadingContainer: {
-    padding: Spacing.xxl,
+  modalTitle: {
+    ...Typography.heading,
+  },
+  modalLoading: {
+    padding: Spacing.xl,
     alignItems: 'center',
   },
-  loadingText: {
-    color: Colors.textTertiary,
-    fontSize: 14,
+  modalLoadingText: {
+    ...Typography.body,
   },
-  emptyFolders: {
+  modalEmpty: {
+    padding: Spacing.xl,
     alignItems: 'center',
-    padding: Spacing.xxl,
   },
-  emptyFoldersText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-    marginTop: Spacing.lg,
-  },
-  emptyFoldersSubtext: {
-    fontSize: 13,
-    color: Colors.textTertiary,
-    textAlign: 'center',
+  modalEmptyTitle: {
+    ...Typography.headingSm,
     marginTop: Spacing.sm,
-    lineHeight: 20,
   },
+  modalEmptySubtitle: {
+    ...Typography.caption,
+    marginTop: Spacing.xs,
+    textAlign: 'center',
+  },
+
+  // Folders list
   foldersList: {
     maxHeight: 300,
   },
@@ -894,43 +671,91 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomWidth: Hairline,
   },
   folderIcon: {
-    fontSize: 24,
-    marginRight: Spacing.md,
+    fontSize: 20,
+    marginRight: Spacing.sm,
   },
   folderInfo: {
     flex: 1,
   },
   folderName: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: Colors.text,
+    ...Typography.bodyStrong,
   },
   folderCount: {
-    fontSize: 12,
-    color: Colors.textTertiary,
+    ...Typography.caption,
   },
-  folderDeleteButton: {
-    padding: Spacing.sm,
-    marginLeft: Spacing.sm,
+  folderDelete: {
+    padding: Spacing.xs,
   },
-  createFolderButton: {
+
+  // Create button
+  createButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.overlay,
+    gap: Spacing.xs,
     paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.md,
+  },
+  createButtonText: {
+    ...Typography.bodyStrong,
+  },
+
+  // Create modal
+  inputLabel: {
+    ...Typography.label,
+    marginBottom: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  iconPicker: {
+    flexGrow: 0,
+  },
+  iconOption: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    marginRight: Spacing.xs,
+  },
+  iconText: {
+    fontSize: 20,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    ...Typography.body,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
     marginTop: Spacing.lg,
   },
-  createFolderText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.text,
+  cancelButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+  },
+  cancelButtonText: {
+    ...Typography.body,
+  },
+  saveButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+  },
+  saveButtonDisabled: {
+    opacity: 0.3,
+  },
+  saveButtonText: {
+    ...Typography.bodyStrong,
   },
 });
-

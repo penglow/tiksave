@@ -4,15 +4,16 @@ import {
   Text,
   StyleSheet,
   Modal,
-  TouchableOpacity,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Colors, Spacing, BorderRadius } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline } from '../config';
 import { SaveItem, Folder, FolderNode, getDisplayTitle, getDisplayIcon } from '../types';
 import { apiService } from '../services/api';
+import { useTheme } from '../hooks/useTheme';
+import { AnimatedPressable } from './AnimatedPressable';
 
 interface Props {
   visible: boolean;
@@ -21,7 +22,6 @@ interface Props {
   onMove: (folderId: string | null) => void;
 }
 
-// Build tree structure from flat folders
 function buildFolderTree(folders: Folder[]): FolderNode[] {
   const topLevel = folders.filter((f) => !f.parentId);
 
@@ -38,6 +38,7 @@ function buildFolderTree(folders: Folder[]): FolderNode[] {
 }
 
 export default function MoveFolderModal({ visible, item, onClose, onMove }: Props) {
+  const { colors } = useTheme();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderNodes, setFolderNodes] = useState<FolderNode[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null | undefined>();
@@ -70,125 +71,133 @@ export default function MoveFolderModal({ visible, item, onClose, onMove }: Prop
 
   if (!item) return null;
 
-  // Find suggested folder
   const suggestedFolder =
     item.predictedFolderId && item.predictedFolderId !== item.folderId
       ? folders.find((f) => f.id === item.predictedFolderId)
       : null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
           {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <Text style={styles.title}>Move to Folder</Text>
-            <TouchableOpacity
+          <View style={[styles.header, { borderBottomColor: colors.border }]}>
+            <AnimatedPressable onPress={onClose}>
+              <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
+            </AnimatedPressable>
+            <Text style={[styles.title, { color: colors.text }]}>Move to Folder</Text>
+            <AnimatedPressable
               onPress={handleMove}
               disabled={
-                selectedFolderId === undefined || 
+                selectedFolderId === undefined ||
                 selectedFolderId === (item.folderId || null)
               }
             >
               <Text
                 style={[
                   styles.moveText,
-                  (selectedFolderId === undefined || 
-                   selectedFolderId === (item.folderId || null)) && styles.moveTextDisabled,
+                  { color: colors.text },
+                  (selectedFolderId === undefined ||
+                    selectedFolderId === (item.folderId || null)) && styles.moveTextDisabled,
                 ]}
               >
                 Move
               </Text>
-            </TouchableOpacity>
+            </AnimatedPressable>
           </View>
 
           {/* Item Preview */}
-          <View style={styles.itemPreview}>
-            <View style={styles.itemThumbnail}>
-              <Ionicons name="play" size={16} color={Colors.textTertiary} />
+          <View style={[styles.itemPreview, { borderBottomColor: colors.border }]}>
+            <View style={[styles.itemThumbnail, { backgroundColor: colors.accentSubtle }]}>
+              <Ionicons name="play" size={14} color={colors.textTertiary} />
             </View>
             <View style={styles.itemInfo}>
-              <Text style={styles.itemTitle} numberOfLines={2}>
+              <Text style={[styles.itemTitle, { color: colors.text }]} numberOfLines={2}>
                 {getDisplayTitle(item)}
               </Text>
               {item.folderName && (
-                <View style={styles.currentFolder}>
-                  <Text style={styles.currentFolderLabel}>Currently in: </Text>
-                  <Text style={styles.currentFolderName}>{item.folderName}</Text>
-                </View>
+                <Text style={[styles.currentFolderText, { color: colors.textTertiary }]}>
+                  Currently in: {item.folderName}
+                </Text>
               )}
             </View>
           </View>
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.primary} />
+              <ActivityIndicator size="small" color={colors.text} />
             </View>
           ) : (
-            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
               {/* Library Option */}
               {item.folderId && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>Move To</Text>
-                  <TouchableOpacity
+                  <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
+                    MOVE TO
+                  </Text>
+                  <AnimatedPressable
                     style={[
-                      styles.folderOption,
-                      selectedFolderId === null && styles.folderOptionSelected,
+                      styles.folderRow,
+                      { borderBottomColor: colors.border },
+                      selectedFolderId === null && { backgroundColor: colors.accentSubtle },
                     ]}
                     onPress={() => setSelectedFolderId(null)}
-                    activeOpacity={0.7}
                   >
-                    <View style={styles.folderIcon}>
-                      <Ionicons name="library-outline" size={18} color={Colors.primary} />
-                    </View>
+                    <Ionicons name="library-outline" size={18} color={colors.text} />
                     <View style={styles.folderInfo}>
-                      <Text style={styles.folderName}>Library</Text>
-                      <Text style={styles.confidenceText}>Move back to main library</Text>
+                      <Text style={[styles.folderName, { color: colors.text }]}>Library</Text>
+                      <Text style={[styles.folderSubtext, { color: colors.textTertiary }]}>
+                        Move back to main library
+                      </Text>
                     </View>
                     {selectedFolderId === null && (
-                      <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
+                      <Ionicons name="checkmark" size={18} color={colors.text} />
                     )}
-                  </TouchableOpacity>
+                  </AnimatedPressable>
                 </View>
               )}
 
               {/* AI Suggestion */}
               {suggestedFolder && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>AI Suggestion</Text>
-                  <TouchableOpacity
+                  <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
+                    AI SUGGESTION
+                  </Text>
+                  <AnimatedPressable
                     style={[
-                      styles.folderOption,
-                      styles.suggestedOption,
-                      selectedFolderId === suggestedFolder.id && styles.folderOptionSelected,
+                      styles.folderRow,
+                      { borderBottomColor: colors.border },
+                      selectedFolderId === suggestedFolder.id && { backgroundColor: colors.accentSubtle },
                     ]}
                     onPress={() => setSelectedFolderId(suggestedFolder.id)}
-                    activeOpacity={0.7}
                   >
-                    <View style={styles.folderIcon}>
-                      <Text style={styles.folderEmoji}>{getDisplayIcon(suggestedFolder) || '📁'}</Text>
-                    </View>
+                    <Text style={styles.folderEmoji}>{getDisplayIcon(suggestedFolder) || '📁'}</Text>
                     <View style={styles.folderInfo}>
-                      <Text style={styles.folderName}>{suggestedFolder.name}</Text>
+                      <Text style={[styles.folderName, { color: colors.text }]}>
+                        {suggestedFolder.name}
+                      </Text>
                       {item.confidence && item.confidence > 0 && (
-                        <Text style={styles.confidenceText}>
+                        <Text style={[styles.folderSubtext, { color: colors.textTertiary }]}>
                           {Math.round(item.confidence * 100)}% confident
                         </Text>
                       )}
                     </View>
                     {selectedFolderId === suggestedFolder.id && (
-                      <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
+                      <Ionicons name="checkmark" size={18} color={colors.text} />
                     )}
-                  </TouchableOpacity>
+                  </AnimatedPressable>
                 </View>
               )}
 
               {/* All Folders */}
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>All Folders</Text>
+                <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
+                  ALL FOLDERS
+                </Text>
                 {folderNodes.map((node) => (
                   <FolderNodeItem
                     key={node.folder.id}
@@ -218,6 +227,7 @@ function FolderNodeItem({
   currentFolderId?: string;
   onSelect: (id: string) => void;
 }) {
+  const { colors } = useTheme();
   const [isExpanded, setIsExpanded] = useState(true);
   const hasChildren = node.children.length > 0;
   const isSelected = selectedId === node.folder.id;
@@ -225,84 +235,81 @@ function FolderNodeItem({
 
   return (
     <View style={styles.nodeContainer}>
-      <TouchableOpacity
-        style={[styles.folderOption, isSelected && styles.folderOptionSelected]}
+      <AnimatedPressable
+        style={[
+          styles.folderRow,
+          { borderBottomColor: colors.border },
+          isSelected && { backgroundColor: colors.accentSubtle },
+        ]}
         onPress={() => !isCurrent && onSelect(node.folder.id)}
-        activeOpacity={0.7}
+        disabled={isCurrent}
       >
         {hasChildren && (
-          <TouchableOpacity
+          <AnimatedPressable
             onPress={() => setIsExpanded(!isExpanded)}
             style={styles.expandButton}
           >
             <Ionicons
               name="chevron-down"
               size={14}
-              color={Colors.textQuaternary}
+              color={colors.textQuaternary}
               style={{ transform: [{ rotate: isExpanded ? '0deg' : '-90deg' }] }}
             />
-          </TouchableOpacity>
+          </AnimatedPressable>
         )}
         {!hasChildren && <View style={styles.expandPlaceholder} />}
 
-        <View style={[styles.folderIcon, isSelected && styles.folderIconSelected]}>
-          <Text style={styles.folderEmoji}>{getDisplayIcon(node.folder) || '📁'}</Text>
-        </View>
+        <Text style={styles.folderEmoji}>{getDisplayIcon(node.folder) || '📁'}</Text>
 
         <Text
           style={[
             styles.folderName,
-            isCurrent && styles.folderNameDisabled,
+            { color: isCurrent ? colors.textQuaternary : colors.text },
           ]}
         >
           {node.folder.name}
         </Text>
 
-        {isCurrent && <Text style={styles.currentLabel}>Current</Text>}
-        {isSelected && <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />}
-      </TouchableOpacity>
+        {isCurrent && (
+          <Text style={[styles.currentLabel, { color: colors.textQuaternary }]}>Current</Text>
+        )}
+        {isSelected && <Ionicons name="checkmark" size={18} color={colors.text} />}
+      </AnimatedPressable>
 
       {/* Children */}
       {isExpanded && hasChildren && (
         <View style={styles.childrenContainer}>
-          {node.children.map((childNode) => (
-            <TouchableOpacity
-              key={childNode.folder.id}
-              style={[
-                styles.childOption,
-                selectedId === childNode.folder.id && styles.folderOptionSelected,
-              ]}
-              onPress={() =>
-                childNode.folder.id !== currentFolderId && onSelect(childNode.folder.id)
-              }
-              activeOpacity={0.7}
-            >
-              <View
+          {node.children.map((childNode) => {
+            const childIsSelected = selectedId === childNode.folder.id;
+            const childIsCurrent = currentFolderId === childNode.folder.id;
+
+            return (
+              <AnimatedPressable
+                key={childNode.folder.id}
                 style={[
-                  styles.childIcon,
-                  selectedId === childNode.folder.id && styles.folderIconSelected,
+                  styles.childRow,
+                  { borderBottomColor: colors.border },
+                  childIsSelected && { backgroundColor: colors.accentSubtle },
                 ]}
+                onPress={() => !childIsCurrent && onSelect(childNode.folder.id)}
+                disabled={childIsCurrent}
               >
                 <Text style={styles.childEmoji}>{getDisplayIcon(childNode.folder) || '📁'}</Text>
-              </View>
-
-              <Text
-                style={[
-                  styles.childName,
-                  childNode.folder.id === currentFolderId && styles.folderNameDisabled,
-                ]}
-              >
-                {childNode.folder.name}
-              </Text>
-
-              {childNode.folder.id === currentFolderId && (
-                <Text style={styles.currentLabel}>Current</Text>
-              )}
-              {selectedId === childNode.folder.id && (
-                <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />
-              )}
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.childName,
+                    { color: childIsCurrent ? colors.textQuaternary : colors.text },
+                  ]}
+                >
+                  {childNode.folder.name}
+                </Text>
+                {childIsCurrent && (
+                  <Text style={[styles.currentLabel, { color: colors.textQuaternary }]}>Current</Text>
+                )}
+                {childIsSelected && <Ionicons name="checkmark" size={16} color={colors.text} />}
+              </AnimatedPressable>
+            );
+          })}
         </View>
       )}
     </View>
@@ -312,115 +319,84 @@ function FolderNodeItem({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'flex-end',
   },
   container: {
-    backgroundColor: Colors.backgroundSecondary,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
     maxHeight: '85%',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomWidth: Hairline,
   },
   cancelText: {
-    fontSize: 16,
-    color: Colors.text,
+    ...Typography.body,
   },
   title: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: Colors.text,
+    ...Typography.headingSm,
   },
   moveText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.primary,
+    ...Typography.bodyStrong,
   },
   moveTextDisabled: {
-    opacity: 0.5,
+    opacity: 0.3,
   },
   itemPreview: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
-    padding: Spacing.lg,
-    backgroundColor: Colors.overlayLight,
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderBottomWidth: Hairline,
   },
   itemThumbnail: {
-    width: 50,
-    height: 66,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.overlay,
+    width: 40,
+    height: 53,
+    borderRadius: BorderRadius.xs,
     justifyContent: 'center',
     alignItems: 'center',
   },
   itemInfo: {
     flex: 1,
-    gap: 4,
+    gap: 2,
   },
   itemTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.text,
+    ...Typography.captionStrong,
   },
-  currentFolder: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  currentFolderLabel: {
+  currentFolderText: {
     fontSize: 12,
-    color: Colors.textTertiary,
-  },
-  currentFolderName: {
-    fontSize: 12,
-    color: Colors.primary,
   },
   loadingContainer: {
-    padding: Spacing.xxxl,
+    padding: Spacing.xxl,
     alignItems: 'center',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: Spacing.lg,
-    gap: Spacing.lg,
+    paddingBottom: Spacing.xl,
   },
   section: {
-    gap: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   sectionLabel: {
-    fontSize: 12,
-    color: Colors.textTertiary,
-    marginLeft: Spacing.sm,
-    marginBottom: Spacing.xs,
+    ...Typography.label,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
-  nodeContainer: {
-    gap: Spacing.xs,
-  },
-  folderOption: {
+  nodeContainer: {},
+  folderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
-    padding: Spacing.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: BorderRadius.md,
-  },
-  folderOptionSelected: {
-    backgroundColor: `${Colors.primary}1A`,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-  },
-  suggestedOption: {
-    backgroundColor: `${Colors.primary}0D`,
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: Hairline,
   },
   expandButton: {
     width: 20,
@@ -428,17 +404,6 @@ const styles = StyleSheet.create({
   },
   expandPlaceholder: {
     width: 20,
-  },
-  folderIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.overlay,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  folderIconSelected: {
-    backgroundColor: `${Colors.primary}4D`,
   },
   folderEmoji: {
     fontSize: 18,
@@ -449,48 +414,30 @@ const styles = StyleSheet.create({
   },
   folderName: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '500',
-    color: Colors.text,
+    ...Typography.body,
   },
-  folderNameDisabled: {
-    color: Colors.textTertiary,
-  },
-  confidenceText: {
+  folderSubtext: {
     fontSize: 12,
-    color: Colors.primary,
   },
   currentLabel: {
-    fontSize: 12,
-    color: Colors.textQuaternary,
+    fontSize: 11,
   },
   childrenContainer: {
-    marginLeft: 32,
-    gap: 4,
+    marginLeft: Spacing.xl,
   },
-  childOption: {
+  childRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    padding: Spacing.sm,
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-    borderRadius: BorderRadius.sm,
-  },
-  childIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 6,
-    backgroundColor: Colors.overlay,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: Hairline,
   },
   childEmoji: {
     fontSize: 14,
   },
   childName: {
     flex: 1,
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
+    ...Typography.bodySm,
   },
 });
-

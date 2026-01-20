@@ -4,28 +4,29 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   Linking,
   Alert,
   ActivityIndicator,
   Platform,
   Image,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Colors, Spacing, BorderRadius } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline } from '../config';
 import { getDisplayTitle } from '../types';
 import { apiService } from '../services/api';
 import { InboxStackScreenProps } from '../navigation/types';
+import { useTheme } from '../hooks/useTheme';
+import { AnimatedPressable, AnimatedListItem, AnimatedText } from '../components';
 
-// This screen can be accessed from multiple stacks, so we use a union type
 type Props =
   | InboxStackScreenProps<'VideoDetail'>
   | { route: { params: { item: import('../types').SaveItem } }; navigation: any };
 
 export default function VideoDetailScreen({ route, navigation }: Props) {
   const { item } = route.params;
+  const { colors } = useTheme();
   const [isDeleting, setIsDeleting] = useState(false);
 
   const openInTikTok = () => {
@@ -40,9 +41,9 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
     } catch (error) {
       console.error('Failed to delete:', error);
       if (Platform.OS === 'web') {
-        window.alert('Failed to delete video. Please try again.');
+        window.alert('Failed to delete video.');
       } else {
-        Alert.alert('Error', 'Failed to delete video. Please try again.');
+        Alert.alert('Error', 'Failed to delete video.');
       }
     } finally {
       setIsDeleting(false);
@@ -51,175 +52,178 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
 
   const handleDelete = () => {
     if (Platform.OS === 'web') {
-      const confirmed = window.confirm('Delete this video from your library? This cannot be undone.');
-      if (confirmed) {
+      if (window.confirm('Delete this video?')) {
         performDelete();
       }
     } else {
-      Alert.alert(
-        'Delete Video',
-        'Are you sure you want to delete this video from your library? This cannot be undone.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete', style: 'destructive', onPress: performDelete },
-        ]
-      );
+      Alert.alert('Delete Video', 'Are you sure?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: performDelete },
+      ]);
     }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Video Preview */}
-      <View style={styles.previewContainer}>
-        <TouchableOpacity 
+      <Animated.View entering={FadeIn.duration(300)} style={styles.previewContainer}>
+        <AnimatedPressable
           style={styles.previewWrapper}
           onPress={openInTikTok}
-          activeOpacity={0.8}
+          scaleOnPress={0.98}
         >
           {item.thumbnailURL ? (
-            <Image 
-              source={{ 
-                uri: item.thumbnailURL,
-                cache: 'force-cache'
-              }} 
+            <Image
+              source={{ uri: item.thumbnailURL, cache: 'force-cache' }}
               style={styles.previewImage}
               resizeMode="cover"
             />
           ) : (
-            <LinearGradient
-              colors={[`${Colors.secondary}66`, `${Colors.primary}66`]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.previewGradient}
-            />
+            <View style={[styles.previewPlaceholder, { backgroundColor: colors.accentSubtle }]}>
+              <Ionicons name="play" size={32} color={colors.textTertiary} />
+            </View>
           )}
-          
-          {/* Open in TikTok Overlay */}
-          <View style={styles.previewOverlay} pointerEvents="none">
-            <TouchableOpacity style={styles.playButton} activeOpacity={1}>
-              <Ionicons name="play-circle" size={60} color={Colors.text} />
-              <Text style={styles.openText}>Open in TikTok</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </View>
 
-      {/* Info Card */}
-      <View style={styles.infoCard}>
-        {/* Title */}
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Title</Text>
-          <Text style={styles.infoTitle}>{getDisplayTitle(item)}</Text>
+          {/* Play Overlay */}
+          <View style={styles.previewOverlay}>
+            <View style={[styles.playCircle, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+              <Ionicons name="play" size={24} color="#ffffff" />
+            </View>
+            <Text style={styles.openText}>Open in TikTok</Text>
+          </View>
+        </AnimatedPressable>
+      </Animated.View>
+
+      {/* Title Section */}
+      <AnimatedListItem index={0} direction="fade">
+        <View style={styles.section}>
+          <AnimatedText style={[styles.title, { color: colors.text }]}>
+            {getDisplayTitle(item)}
+          </AnimatedText>
+          {item.creatorUsername && (
+            <Text style={[styles.creator, { color: colors.textSecondary }]}>
+              @{item.creatorUsername}
+            </Text>
+          )}
         </View>
+      </AnimatedListItem>
 
-        {/* Creator */}
-        {item.creatorUsername && (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Creator</Text>
-            <Text style={styles.infoCreator}>{item.creatorUsername}</Text>
-          </View>
-        )}
-
-        {/* Folder */}
-        {item.folderName && (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Filed in</Text>
-            <View style={styles.folderBadge}>
-              <Ionicons name="folder" size={14} color={Colors.text} />
-              <Text style={styles.folderBadgeText}>{item.folderName}</Text>
+      {/* Info Section */}
+      <AnimatedListItem index={1} direction="fade">
+        <View style={[styles.infoSection, { borderTopColor: colors.border }]}>
+          {/* Folder */}
+          {item.folderName && (
+            <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.infoLabel, { color: colors.textTertiary }]}>FOLDER</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{item.folderName}</Text>
             </View>
-          </View>
-        )}
+          )}
 
-        {/* Topics */}
-        {item.detectedTopics.length > 0 && (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Topics</Text>
-            <View style={styles.tagsContainer}>
-              {item.detectedTopics.map((topic) => (
-                <View key={topic} style={styles.topicTag}>
-                  <Text style={styles.topicTagText}>{topic}</Text>
+          {/* Topics */}
+          {item.detectedTopics.length > 0 && (
+            <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.infoLabel, { color: colors.textTertiary }]}>TOPICS</Text>
+              <View style={styles.tagsContainer}>
+                {item.detectedTopics.map((topic) => (
+                  <Text key={topic} style={[styles.tagText, { color: colors.textSecondary }]}>
+                    {topic}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Labels */}
+          {item.detectedLabels.length > 0 && (
+            <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.infoLabel, { color: colors.textTertiary }]}>LABELS</Text>
+              <View style={styles.tagsContainer}>
+                {item.detectedLabels.slice(0, 8).map((label) => (
+                  <View key={label} style={[styles.labelBadge, { borderColor: colors.border }]}>
+                    <Text style={[styles.labelText, { color: colors.textTertiary }]}>{label}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Confidence */}
+          {item.confidence !== undefined && item.confidence !== null && item.confidence > 0 && (
+            <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.infoLabel, { color: colors.textTertiary }]}>CONFIDENCE</Text>
+              <View style={styles.confidenceRow}>
+                <View style={[styles.confidenceBar, { backgroundColor: colors.accentSubtle }]}>
+                  <View
+                    style={[
+                      styles.confidenceFill,
+                      {
+                        width: `${item.confidence * 100}%`,
+                        backgroundColor: item.confidence >= 0.85
+                          ? colors.success
+                          : item.confidence >= 0.6
+                            ? colors.warning
+                            : colors.error,
+                      },
+                    ]}
+                  />
                 </View>
-              ))}
+                <Text style={[styles.confidenceText, { color: colors.textTertiary }]}>
+                  {Math.round(item.confidence * 100)}%
+                </Text>
+              </View>
             </View>
-          </View>
-        )}
+          )}
+        </View>
+      </AnimatedListItem>
 
-        {/* Labels */}
-        {item.detectedLabels.length > 0 && (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Labels</Text>
-            <View style={styles.tagsContainer}>
-              {item.detectedLabels.slice(0, 10).map((label) => (
-                <View key={label} style={styles.labelTag}>
-                  <Text style={styles.labelTagText}>{label}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Transcript */}
-        {item.transcriptText && (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Transcript</Text>
-            <Text style={styles.transcriptText} numberOfLines={10}>
+      {/* Transcript */}
+      {item.transcriptText && (
+        <AnimatedListItem index={2} direction="fade">
+          <View style={styles.section}>
+            <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>TRANSCRIPT</Text>
+            <Text style={[styles.transcriptText, { color: colors.textSecondary }]} numberOfLines={10}>
               {item.transcriptText}
             </Text>
           </View>
-        )}
-
-        {/* Confidence */}
-        {item.confidence !== undefined && item.confidence !== null && item.confidence > 0 && (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>AI Confidence</Text>
-            <View style={styles.confidenceBar}>
-              <View
-                style={[
-                  styles.confidenceFill,
-                  { width: `${item.confidence * 100}%` },
-                  item.confidence >= 0.85
-                    ? styles.confidenceHigh
-                    : item.confidence >= 0.6
-                      ? styles.confidenceMedium
-                      : styles.confidenceLow,
-                ]}
-              />
-            </View>
-            <Text style={styles.confidenceText}>{Math.round(item.confidence * 100)}%</Text>
-          </View>
-        )}
-      </View>
+        </AnimatedListItem>
+      )}
 
       {/* Actions */}
-      <TouchableOpacity style={styles.actionButton} onPress={openInTikTok} activeOpacity={0.8}>
-        <LinearGradient
-          colors={[Colors.primary, Colors.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.actionButtonGradient}
-        >
-          <Ionicons name="open-outline" size={20} color={Colors.text} />
-          <Text style={styles.actionButtonText}>Open in TikTok</Text>
-        </LinearGradient>
-      </TouchableOpacity>
+      <AnimatedListItem index={3} direction="fade">
+        <View style={styles.actionsSection}>
+          <AnimatedPressable
+            style={[styles.primaryButton, { backgroundColor: colors.text }]}
+            onPress={openInTikTok}
+            haptic
+          >
+            <Ionicons name="open-outline" size={18} color={colors.background} />
+            <Text style={[styles.primaryButtonText, { color: colors.background }]}>
+              Open in TikTok
+            </Text>
+          </AnimatedPressable>
 
-      {/* Delete Button */}
-      <TouchableOpacity 
-        style={styles.deleteButton} 
-        onPress={handleDelete} 
-        activeOpacity={0.8}
-        disabled={isDeleting}
-      >
-        {isDeleting ? (
-          <ActivityIndicator size="small" color={Colors.error} />
-        ) : (
-          <>
-            <Ionicons name="trash-outline" size={18} color={Colors.error} />
-            <Text style={styles.deleteButtonText}>Delete Video</Text>
-          </>
-        )}
-      </TouchableOpacity>
+          <AnimatedPressable
+            style={[styles.deleteButton, { borderColor: colors.error }]}
+            onPress={handleDelete}
+            disabled={isDeleting}
+          >
+            {isDeleting ? (
+              <ActivityIndicator size="small" color={colors.error} />
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={16} color={colors.error} />
+                <Text style={[styles.deleteButtonText, { color: colors.error }]}>
+                  Delete
+                </Text>
+              </>
+            )}
+          </AnimatedPressable>
+        </View>
+      </AnimatedListItem>
     </ScrollView>
   );
 }
@@ -227,19 +231,20 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   content: {
-    padding: Spacing.lg,
-    gap: Spacing.xl,
+    padding: Spacing.md,
+    paddingBottom: Spacing.xxl,
+    gap: Spacing.lg,
   },
   previewContainer: {
     alignItems: 'center',
+    paddingVertical: Spacing.md,
   },
   previewWrapper: {
-    width: 200,
+    width: 180,
     aspectRatio: 9 / 16,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.sm,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -247,9 +252,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  previewGradient: {
-    width: '100%',
-    height: '100%',
+  previewPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   previewOverlay: {
     position: 'absolute',
@@ -259,138 +265,114 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
   },
-  playButton: {
+  playCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
-    gap: Spacing.md,
+    justifyContent: 'center',
   },
   openText: {
-    color: Colors.text,
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#ffffff',
+    ...Typography.captionStrong,
+    marginTop: Spacing.sm,
   },
-  infoCard: {
-    backgroundColor: Colors.overlayLight,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    gap: Spacing.lg,
+  section: {
+    gap: Spacing.xs,
+  },
+  sectionLabel: {
+    ...Typography.label,
+    marginBottom: Spacing.xs,
+  },
+  title: {
+    ...Typography.displayMd,
+    lineHeight: 28,
+  },
+  creator: {
+    ...Typography.body,
+    marginTop: Spacing.xs,
+  },
+  infoSection: {
+    borderTopWidth: Hairline,
   },
   infoRow: {
-    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: Hairline,
   },
   infoLabel: {
-    fontSize: 12,
-    color: Colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    ...Typography.label,
+    marginBottom: Spacing.xs,
   },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  infoCreator: {
-    fontSize: 15,
-    color: Colors.primary,
-  },
-  folderBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.overlay,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-    alignSelf: 'flex-start',
-  },
-  folderBadgeText: {
-    fontSize: 14,
-    color: Colors.text,
+  infoValue: {
+    ...Typography.body,
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
-  topicTag: {
-    backgroundColor: `${Colors.primary}33`,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
+  tagText: {
+    ...Typography.caption,
+  },
+  labelBadge: {
+    borderWidth: 1,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
     borderRadius: BorderRadius.sm,
   },
-  topicTagText: {
-    fontSize: 13,
-    color: Colors.primary,
+  labelText: {
+    fontSize: 11,
   },
-  labelTag: {
-    backgroundColor: Colors.overlay,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  labelTagText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  transcriptText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    lineHeight: 20,
+  confidenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   confidenceBar: {
-    height: 6,
-    backgroundColor: Colors.overlay,
-    borderRadius: 3,
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
     overflow: 'hidden',
   },
   confidenceFill: {
     height: '100%',
-    borderRadius: 3,
-  },
-  confidenceHigh: {
-    backgroundColor: Colors.success,
-  },
-  confidenceMedium: {
-    backgroundColor: Colors.warning,
-  },
-  confidenceLow: {
-    backgroundColor: Colors.error,
+    borderRadius: 2,
   },
   confidenceText: {
-    fontSize: 13,
-    color: Colors.textTertiary,
+    ...Typography.caption,
+    width: 35,
   },
-  actionButton: {
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
+  transcriptText: {
+    ...Typography.bodySm,
+    lineHeight: 22,
   },
-  actionButtonGradient: {
+  actionsSection: {
+    gap: Spacing.sm,
+    paddingTop: Spacing.md,
+  },
+  primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.lg,
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
   },
-  actionButtonText: {
-    color: Colors.text,
-    fontSize: 16,
-    fontWeight: '600',
+  primaryButtonText: {
+    ...Typography.bodyStrong,
   },
   deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.md,
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.error,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.sm,
   },
   deleteButtonText: {
-    color: Colors.error,
-    fontSize: 15,
-    fontWeight: '500',
+    ...Typography.body,
   },
 });
-

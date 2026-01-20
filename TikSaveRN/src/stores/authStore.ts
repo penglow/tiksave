@@ -25,19 +25,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   error: null,
 
   initialize: async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authStore.ts:27',message:'initialize called',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'web-debug',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
+
     try {
       const hasToken = await apiService.init();
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authStore.ts:30',message:'apiService.init completed',data:{hasToken},timestamp:Date.now(),sessionId:'debug-session',runId:'web-debug',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
+
       set({ isAuthenticated: hasToken, isInitialized: true });
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authStore.ts:33',message:'initialize error',data:{error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'web-debug',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
+
       set({ isAuthenticated: false, isInitialized: true });
     }
   },

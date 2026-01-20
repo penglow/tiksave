@@ -20,9 +20,13 @@
       "bundleIdentifier": "com.yourcompany.tiksave",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "TikSave needs access to save videos to your library",
-        "LSApplicationQueriesSchemes": ["tiktok"]
+        "LSApplicationQueriesSchemes": [
+          "tiktok"
+        ]
       },
-      "associatedDomains": ["applinks:tiksave.app"]
+      "associatedDomains": [
+        "applinks:tiksave.app"
+      ]
     },
     "android": {
       "adaptiveIcon": {
@@ -33,7 +37,9 @@
       "intentFilters": [
         {
           "action": "android.intent.action.SEND",
-          "category": ["android.intent.category.DEFAULT"],
+          "category": [
+            "android.intent.category.DEFAULT"
+          ],
           "data": [
             {
               "mimeType": "text/plain"
@@ -42,14 +48,17 @@
         },
         {
           "action": "android.intent.action.VIEW",
-          "category": ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"],
+          "category": [
+            "android.intent.category.DEFAULT",
+            "android.intent.category.BROWSABLE"
+          ],
           "data": [
             {
               "scheme": "https",
               "host": "*.tiktok.com"
             },
             {
-              "scheme": "https", 
+              "scheme": "https",
               "host": "vm.tiktok.com"
             }
           ]
@@ -58,7 +67,14 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "build": {
+        "babel": {
+          "include": [
+            "react-native-reanimated"
+          ]
+        }
+      }
     },
     "plugins": [
       "expo-secure-store"

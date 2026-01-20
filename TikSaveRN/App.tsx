@@ -1,3 +1,4 @@
+import 'react-native-gesture-handler';
 import React, { useEffect, useCallback, useMemo, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -21,41 +22,28 @@ function extractTikTokUrl(text: string): string | null {
     /https?:\/\/vm\.tiktok\.com\/[\w]+[^\s]*/i,
     /https?:\/\/(?:www\.)?tiktok\.com\/t\/[\w]+[^\s]*/i,
   ];
-  
+
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (match) {
       return match[0];
     }
   }
-  
+
   return null;
 }
 
 export default function App() {
-  // #region agent log
-  React.useEffect(() => {
-    fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:35',message:'App component mounted',data:{platform:typeof window!=='undefined'?'web':'native'},timestamp:Date.now(),sessionId:'debug-session',runId:'web-debug',hypothesisId:'A'})}).catch(()=>{});
-  }, []);
-  // #endregion
-  
+
   const loadRecentSearches = useAppStore((state) => state.loadRecentSearches);
   const loadUserSettings = useAppStore((state) => state.loadUserSettings);
   const setPendingShareUrl = useAppStore((state) => state.setPendingShareUrl);
   const userSettingsTheme = useAppStore((state) => state.userSettings.theme);
   const systemColorScheme = useColorScheme();
 
-  // #region agent log
-  React.useEffect(() => {
-    fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:38',message:'App component render',data:{userSettingsTheme},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
-  }, [userSettingsTheme]);
-  // #endregion
 
   // Determine the effective theme
   const effectiveTheme: 'light' | 'dark' = useMemo(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:48',message:'effectiveTheme useMemo recalculating',data:{userSettingsTheme,systemColorScheme},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     if (userSettingsTheme === 'system') {
       return systemColorScheme === 'dark' ? 'dark' : 'light';
     }
@@ -65,7 +53,7 @@ export default function App() {
   // Track previous theme for overlay animation
   const [prevTheme, setPrevTheme] = React.useState<'light' | 'dark' | null>(null);
   const prevEffectiveThemeRef = useRef<'light' | 'dark'>(effectiveTheme);
-  
+
   // Animation value for overlay fade transition
   const overlayOpacity = useSharedValue(0);
   const isAnimatingRef = useRef(false);
@@ -95,12 +83,7 @@ export default function App() {
       });
     }
   }, [effectiveTheme, overlayOpacity]);
-  
-  // #region agent log
-  React.useEffect(() => {
-    fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:50',message:'effectiveTheme value',data:{effectiveTheme},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  }, [effectiveTheme]);
-  // #endregion
+
 
   // Get theme colors based on effective theme
   const themeColors = useMemo(() => getThemeColors(effectiveTheme === 'dark'), [effectiveTheme]);
@@ -125,7 +108,7 @@ export default function App() {
   // Handle incoming URL (share intent)
   const handleIncomingUrl = useCallback((url: string) => {
     console.log('Received URL:', url);
-    
+
     // Try to extract TikTok URL from the incoming data
     const tiktokUrl = extractTikTokUrl(url);
     if (tiktokUrl) {
@@ -169,11 +152,6 @@ export default function App() {
     };
   }, [loadRecentSearches, loadUserSettings, handleIncomingUrl]);
 
-  // #region agent log
-  React.useEffect(() => {
-    fetch('http://127.0.0.1:7242/ingest/e4b12369-f4da-44c9-b8ec-020b4285b184',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:132',message:'Render values',data:{effectiveTheme,themeColorsBackground:themeColors.background,navigationThemeDark:navigationTheme.dark,statusBarStyle:effectiveTheme === 'dark' ? 'light' : 'dark'},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'D'})}).catch(()=>{});
-  }, [effectiveTheme, themeColors.background, navigationTheme.dark]);
-  // #endregion
 
   // Animated style for overlay transition
   const overlayStyle = useAnimatedStyle(() => {
@@ -194,7 +172,7 @@ export default function App() {
             <RootNavigator />
             {/* Overlay for smooth theme transition */}
             {prevTheme !== null && (
-              <Animated.View 
+              <Animated.View
                 style={[
                   styles.overlay,
                   { backgroundColor: overlayColor },

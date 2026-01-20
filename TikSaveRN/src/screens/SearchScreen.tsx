@@ -5,34 +5,37 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  TouchableOpacity,
   ActivityIndicator,
   Keyboard,
   Image,
   Linking,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
-import { Colors, Spacing, BorderRadius } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline } from '../config';
 import { SaveItem, SearchMode, getDisplayTitle } from '../types';
 import { apiService } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import { SearchStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
+import { AnimatedPressable, AnimatedListItem, AnimatedText } from '../components';
 
 type Props = SearchStackScreenProps<'SearchMain'>;
 
 const SUGGESTIONS = [
   'ramen tokyo',
   'hotel room tour',
-  'temple kyoto',
-  'shopping haul',
   'street food',
-  'ryokan experience',
+  'shopping haul',
+  'fitness tips',
+  'travel vlog',
 ];
 
 export default function SearchScreen({ navigation }: Props) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [searchText, setSearchText] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('semantic');
   const [results, setResults] = useState<SaveItem[]>([]);
@@ -41,7 +44,6 @@ export default function SearchScreen({ navigation }: Props) {
   const inputRef = useRef<TextInput>(null);
 
   const { recentSearches, addRecentSearch, clearRecentSearches } = useAppStore();
-  const { colors: themeColors } = useTheme();
 
   const handleSearch = async (query?: string) => {
     const searchQuery = query || searchText;
@@ -77,43 +79,22 @@ export default function SearchScreen({ navigation }: Props) {
   const showInitialState = !searchText && results.length === 0 && !isLoading;
   const showNoResults = searchText && results.length === 0 && !isLoading;
 
-  const themeStyles = React.useMemo(() => ({
-    container: { ...styles.container, backgroundColor: themeColors.background },
-    searchInputContainer: { ...styles.searchInputContainer, backgroundColor: themeColors.overlay },
-    searchInput: { ...styles.searchInput, color: themeColors.text },
-    cancelButtonText: { ...styles.cancelButtonText, color: themeColors.textSecondary },
-    modeButtonText: { ...styles.modeButtonText, color: themeColors.textTertiary },
-    modeButtonTextActive: { ...styles.modeButtonTextActive, color: themeColors.primary },
-    modeIndicator: { ...styles.modeIndicator, backgroundColor: themeColors.primary },
-    noResultsTitle: { ...styles.noResultsTitle, color: themeColors.textTertiary },
-    noResultsSubtitle: { ...styles.noResultsSubtitle, color: themeColors.textQuaternary },
-    scrollView: { ...styles.scrollView, backgroundColor: themeColors.background },
-    sectionTitle: { ...styles.sectionTitle, color: themeColors.text },
-    clearButton: { ...styles.clearButton, color: themeColors.textTertiary },
-    recentText: { ...styles.recentText, color: themeColors.textSecondary },
-    suggestionBadge: { ...styles.suggestionBadge, backgroundColor: themeColors.overlay },
-    suggestionText: { ...styles.suggestionText, color: themeColors.textSecondary },
-    resultRow: { ...styles.resultRow, backgroundColor: themeColors.overlayLight },
-    resultThumbnail: { ...styles.resultThumbnail, backgroundColor: themeColors.overlay },
-    durationText: { ...styles.durationText, color: themeColors.text },
-    resultTitle: { ...styles.resultTitle, color: themeColors.text },
-    folderText: { ...styles.folderText, color: themeColors.primary },
-    matchContext: { ...styles.matchContext, color: themeColors.textTertiary },
-    topicBadge: { ...styles.topicBadge, backgroundColor: themeColors.overlay },
-    topicText: { ...styles.topicText, color: themeColors.textTertiary },
-  }), [themeColors]);
-
   return (
-    <View style={themeStyles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>Search</AnimatedText>
+      </View>
+
       {/* Search Bar */}
       <View style={styles.searchBarContainer}>
-        <View style={themeStyles.searchInputContainer}>
-          <Ionicons name="search" size={18} color={themeColors.textTertiary} />
+        <View style={[styles.searchInputContainer, { borderColor: colors.border }]}>
+          <Ionicons name="search" size={16} color={colors.textQuaternary} />
           <TextInput
             ref={inputRef}
-            style={themeStyles.searchInput}
-            placeholder="Search by meaning or keywords..."
-            placeholderTextColor={themeColors.textQuaternary}
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search videos..."
+            placeholderTextColor={colors.textQuaternary}
             value={searchText}
             onChangeText={setSearchText}
             onSubmitEditing={() => handleSearch()}
@@ -124,51 +105,46 @@ export default function SearchScreen({ navigation }: Props) {
             autoCorrect={false}
           />
           {searchText.length > 0 && (
-            <TouchableOpacity onPress={handleClear}>
-              <Ionicons name="close-circle" size={18} color={themeColors.textQuaternary} />
-            </TouchableOpacity>
+            <AnimatedPressable onPress={handleClear}>
+              <Ionicons name="close-circle" size={16} color={colors.textQuaternary} />
+            </AnimatedPressable>
           )}
         </View>
 
         {isSearchFocused && (
-          <TouchableOpacity
+          <AnimatedPressable
             style={styles.cancelButton}
             onPress={() => {
               Keyboard.dismiss();
               handleClear();
             }}
           >
-            <Text style={themeStyles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
+            <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+              Cancel
+            </Text>
+          </AnimatedPressable>
         )}
       </View>
 
       {/* Search Mode Toggle */}
       {(searchText.length > 0 || results.length > 0) && (
-        <View style={styles.modeToggle}>
+        <View style={[styles.modeToggle, { borderBottomColor: colors.border }]}>
           {(['semantic', 'keyword'] as SearchMode[]).map((mode) => (
-            <TouchableOpacity
+            <AnimatedPressable
               key={mode}
               style={styles.modeButton}
               onPress={() => handleModeChange(mode)}
             >
-              <View style={styles.modeButtonContent}>
-                <Ionicons
-                  name={mode === 'semantic' ? 'bulb' : 'text'}
-                  size={14}
-                  color={searchMode === mode ? themeColors.primary : themeColors.textTertiary}
-                />
-                <Text
-                  style={[
-                    themeStyles.modeButtonText,
-                    searchMode === mode && themeStyles.modeButtonTextActive,
-                  ]}
-                >
-                  {mode === 'semantic' ? 'Semantic' : 'Keyword'}
-                </Text>
-              </View>
-              {searchMode === mode && <View style={themeStyles.modeIndicator} />}
-            </TouchableOpacity>
+              <Text style={[
+                styles.modeButtonText,
+                { color: searchMode === mode ? colors.text : colors.textTertiary },
+              ]}>
+                {mode === 'semantic' ? 'Semantic' : 'Keyword'}
+              </Text>
+              {searchMode === mode && (
+                <View style={[styles.modeIndicator, { backgroundColor: colors.text }]} />
+              )}
+            </AnimatedPressable>
           ))}
         </View>
       )}
@@ -176,73 +152,95 @@ export default function SearchScreen({ navigation }: Props) {
       {/* Content */}
       {isLoading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={themeColors.primary} />
+          <ActivityIndicator size="small" color={colors.text} />
         </View>
       ) : showInitialState ? (
-        <ScrollView style={themeStyles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Recent Searches */}
           {recentSearches.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={themeStyles.sectionTitle}>Recent Searches</Text>
-                <TouchableOpacity onPress={clearRecentSearches}>
-                  <Text style={themeStyles.clearButton}>Clear</Text>
-                </TouchableOpacity>
+            <AnimatedListItem index={0} direction="fade">
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
+                    RECENT
+                  </Text>
+                  <AnimatedPressable onPress={clearRecentSearches}>
+                    <Text style={[styles.clearButton, { color: colors.textQuaternary }]}>
+                      Clear
+                    </Text>
+                  </AnimatedPressable>
+                </View>
+                {recentSearches.map((query, index) => (
+                  <AnimatedPressable
+                    key={query}
+                    style={[styles.recentItem, { borderBottomColor: colors.border }]}
+                    onPress={() => {
+                      setSearchText(query);
+                      handleSearch(query);
+                    }}
+                  >
+                    <Ionicons name="time-outline" size={14} color={colors.textQuaternary} />
+                    <Text style={[styles.recentText, { color: colors.text }]}>{query}</Text>
+                    <Ionicons name="arrow-forward" size={14} color={colors.textQuaternary} />
+                  </AnimatedPressable>
+                ))}
               </View>
-              {recentSearches.map((query) => (
-                <TouchableOpacity
-                  key={query}
-                  style={styles.recentItem}
-                  onPress={() => {
-                    setSearchText(query);
-                    handleSearch(query);
-                  }}
-                >
-                  <Ionicons name="time-outline" size={16} color={themeColors.textQuaternary} />
-                  <Text style={themeStyles.recentText}>{query}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            </AnimatedListItem>
           )}
 
           {/* Suggestions */}
-          <View style={styles.section}>
-            <Text style={themeStyles.sectionTitle}>Try searching for</Text>
-            <View style={styles.suggestionsContainer}>
-              {SUGGESTIONS.map((suggestion) => (
-                <TouchableOpacity
-                  key={suggestion}
-                  style={themeStyles.suggestionBadge}
-                  onPress={() => {
-                    setSearchText(suggestion);
-                    handleSearch(suggestion);
-                  }}
-                >
-                  <Text style={themeStyles.suggestionText}>{suggestion}</Text>
-                </TouchableOpacity>
-              ))}
+          <AnimatedListItem index={1} direction="fade">
+            <View style={styles.section}>
+              <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
+                TRY SEARCHING
+              </Text>
+              <View style={styles.suggestionsContainer}>
+                {SUGGESTIONS.map((suggestion) => (
+                  <AnimatedPressable
+                    key={suggestion}
+                    style={[styles.suggestionBadge, { borderColor: colors.border }]}
+                    onPress={() => {
+                      setSearchText(suggestion);
+                      handleSearch(suggestion);
+                    }}
+                  >
+                    <Text style={[styles.suggestionText, { color: colors.text }]}>
+                      {suggestion}
+                    </Text>
+                  </AnimatedPressable>
+                ))}
+              </View>
             </View>
-          </View>
+          </AnimatedListItem>
         </ScrollView>
       ) : showNoResults ? (
         <View style={styles.centerContainer}>
-          <Ionicons name="search" size={50} color={themeColors.textQuaternary} />
-          <Text style={themeStyles.noResultsTitle}>No results found</Text>
-          <Text style={themeStyles.noResultsSubtitle}>
-            Try different keywords or{'\n'}use semantic search
-          </Text>
+          <Ionicons name="search-outline" size={32} color={colors.textQuaternary} />
+          <AnimatedText delay={100} style={[styles.noResultsTitle, { color: colors.text }]}>
+            No results
+          </AnimatedText>
+          <AnimatedText delay={200} style={[styles.noResultsSubtitle, { color: colors.textTertiary }]}>
+            Try different keywords
+          </AnimatedText>
         </View>
       ) : (
-        <ScrollView style={themeStyles.scrollView} contentContainerStyle={styles.scrollContent}>
-          {results.map((item) => (
-            <SearchResultRow 
-              key={item.id}
-              item={item} 
-              searchQuery={searchText}
-              themeColors={themeColors}
-              themeStyles={themeStyles}
-              onNavigateToDetail={() => navigation.navigate('VideoDetail', { item })}
-            />
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.resultsContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {results.map((item, index) => (
+            <AnimatedListItem key={item.id} index={index} direction="fade">
+              <SearchResultRow
+                item={item}
+                searchQuery={searchText}
+                onNavigateToDetail={() => navigation.navigate('VideoDetail', { item })}
+              />
+            </AnimatedListItem>
           ))}
         </ScrollView>
       )}
@@ -250,23 +248,19 @@ export default function SearchScreen({ navigation }: Props) {
   );
 }
 
-function SearchResultRow({ 
-  item, 
+function SearchResultRow({
+  item,
   searchQuery,
-  themeColors,
-  themeStyles,
-  onNavigateToDetail 
-}: { 
-  item: SaveItem; 
+  onNavigateToDetail,
+}: {
+  item: SaveItem;
   searchQuery: string;
-  themeColors: any;
-  themeStyles: any;
   onNavigateToDetail: () => void;
 }) {
-  // Find match context in transcript
+  const { colors } = useTheme();
+
   const findMatchContext = (): string | null => {
     if (!item.transcriptText) return null;
-
     const words = searchQuery.toLowerCase().split(' ');
     const transcriptLower = item.transcriptText.toLowerCase();
 
@@ -281,7 +275,6 @@ function SearchResultRow({
         return context;
       }
     }
-
     return null;
   };
 
@@ -294,295 +287,248 @@ function SearchResultRow({
   };
 
   return (
-    <View style={themeStyles.resultRow}>
+    <AnimatedPressable
+      style={[styles.resultRow, { borderBottomColor: colors.border }]}
+      onPress={onNavigateToDetail}
+    >
       {/* Thumbnail */}
-      <TouchableOpacity 
-        style={themeStyles.resultThumbnail}
+      <AnimatedPressable
+        style={styles.resultThumbnail}
         onPress={openInTikTok}
-        activeOpacity={0.8}
+        scaleOnPress={0.98}
       >
         {item.thumbnailURL ? (
-          <Image 
-            source={{ 
-              uri: item.thumbnailURL,
-              cache: 'force-cache'
-            }} 
+          <Image
+            source={{ uri: item.thumbnailURL, cache: 'force-cache' }}
             style={styles.thumbnailImage}
             resizeMode="cover"
           />
         ) : (
-          <LinearGradient
-            colors={[`${themeColors.secondary}4D`, `${themeColors.primary}4D`]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.thumbnailPlaceholder}
-          >
-            <Ionicons name="play" size={20} color="rgba(255, 255, 255, 0.6)" />
-          </LinearGradient>
+          <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.accentSubtle }]}>
+            <Ionicons name="play" size={16} color={colors.textTertiary} />
+          </View>
         )}
-
         {item.duration && (
           <View style={styles.durationBadge}>
-            <Text style={themeStyles.durationText}>
+            <Text style={styles.durationText}>
               {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
             </Text>
           </View>
         )}
-      </TouchableOpacity>
+      </AnimatedPressable>
 
       {/* Info */}
-      <TouchableOpacity 
-        style={styles.resultInfo}
-        onPress={onNavigateToDetail}
-        activeOpacity={0.7}
-      >
-        <Text style={themeStyles.resultTitle} numberOfLines={2}>
+      <View style={styles.resultInfo}>
+        <Text style={[styles.resultTitle, { color: colors.text }]} numberOfLines={2}>
           {getDisplayTitle(item)}
         </Text>
 
-        {item.folderName && (
-          <View style={styles.folderRow}>
-            <Ionicons name="folder" size={12} color={themeColors.primary} />
-            <Text style={themeStyles.folderText}>{item.folderName}</Text>
-          </View>
+        {item.creatorUsername && (
+          <Text style={[styles.resultCreator, { color: colors.textTertiary }]}>
+            @{item.creatorUsername}
+          </Text>
         )}
 
         {matchContext && (
-          <Text style={themeStyles.matchContext} numberOfLines={2}>
+          <Text style={[styles.matchContext, { color: colors.textQuaternary }]} numberOfLines={1}>
             {matchContext}
           </Text>
         )}
 
         {item.detectedTopics.length > 0 && (
           <View style={styles.topicsRow}>
-            {item.detectedTopics.slice(0, 3).map((topic) => (
-              <View key={topic} style={themeStyles.topicBadge}>
-                <Text style={themeStyles.topicText}>{topic}</Text>
-              </View>
+            {item.detectedTopics.slice(0, 2).map((topic) => (
+              <Text key={topic} style={[styles.topicText, { color: colors.textQuaternary }]}>
+                {topic}
+              </Text>
             ))}
           </View>
         )}
-      </TouchableOpacity>
+      </View>
 
-      <TouchableOpacity 
-        onPress={onNavigateToDetail}
-        activeOpacity={0.7}
-      >
-        <Ionicons name="chevron-forward" size={14} color={themeColors.textQuaternary} />
-      </TouchableOpacity>
-    </View>
+      <Ionicons name="chevron-forward" size={14} color={colors.textQuaternary} />
+    </AnimatedPressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+  },
+  header: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+  },
+  headerTitle: {
+    ...Typography.displayMd,
   },
   searchBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
+    gap: Spacing.sm,
   },
   searchInputContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.overlay,
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    gap: Spacing.sm,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    gap: Spacing.xs,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    color: Colors.text,
+    paddingVertical: Spacing.sm,
+    ...Typography.body,
   },
   cancelButton: {
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
   cancelButtonText: {
-    color: Colors.textSecondary,
-    fontSize: 15,
+    ...Typography.body,
   },
   modeToggle: {
     flexDirection: 'row',
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: Hairline,
   },
   modeButton: {
-    flex: 1,
     alignItems: 'center',
-  },
-  modeButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
     paddingVertical: Spacing.sm,
+    marginRight: Spacing.lg,
   },
   modeButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.textTertiary,
-  },
-  modeButtonTextActive: {
-    color: Colors.primary,
+    ...Typography.captionStrong,
   },
   modeIndicator: {
     height: 2,
     width: '100%',
-    backgroundColor: Colors.primary,
+    marginTop: Spacing.xs,
     borderRadius: 1,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: Spacing.xxl,
+    paddingHorizontal: Spacing.xl,
   },
   noResultsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.textTertiary,
-    marginTop: Spacing.lg,
+    ...Typography.headingSm,
+    marginTop: Spacing.md,
   },
   noResultsSubtitle: {
-    fontSize: 14,
-    color: Colors.textQuaternary,
-    textAlign: 'center',
-    marginTop: Spacing.sm,
-    lineHeight: 20,
+    ...Typography.caption,
+    marginTop: Spacing.xs,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: Spacing.lg,
-    gap: Spacing.xxl,
+    padding: Spacing.md,
+    gap: Spacing.lg,
+  },
+  resultsContent: {
+    paddingBottom: Spacing.xl,
   },
   section: {
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
+  sectionLabel: {
+    ...Typography.label,
   },
   clearButton: {
-    fontSize: 13,
-    color: Colors.textTertiary,
+    ...Typography.caption,
   },
   recentItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: Spacing.sm,
     paddingVertical: Spacing.sm,
+    borderBottomWidth: Hairline,
   },
   recentText: {
-    fontSize: 15,
-    color: Colors.textSecondary,
+    ...Typography.body,
+    flex: 1,
   },
   suggestionsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
   suggestionBadge: {
-    backgroundColor: Colors.overlay,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
   },
   suggestionText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
+    ...Typography.caption,
   },
   resultRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.lg,
-    backgroundColor: Colors.overlayLight,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: Hairline,
   },
   resultThumbnail: {
-    width: 70,
-    height: 90,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.overlay,
+    width: 60,
+    height: 80,
+    borderRadius: BorderRadius.none,
     overflow: 'hidden',
-    position: 'relative',
   },
   thumbnailImage: {
     width: '100%',
     height: '100%',
   },
   thumbnailPlaceholder: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   durationBadge: {
     position: 'absolute',
     bottom: 4,
     right: 4,
-    backgroundColor: 'rgba(0,0,0,0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 4,
-    zIndex: 1,
+    paddingVertical: 1,
+    borderRadius: BorderRadius.xs,
   },
   durationText: {
     fontSize: 10,
-    color: Colors.text,
     fontWeight: '500',
+    color: '#ffffff',
   },
   resultInfo: {
     flex: 1,
-    gap: Spacing.xs,
+    gap: 2,
   },
   resultTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.text,
+    ...Typography.captionStrong,
+    lineHeight: 16,
   },
-  folderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  folderText: {
+  resultCreator: {
     fontSize: 12,
-    color: Colors.primary,
   },
   matchContext: {
-    fontSize: 12,
-    color: Colors.textTertiary,
+    fontSize: 11,
   },
   topicsRow: {
     flexDirection: 'row',
-    gap: 6,
-    flexWrap: 'wrap',
-  },
-  topicBadge: {
-    backgroundColor: Colors.overlay,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    gap: Spacing.xs,
+    marginTop: 2,
   },
   topicText: {
-    fontSize: 11,
-    color: Colors.textTertiary,
+    fontSize: 10,
   },
 });
-

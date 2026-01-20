@@ -1,11 +1,12 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { MainTabParamList, LibraryStackParamList, SearchStackParamList, AddStackParamList, LibraryStackScreenProps } from './types';
-import { Colors } from '../config';
+import { Spacing, BorderRadius } from '../config';
 import { useTheme } from '../hooks/useTheme';
 
 // Screens
@@ -22,42 +23,83 @@ const LibraryStack = createStackNavigator<LibraryStackParamList>();
 const SearchStack = createStackNavigator<SearchStackParamList>();
 const AddStack = createStackNavigator<AddStackParamList>();
 
+// Animated Tab Icon Component
+function TabIcon({
+  name,
+  focused,
+  color
+}: {
+  name: keyof typeof Ionicons.glyphMap;
+  focused: boolean;
+  color: string;
+}) {
+  return (
+    <Animated.View
+      style={[
+        styles.iconWrapper,
+        {
+          opacity: focused ? 1 : 0.6,
+          transform: [{ scale: focused ? 1.05 : 1 }],
+        }
+      ]}
+    >
+      <Ionicons name={name} size={22} color={color} />
+    </Animated.View>
+  );
+}
+
+
 // Stack navigators for each tab
 function LibraryStackNavigator() {
   const { colors: themeColors } = useTheme();
   return (
     <LibraryStack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: themeColors.background },
+        headerStyle: {
+          backgroundColor: themeColors.background,
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: 0,
+        },
         headerTintColor: themeColors.text,
-        headerTitleStyle: { fontWeight: '600' },
+        headerTitleStyle: {
+          fontWeight: '600',
+          fontSize: 17,
+          letterSpacing: -0.4,
+        },
+        headerBackTitleVisible: false,
         cardStyle: { backgroundColor: themeColors.background },
+        cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
       }}
     >
-      <LibraryStack.Screen 
-        name="LibraryMain" 
+      <LibraryStack.Screen
+        name="LibraryMain"
         component={LibraryScreen}
-        options={{ title: 'My Library' }}
+        options={{ headerShown: false }}
       />
-      <LibraryStack.Screen 
-        name="CategoryDetail" 
+      <LibraryStack.Screen
+        name="CategoryDetail"
         component={CategoryDetailScreen}
-        options={({ route }: LibraryStackScreenProps<'CategoryDetail'>) => ({ title: route.params.categoryName })}
+        options={({ route }: LibraryStackScreenProps<'CategoryDetail'>) => ({
+          title: route.params.categoryName,
+        })}
       />
-      <LibraryStack.Screen 
-        name="VideoDetail" 
+      <LibraryStack.Screen
+        name="VideoDetail"
         component={VideoDetailScreen}
-        options={{ title: 'Video Details' }}
+        options={{ title: '' }}
       />
-      <LibraryStack.Screen 
-        name="FolderDetail" 
+      <LibraryStack.Screen
+        name="FolderDetail"
         component={FolderDetailScreen}
-        options={({ route }: LibraryStackScreenProps<'FolderDetail'>) => ({ title: route.params.folder.name })}
+        options={({ route }: LibraryStackScreenProps<'FolderDetail'>) => ({
+          title: route.params.folder.name
+        })}
       />
-      <LibraryStack.Screen 
-        name="AddVideo" 
+      <LibraryStack.Screen
+        name="AddVideo"
         component={AddVideoScreen}
-        options={{ title: 'Import TikTok' }}
+        options={{ title: 'Import' }}
       />
     </LibraryStack.Navigator>
   );
@@ -68,16 +110,26 @@ function AddStackNavigator() {
   return (
     <AddStack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: themeColors.background },
+        headerStyle: {
+          backgroundColor: themeColors.background,
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: 0,
+        },
         headerTintColor: themeColors.text,
-        headerTitleStyle: { fontWeight: '600' },
+        headerTitleStyle: {
+          fontWeight: '600',
+          fontSize: 17,
+          letterSpacing: -0.4,
+        },
         cardStyle: { backgroundColor: themeColors.background },
+        cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
       }}
     >
-      <AddStack.Screen 
-        name="AddMain" 
+      <AddStack.Screen
+        name="AddMain"
         component={AddVideoScreen}
-        options={{ title: 'Import TikTok' }}
+        options={{ headerShown: false }}
       />
     </AddStack.Navigator>
   );
@@ -88,21 +140,32 @@ function SearchStackNavigator() {
   return (
     <SearchStack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: themeColors.background },
+        headerStyle: {
+          backgroundColor: themeColors.background,
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: 0,
+        },
         headerTintColor: themeColors.text,
-        headerTitleStyle: { fontWeight: '600' },
+        headerTitleStyle: {
+          fontWeight: '600',
+          fontSize: 17,
+          letterSpacing: -0.4,
+        },
+        headerBackTitleVisible: false,
         cardStyle: { backgroundColor: themeColors.background },
+        cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
       }}
     >
-      <SearchStack.Screen 
-        name="SearchMain" 
+      <SearchStack.Screen
+        name="SearchMain"
         component={SearchScreen}
-        options={{ title: 'Search' }}
+        options={{ headerShown: false }}
       />
-      <SearchStack.Screen 
-        name="VideoDetail" 
+      <SearchStack.Screen
+        name="VideoDetail"
         component={VideoDetailScreen}
-        options={{ title: 'Video Details' }}
+        options={{ title: '' }}
       />
     </SearchStack.Navigator>
   );
@@ -111,24 +174,31 @@ function SearchStackNavigator() {
 
 export default function MainNavigator() {
   const { colors: themeColors } = useTheme();
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
           backgroundColor: themeColors.background,
+          borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: themeColors.border,
-          borderTopWidth: 1,
-          paddingTop: 8,
-          paddingBottom: 8,
-          height: 88,
+          paddingTop: Spacing.sm,
+          paddingBottom: Platform.OS === 'ios' ? 24 : 12,
+          height: Platform.OS === 'ios' ? 64 : 56,
+          elevation: 0,
+          shadowOpacity: 0,
         },
-        tabBarActiveTintColor: themeColors.primary,
+        tabBarActiveTintColor: themeColors.text,
         tabBarInactiveTintColor: themeColors.textTertiary,
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '500',
-          marginTop: 4,
+          letterSpacing: 0.2,
+          marginTop: 2,
+        },
+        tabBarItemStyle: {
+          paddingTop: 2,
         },
       }}
     >
@@ -136,15 +206,12 @@ export default function MainNavigator() {
         name="Library"
         component={LibraryStackNavigator}
         options={{
-          tabBarIcon: ({ focused, color, size }) => (
-            <View style={styles.iconContainer}>
-              <Ionicons 
-                name={focused ? 'grid' : 'grid-outline'} 
-                size={size} 
-                color={color} 
-              />
-              {focused && <View style={[styles.activeIndicator, { backgroundColor: themeColors.primary }]} />}
-            </View>
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon
+              name={focused ? 'grid' : 'grid-outline'}
+              focused={focused}
+              color={color}
+            />
           ),
           tabBarLabel: 'Library',
         }}
@@ -153,15 +220,12 @@ export default function MainNavigator() {
         name="Add"
         component={AddStackNavigator}
         options={{
-          tabBarIcon: ({ focused, color, size }) => (
-            <View style={styles.iconContainer}>
-              <Ionicons 
-                name={focused ? 'add-circle' : 'add-circle-outline'} 
-                size={size} 
-                color={color} 
-              />
-              {focused && <View style={[styles.activeIndicator, { backgroundColor: themeColors.primary }]} />}
-            </View>
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon
+              name={focused ? 'add-circle' : 'add-circle-outline'}
+              focused={focused}
+              color={color}
+            />
           ),
           tabBarLabel: 'Import',
         }}
@@ -170,36 +234,29 @@ export default function MainNavigator() {
         name="Search"
         component={SearchStackNavigator}
         options={{
-          tabBarIcon: ({ focused, color, size }) => (
-            <View style={styles.iconContainer}>
-              <Ionicons 
-                name={focused ? 'search' : 'search-outline'} 
-                size={size} 
-                color={color} 
-              />
-              {focused && <View style={[styles.activeIndicator, { backgroundColor: themeColors.primary }]} />}
-            </View>
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon
+              name={focused ? 'search' : 'search-outline'}
+              focused={focused}
+              color={color}
+            />
           ),
+          tabBarLabel: 'Search',
         }}
       />
       <Tab.Screen
         name="Settings"
         component={SettingsScreen}
         options={{
-          tabBarIcon: ({ focused, color, size }) => (
-            <View style={styles.iconContainer}>
-              <Ionicons 
-                name={focused ? 'settings' : 'settings-outline'} 
-                size={size} 
-                color={color} 
-              />
-              {focused && <View style={[styles.activeIndicator, { backgroundColor: themeColors.primary }]} />}
-            </View>
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon
+              name={focused ? 'settings' : 'settings-outline'}
+              focused={focused}
+              color={color}
+            />
           ),
-          headerShown: true,
-          headerStyle: { backgroundColor: themeColors.background },
-          headerTintColor: themeColors.text,
-          headerTitleStyle: { fontWeight: '600' },
+          tabBarLabel: 'Settings',
+          headerShown: false,
         }}
       />
     </Tab.Navigator>
@@ -207,13 +264,8 @@ export default function MainNavigator() {
 }
 
 const styles = StyleSheet.create({
-  iconContainer: {
+  iconWrapper: {
     alignItems: 'center',
-  },
-  activeIndicator: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    marginTop: 4,
+    justifyContent: 'center',
   },
 });
