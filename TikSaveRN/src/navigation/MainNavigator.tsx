@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { View, StyleSheet, Platform } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-import { MainTabParamList, LibraryStackParamList, SearchStackParamList, AddStackParamList, LibraryStackScreenProps } from './types';
+import { MainTabParamList, LibraryStackParamList, SearchStackParamList, AddStackParamList, MapStackParamList, LibraryStackScreenProps } from './types';
 import { Spacing, BorderRadius } from '../config';
 import { useTheme } from '../hooks/useTheme';
 
@@ -14,6 +14,7 @@ import LibraryScreen from '../screens/LibraryScreen';
 import CategoryDetailScreen from '../screens/CategoryDetailScreen';
 import AddVideoScreen from '../screens/AddVideoScreen';
 import SearchScreen from '../screens/SearchScreen';
+import MapScreen from '../screens/MapScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import VideoDetailScreen from '../screens/VideoDetailScreen';
 import FolderDetailScreen from '../screens/FolderDetailScreen';
@@ -22,6 +23,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const LibraryStack = createStackNavigator<LibraryStackParamList>();
 const SearchStack = createStackNavigator<SearchStackParamList>();
 const AddStack = createStackNavigator<AddStackParamList>();
+const MapStack = createStackNavigator<MapStackParamList>();
 
 // Animated Tab Icon Component
 function TabIcon({
@@ -171,6 +173,42 @@ function SearchStackNavigator() {
   );
 }
 
+function MapStackNavigator() {
+  const { colors: themeColors } = useTheme();
+  return (
+    <MapStack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: themeColors.background,
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: 0,
+        },
+        headerTintColor: themeColors.text,
+        headerTitleStyle: {
+          fontWeight: '600',
+          fontSize: 17,
+          letterSpacing: -0.4,
+        },
+        headerBackTitleVisible: false,
+        cardStyle: { backgroundColor: themeColors.background },
+        cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+      }}
+    >
+      <MapStack.Screen
+        name="MapMain"
+        component={MapScreen}
+        options={{ headerShown: false }}
+      />
+      <MapStack.Screen
+        name="VideoDetail"
+        component={VideoDetailScreen}
+        options={{ title: '' }}
+      />
+    </MapStack.Navigator>
+  );
+}
+
 
 export default function MainNavigator() {
   const { colors: themeColors } = useTheme();
@@ -242,6 +280,20 @@ export default function MainNavigator() {
             />
           ),
           tabBarLabel: 'Search',
+        }}
+      />
+      <Tab.Screen
+        name="Map"
+        component={MapStackNavigator}
+        options={{
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon
+              name={focused ? 'map' : 'map-outline'}
+              focused={focused}
+              color={color}
+            />
+          ),
+          tabBarLabel: 'Map',
         }}
       />
       <Tab.Screen

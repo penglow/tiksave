@@ -66,6 +66,7 @@ export default function AddVideoScreen({ navigation }: Props) {
 
     try {
       await apiService.createSaveItem(url);
+
       setImportStatus('success');
       setManualUrl('');
 

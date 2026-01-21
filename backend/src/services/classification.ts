@@ -37,9 +37,20 @@ export async function classifyItem(
      WHERE f.user_id = $1`,
     [userId]
   );
-  
+
   const folders = foldersResult.rows;
-  
+
+  return classifyItemWithFolders(userId, folders, input);
+}
+
+/**
+ * Validated classification logic separated from data fetching
+ */
+export async function classifyItemWithFolders(
+  userId: string,
+  folders: any[],
+  input: ClassificationInput
+): Promise<ClassificationResult> {
   if (folders.length === 0) {
     return {
       folderId: null,
@@ -49,7 +60,7 @@ export async function classifyItem(
       alternativeFolders: [],
     };
   }
-  
+
   // Score each folder
   const scores: Array<{
     folderId: string;
@@ -57,7 +68,7 @@ export async function classifyItem(
     score: number;
     reasons: string[];
   }> = [];
-  
+
   for (const folder of folders) {
     const { score, reasons } = scoreFolder(folder, input);
     scores.push({
@@ -67,31 +78,31 @@ export async function classifyItem(
       reasons,
     });
   }
-  
+
   // Sort by score descending
   scores.sort((a, b) => b.score - a.score);
-  
+
   const bestMatch = scores[0];
   const maxScore = calculateMaxPossibleScore(input);
-  
+
   // Check if we have any meaningful input signals
-  const hasInputSignals = 
+  const hasInputSignals =
     (input.topics && input.topics.length > 0) ||
     (input.labels && input.labels.length > 0) ||
     (input.hashtags && input.hashtags.length > 0) ||
     input.creatorUsername ||
     input.transcriptText;
-  
+
   // Don't assign if:
   // 1. Best match has score 0 (no actual matches)
   // 2. No input signals at all (can't make a meaningful classification)
   // 3. Confidence is below threshold
   const confidence = maxScore > 0 ? Math.min(bestMatch.score / maxScore, 1) : 0;
-  const shouldAssign = 
-    bestMatch.score > 0 && 
-    hasInputSignals && 
+  const shouldAssign =
+    bestMatch.score > 0 &&
+    hasInputSignals &&
     confidence >= 0.3;
-  
+
   // If no good match found but we have hierarchical topics, try creating the folder
   if (!shouldAssign && input.topics && input.topics.length > 0) {
     // Check for hierarchical topics (e.g., "Food > Cooking")
@@ -105,7 +116,7 @@ export async function classifyItem(
           input.labels,
           hierarchicalTopic
         );
-        
+
         if (createdFolder) {
           console.log(`   ✅ Created/found folder: ${createdFolder.folderName}`);
           return {
@@ -121,7 +132,7 @@ export async function classifyItem(
       }
     }
   }
-  
+
   const result = {
     folderId: shouldAssign ? bestMatch.folderId : null,
     folderName: shouldAssign ? bestMatch.folderName : null,
@@ -133,7 +144,7 @@ export async function classifyItem(
       confidence: maxScore > 0 ? Math.min(s.score / maxScore, 1) : 0,
     })),
   };
-  
+
   return result;
 }
 
@@ -151,9 +162,9 @@ function scoreFolder(folder: any, input: ClassificationInput): {
   // Check creator rules
   if (rules.creators && input.creatorUsername) {
     if (rules.creators.includes(input.creatorUsername)) {
-      return { 
-        score: 10000, 
-        reasons: [`Rule: Creator ${input.creatorUsername} always goes here`] 
+      return {
+        score: 10000,
+        reasons: [`Rule: Creator ${input.creatorUsername} always goes here`]
       };
     }
   }
@@ -161,12 +172,12 @@ function scoreFolder(folder: any, input: ClassificationInput): {
   // Topic matching (high weight)
   for (const topic of input.topics) {
     const topicLower = topic.toLowerCase();
-    
+
     // Check for hierarchical topics (e.g., "Food > Cooking")
     if (topic.includes(' > ')) {
       const [parentTopic, subTopic] = topic.split(' > ').map(t => t.trim().toLowerCase());
       const folderParentName = folder.parent_name ? folder.parent_name.toLowerCase() : null;
-      
+
       // Match subfolder: parent matches AND subfolder name matches
       if (folderParentName && folderParentName === parentTopic && folderNameLower === subTopic) {
         score += 50; // High score for exact hierarchical match
@@ -180,53 +191,66 @@ function scoreFolder(folder: any, input: ClassificationInput): {
         reasons.push(`Subcategory "${subTopic}" matches folder`);
       }
     }
-    
+
+    let matched = false;
+
     // Direct name match
     if (folderNameLower.includes(topicLower) || topicLower.includes(folderNameLower.split(' ')[0])) {
       score += 30;
       reasons.push(`Topic "${topic}" matches folder`);
+      matched = true;
     }
-    
+
+    // Check semantic category for topic
+    if (!matched) {
+      const semanticCategory = getSemanticCategory(topicLower);
+      if (semanticCategory && folderNameLower.includes(semanticCategory)) {
+        score += 30; // High score for semantic equivalent
+        reasons.push(`Topic "${topic}" implies ${semanticCategory}`);
+        matched = true;
+      }
+    }
+
     // Check subfolder patterns (e.g., "Japan Food" for topic "Japan")
     const parentTopic = folderNameLower.split(' ')[0];
     if (topicLower === parentTopic) {
       score += 20;
       reasons.push(`Topic "${topic}" matches parent category`);
     }
-    
+
     // User learned weights
     if (userWeights.topicWeights?.[topicLower]) {
       score += userWeights.topicWeights[topicLower] * 20;
       reasons.push(`Learned preference for "${topic}"`);
     }
   }
-  
+
   // Label matching (medium weight)
   for (const label of input.labels) {
     const labelLower = label.toLowerCase();
-    
+
     // Check category keywords
-    const categoryMatches = getCategoryForLabel(labelLower);
-    if (folderNameLower.includes(categoryMatches)) {
+    const categoryMatches = getSemanticCategory(labelLower);
+    if (categoryMatches && folderNameLower.includes(categoryMatches)) {
       score += 15;
       reasons.push(`Label "${label}" indicates ${categoryMatches}`);
     }
-    
+
     // User learned weights
     if (userWeights.labelWeights?.[labelLower]) {
       score += userWeights.labelWeights[labelLower] * 15;
     }
   }
-  
+
   // Hashtag matching (medium weight)
   for (const hashtag of input.hashtags) {
     const hashtagClean = hashtag.replace('#', '').toLowerCase();
-    
+
     if (folderNameLower.includes(hashtagClean)) {
       score += 10;
       reasons.push(`Hashtag ${hashtag} matches folder`);
     }
-    
+
     // Check category inference from hashtag
     const category = getCategoryForHashtag(hashtagClean);
     if (category && folderNameLower.includes(category)) {
@@ -234,7 +258,7 @@ function scoreFolder(folder: any, input: ClassificationInput): {
       reasons.push(`Hashtag ${hashtag} suggests ${category}`);
     }
   }
-  
+
   // Creator matching (high weight - creators are consistent)
   if (input.creatorUsername) {
     const creatorKey = input.creatorUsername.toLowerCase();
@@ -243,12 +267,12 @@ function scoreFolder(folder: any, input: ClassificationInput): {
       reasons.push(`Creator ${input.creatorUsername} often filed here`);
     }
   }
-  
+
   // Transcript keyword matching (lower weight)
   if (input.transcriptText) {
     const transcriptLower = input.transcriptText.toLowerCase();
     const folderKeywords = getFolderKeywords(folder.name);
-    
+
     for (const keyword of folderKeywords) {
       if (transcriptLower.includes(keyword)) {
         score += 5;
@@ -256,31 +280,97 @@ function scoreFolder(folder: any, input: ClassificationInput): {
       }
     }
   }
-  
+
   // Apply folder bias from user preferences
   if (userWeights.folderBias) {
     score += userWeights.folderBias * 10;
   }
-  
+
+  // Coverage Penalty: Check if the folder name is fully supported by the input
+  // This prevents broader folder names (e.g., "Japan Shopping") from capturing generic items (e.g., "Shopping")
+  const folderTokens = folderNameLower.split(/[\s-_]+/).filter((t: string) => t.length > 2); // Ignore short words
+
+  if (folderTokens.length > 1 && score > 0) {
+    const inputFeatures = new Set<string>();
+
+    // Add all input signals
+    input.topics.forEach(t => {
+      const lower = t.toLowerCase();
+      inputFeatures.add(lower);
+      // Expand semantic categories for topics too (e.g. "Tokyo" -> "japan")
+      const cat = getSemanticCategory(lower);
+      if (cat) inputFeatures.add(cat);
+    });
+
+    input.labels.forEach(l => {
+      const lower = l.toLowerCase();
+      inputFeatures.add(lower);
+      const cat = getSemanticCategory(lower);
+      if (cat) inputFeatures.add(cat);
+    });
+    input.hashtags.forEach(h => {
+      const lower = h.replace('#', '').toLowerCase();
+      inputFeatures.add(lower);
+      const cat = getCategoryForHashtag(lower);
+      if (cat) inputFeatures.add(cat);
+    });
+    if (input.creatorUsername) inputFeatures.add(input.creatorUsername.toLowerCase());
+
+    let matchedCount = 0;
+    for (const token of folderTokens) {
+      let isMatched = false;
+      for (const feature of inputFeatures) {
+        // Check for partial matches (e.g. "japanese" covers "japan", "shopping" covers "shopping")
+        if (feature.includes(token) || token.includes(feature)) {
+          isMatched = true;
+          break;
+        }
+      }
+      if (isMatched) matchedCount++;
+    }
+
+    const coverage = matchedCount / folderTokens.length;
+
+    // If not fully covered, apply quadratic penalty
+    // Example: "Japan Shopping" (2 tokens) vs "Shopping" (match 1)
+    // coverage = 0.5 -> multiplier = 0.25
+    if (coverage < 1.0) {
+      const multiplier = Math.pow(coverage, 2);
+      // Only apply penalty if it significantly reduces score (avoid float noise)
+      if (multiplier < 0.9) {
+        score *= multiplier;
+        reasons.push(`Partial name match (${matchedCount}/${folderTokens.length} terms): score reduced`);
+      }
+    }
+  }
+
   return { score, reasons: reasons.slice(0, 5) }; // Limit reasons
 }
 
 function calculateMaxPossibleScore(input: ClassificationInput): number {
   // Estimate maximum possible score based on available signals
   let maxScore = 0;
-  
+
   maxScore += input.topics.length * 30;
   maxScore += input.labels.length * 15;
   maxScore += input.hashtags.length * 10;
   maxScore += input.creatorUsername ? 25 : 0;
   maxScore += input.transcriptText ? 20 : 0;
-  
+
   return Math.max(maxScore, 50); // Minimum baseline
 }
 
-function getCategoryForLabel(label: string): string {
+function getSemanticCategory(label: string): string {
   const mapping: { [key: string]: string } = {
     // Food
+    'food': 'food',
+    'fast food': 'food',
+    'burger': 'food',
+    'pizza': 'food',
+    'dessert': 'food',
+    'soda': 'food',
+    'drink': 'food',
+    'coffee': 'food',
     'restaurant': 'food',
     'ramen': 'food',
     'sushi': 'food',
@@ -288,14 +378,20 @@ function getCategoryForLabel(label: string): string {
     'cooking': 'food',
     'menu': 'food',
     'eating': 'food',
-    
+
+    // Locations
+    'tokyo': 'japan',
+    'osaka': 'japan',
+    'kyoto': 'japan',
+    'seoul': 'korea',
+
     // Hotels
     'hotel': 'hotels',
     'room': 'hotels',
     'lobby': 'hotels',
     'ryokan': 'hotels',
     'hostel': 'hotels',
-    
+
     // Attractions
     'temple': 'attractions',
     'shrine': 'attractions',
@@ -303,7 +399,7 @@ function getCategoryForLabel(label: string): string {
     'park': 'attractions',
     'landmark': 'attractions',
     'tour': 'attractions',
-    
+
     // Shopping
     'shopping': 'shopping',
     'mall': 'shopping',
@@ -311,8 +407,16 @@ function getCategoryForLabel(label: string): string {
     'market': 'shopping',
     'haul': 'shopping',
     'boutique': 'shopping',
+    // Fashion
+    'clothing': 'fashion',
+    'fashion': 'fashion',
+    'style': 'fashion',
+    't-shirt': 'fashion',
+    'pants': 'fashion',
+    'shoes': 'fashion',
+    'outfit': 'fashion',
   };
-  
+
   return mapping[label] || '';
 }
 
@@ -322,30 +426,30 @@ function getCategoryForHashtag(hashtag: string): string {
     'yummy': 'food',
     'delicious': 'food',
     'eats': 'food',
-    
+
     'hotelroom': 'hotels',
     'roomtour': 'hotels',
     'staycation': 'hotels',
-    
+
     'sightseeing': 'attractions',
     'exploring': 'attractions',
     'wanderlust': 'attractions',
-    
+
     'haul': 'shopping',
     'shopwithme': 'shopping',
     'shopping': 'shopping',
   };
-  
+
   return mapping[hashtag] || '';
 }
 
 function getFolderKeywords(folderName: string): string[] {
   const name = folderName.toLowerCase();
   const keywords: string[] = [];
-  
+
   // Add folder name parts as keywords
   keywords.push(...name.split(' '));
-  
+
   // Add related keywords based on folder type
   if (name.includes('food')) {
     keywords.push('eat', 'restaurant', 'delicious', 'taste', 'menu', 'chef');
@@ -365,7 +469,7 @@ function getFolderKeywords(folderName: string): string[] {
   if (name.includes('korea')) {
     keywords.push('seoul', 'korean', 'gangnam', 'won');
   }
-  
+
   return keywords;
 }
 

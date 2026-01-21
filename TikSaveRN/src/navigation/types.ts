@@ -19,6 +19,7 @@ export type MainTabParamList = {
   Library: undefined;
   Add: undefined;
   Search: undefined;
+  Map: undefined;
   Settings: undefined;
 };
 
@@ -85,9 +86,20 @@ export type AddStackScreenProps<T extends keyof AddStackParamList> = NativeStack
   T
 >;
 
+// Map Stack Navigator
+export type MapStackParamList = {
+  MapMain: undefined;
+  VideoDetail: { item: SaveItem };
+};
+
+export type MapStackScreenProps<T extends keyof MapStackParamList> = NativeStackScreenProps<
+  MapStackParamList,
+  T
+>;
+
 // Declare global navigation types
 declare global {
   namespace ReactNavigation {
-    interface RootParamList extends RootStackParamList {}
+    interface RootParamList extends RootStackParamList { }
   }
 }

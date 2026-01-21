@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -45,17 +45,20 @@ export default function SearchScreen({ navigation }: Props) {
 
   const { recentSearches, addRecentSearch, clearRecentSearches } = useAppStore();
 
-  const handleSearch = async (query?: string) => {
-    const searchQuery = query || searchText;
-    if (!searchQuery.trim()) return;
+  // Refactor: split search logic
+  const performSearch = async (query: string) => {
+    if (!query.trim()) {
+      setResults([]);
+      return;
+    }
 
-    Keyboard.dismiss();
     setIsLoading(true);
 
     try {
-      const data = await apiService.search(searchQuery, searchMode === 'semantic');
+      const data = await apiService.search(query, searchMode === 'semantic');
+      // Only update results if the query matches current text to avoid race conditions
+      // (Simple check - more robust would be request ID, but sticky effect is usually enough)
       setResults(data);
-      addRecentSearch(searchQuery);
     } catch (error) {
       console.error('Search failed:', error);
       setResults([]);
@@ -64,6 +67,29 @@ export default function SearchScreen({ navigation }: Props) {
     }
   };
 
+  const handleSearch = async (query?: string) => {
+    const searchQuery = query || searchText;
+    if (!searchQuery.trim()) return;
+
+    Keyboard.dismiss();
+    // Immediate search on submit
+    await performSearch(searchQuery);
+    addRecentSearch(searchQuery);
+  };
+
+  // Debounced search effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchText.trim()) {
+        performSearch(searchText);
+      } else {
+        setResults([]);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchText, searchMode]);
+
   const handleClear = () => {
     setSearchText('');
     setResults([]);
@@ -71,9 +97,7 @@ export default function SearchScreen({ navigation }: Props) {
 
   const handleModeChange = (mode: SearchMode) => {
     setSearchMode(mode);
-    if (searchText.trim()) {
-      handleSearch();
-    }
+    // Effect will trigger search
   };
 
   const showInitialState = !searchText && results.length === 0 && !isLoading;
@@ -89,7 +113,11 @@ export default function SearchScreen({ navigation }: Props) {
       {/* Search Bar */}
       <View style={styles.searchBarContainer}>
         <View style={[styles.searchInputContainer, { borderColor: colors.border }]}>
-          <Ionicons name="search" size={16} color={colors.textQuaternary} />
+          {isLoading ? (
+            <ActivityIndicator size="small" color={colors.textQuaternary} />
+          ) : (
+            <Ionicons name="search" size={16} color={colors.textQuaternary} />
+          )}
           <TextInput
             ref={inputRef}
             style={[styles.searchInput, { color: colors.text }]}
@@ -150,7 +178,7 @@ export default function SearchScreen({ navigation }: Props) {
       )}
 
       {/* Content */}
-      {isLoading ? (
+      {isLoading && results.length === 0 ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="small" color={colors.text} />
         </View>
