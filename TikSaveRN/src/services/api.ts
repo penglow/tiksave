@@ -263,6 +263,17 @@ class APIService {
     return response.items;
   }
 
+  // Map markers (one per location)
+  async getMapItems(options?: { limit?: number; offset?: number }): Promise<SaveItem[]> {
+    const response = await this.request<ItemsResponse>('/items/map', {
+      queryParams: {
+        limit: options?.limit ?? 500,
+        offset: options?.offset ?? 0,
+      },
+    });
+    return response.items;
+  }
+
   async getItem(id: string): Promise<SaveItem> {
     return this.request<SaveItem>(`/items/${id}`);
   }

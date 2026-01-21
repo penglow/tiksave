@@ -82,6 +82,20 @@ export async function initializeDatabase() {
       )
     `);
 
+    // Save item locations table (supports multiple locations per item)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS save_item_locations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        item_id UUID NOT NULL REFERENCES save_items(id) ON DELETE CASCADE,
+        latitude DECIMAL(10, 8) NOT NULL,
+        longitude DECIMAL(11, 8) NOT NULL,
+        location_name VARCHAR(255),
+        address TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     // Training examples table (for learning from user corrections)
     await client.query(`
       CREATE TABLE IF NOT EXISTS training_examples (
@@ -115,6 +129,10 @@ export async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_folders_user_id ON folders(user_id);
       CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id);
       CREATE INDEX IF NOT EXISTS idx_training_examples_user_id ON training_examples(user_id);
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_save_item_locations_item_id ON save_item_locations(item_id);
     `);
 
     // Create vector similarity index (for semantic search)

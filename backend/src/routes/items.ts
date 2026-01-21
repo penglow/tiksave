@@ -9,7 +9,7 @@ import { recordTrainingExample, updateUserPreferences } from '../services/learni
 import { extractKeywords, extractHashtags } from '../utils/text.js';
 import { analyzeUrlOnly } from '../services/videoIndexer.js';
 import { classifyItem } from '../services/classification.js';
-import { extractLocationQuery, geocodeLocation } from '../services/location.js';
+import { extractLocationQueries, geocodeLocation } from '../services/location.js';
 
 export const itemsRouter = Router();
 
@@ -124,6 +124,67 @@ itemsRouter.get('/', async (req, res: Response) => {
   res.json({
     items: result.rows.map(formatSaveItem),
     total: parseInt(countResult.rows[0].count),
+  });
+});
+
+// Get map markers (one row per location)
+itemsRouter.get('/map', async (req, res: Response) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const { limit = '500', offset = '0' } = req.query;
+
+  const resultLimit = Math.min(parseInt(limit as string) || 500, 2000);
+  const resultOffset = parseInt(offset as string) || 0;
+
+  const result = await query(
+    `(
+      SELECT
+        si.*,
+        sil.id as location_id,
+        sil.latitude as sil_latitude,
+        sil.longitude as sil_longitude,
+        sil.location_name as sil_location_name,
+        sil.address as sil_address,
+        f.name as folder_name
+      FROM save_item_locations sil
+      JOIN save_items si ON si.id = sil.item_id
+      LEFT JOIN folders f ON si.folder_id = f.id
+      WHERE si.user_id = $1
+    )
+    UNION ALL
+    (
+      -- Backwards-compatible fallback for legacy single-location columns
+      SELECT
+        si.*,
+        NULL::uuid as location_id,
+        si.latitude as sil_latitude,
+        si.longitude as sil_longitude,
+        si.location_name as sil_location_name,
+        si.address as sil_address,
+        f.name as folder_name
+      FROM save_items si
+      LEFT JOIN folders f ON si.folder_id = f.id
+      WHERE si.user_id = $1
+        AND si.latitude IS NOT NULL
+        AND si.longitude IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM save_item_locations sil WHERE sil.item_id = si.id
+        )
+    )
+    ORDER BY created_at DESC
+    LIMIT $2 OFFSET $3`,
+    [authReq.userId, resultLimit, resultOffset]
+  );
+
+  res.json({
+    items: result.rows.map((row: any) => ({
+      ...formatSaveItem(row),
+      locationId: row.location_id,
+      latitude: row.sil_latitude ? parseFloat(row.sil_latitude) : null,
+      longitude: row.sil_longitude ? parseFloat(row.sil_longitude) : null,
+      locationName: row.sil_location_name,
+      address: row.sil_address,
+    })),
+    total: result.rows.length,
   });
 });
 
@@ -360,7 +421,7 @@ async function processItemNow(
   }
 
   // Location extraction (match worker behavior so new imports can appear on map)
-  let locationData: { latitude: number; longitude: number; name: string; address: string } | null = null;
+  let locationData: { latitude: number; longitude: number; name: string; address: string }[] = [];
   try {
     const description = analysis.description || '';
     const locationText = [
@@ -379,13 +440,39 @@ async function processItemNow(
       .filter(Boolean)
       .join('\n');
 
-    const locationQuery = await extractLocationQuery(locationText, locationContextText);
+    const locationQueries = await extractLocationQueries(locationText, locationContextText);
 
-    if (locationQuery) {
-      locationData = await geocodeLocation(locationQuery);
+    if (locationQueries.length > 0) {
+      for (const q of locationQueries) {
+        const geo = await geocodeLocation(q);
+        if (geo) locationData.push(geo);
+        await new Promise((r) => setTimeout(r, 150));
+      }
+
+      const seenCoords = new Set<string>();
+      locationData = locationData.filter((l) => {
+        const key = `${l.latitude},${l.longitude}`;
+        if (seenCoords.has(key)) return false;
+        seenCoords.add(key);
+        return true;
+      });
     }
   } catch (e) {
     // Location extraction is best-effort; failures should not block item creation.
+  }
+
+  // Persist multiple locations (and keep first as legacy columns for compatibility)
+  try {
+    await query(`DELETE FROM save_item_locations WHERE item_id = $1`, [itemId]);
+    for (const loc of locationData) {
+      await query(
+        `INSERT INTO save_item_locations (item_id, latitude, longitude, location_name, address)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [itemId, loc.latitude, loc.longitude, loc.name || null, loc.address || null]
+      );
+    }
+  } catch (e) {
+    // Best-effort
   }
 
   // Classify into folder
@@ -436,10 +523,10 @@ async function processItemNow(
       classification.folderId,
       confidenceValue,
       folderId,
-      locationData?.latitude || null,
-      locationData?.longitude || null,
-      locationData?.name || null,
-      locationData?.address || null,
+      locationData[0]?.latitude || null,
+      locationData[0]?.longitude || null,
+      locationData[0]?.name || null,
+      locationData[0]?.address || null,
       itemId,
     ]
   );

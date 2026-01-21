@@ -15,7 +15,7 @@ interface GeocodeResult {
 }
 
 /**
- * Step 1: Extract a search query string from context using OpenAI.
+ * Step 1: Extract ONE location query string from context using OpenAI.
  */
 export async function extractLocationQuery(
     text: string,
@@ -60,6 +60,81 @@ export async function extractLocationQuery(
         console.error('Error extracting location query:', error);
         return null;
     }
+}
+
+/**
+ * Step 1b: Extract MULTIPLE location query strings from context using OpenAI.
+ * Returns a de-duplicated list (max 5) of Google-Maps-searchable strings.
+ */
+export async function extractLocationQueries(
+  text: string,
+  context?: string
+): Promise<string[]> {
+  if (!text && !context) return [];
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a location extraction assistant.
+Identify ALL distinct real-world physical locations mentioned (cities, countries, landmarks, restaurants, stores) from description, dialogue transcript, or on-screen text.
+
+Return ONLY valid JSON: an array of strings.
+
+Rules:
+1. Each string must be something I can type into Google Maps (e.g. "Shibuya Crossing", "Paris", "Popeyes New Orleans", "Kyoto Station").
+2. Include multiple locations if they are mentioned.
+3. Prefer more specific locations over broad ones when both appear, but keep broad ones if they are clearly relevant (e.g. city + specific landmark can both be included).
+4. De-duplicate similar entries (case-insensitive).
+5. If there is absolutely NO location, return an empty JSON array: [].
+6. Limit to at most 5 locations.`,
+        },
+        {
+          role: 'user',
+          content: `Context: "${context || ''}"\n\nText: "${text}"`,
+        },
+      ],
+      temperature: 0.1,
+      max_tokens: 200,
+    });
+
+    const raw = completion.choices[0]?.message.content?.trim() || '[]';
+
+    let parsed: unknown = [];
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // Fallback: if model didn't return JSON, fall back to single extraction
+      const single = await extractLocationQuery(text, context);
+      return single ? [single] : [];
+    }
+
+    if (!Array.isArray(parsed)) return [];
+
+    const cleaned = parsed
+      .map((s) => (typeof s === 'string' ? s.trim() : ''))
+      .filter(Boolean)
+      .map((s) => s.replace(/^["']|["']$/g, ''));
+
+    // De-duplicate (case-insensitive) and limit
+    const seen = new Set<string>();
+    const unique: string[] = [];
+    for (const s of cleaned) {
+      const key = s.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(s);
+      if (unique.length >= 5) break;
+    }
+
+    console.log(`   🤖 AI Location Queries: ${unique.length > 0 ? JSON.stringify(unique) : '[]'}`);
+    return unique;
+  } catch (error) {
+    console.error('Error extracting location queries:', error);
+    return [];
+  }
 }
 
 /**

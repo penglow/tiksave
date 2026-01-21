@@ -25,6 +25,8 @@ export const isLoadingStatus = (status: SaveItemStatus): boolean => {
 // Save Item Model
 export interface SaveItem {
   id: string;
+  // For map: when the same item appears multiple times (one per location), this disambiguates markers
+  locationId?: string;
   sourceURL: string;
   dateAdded: string;
   rawSharedText?: string;
@@ -42,6 +44,10 @@ export interface SaveItem {
   creatorName?: string;
   creatorUsername?: string;
   errorMessage?: string;
+  latitude?: number;
+  longitude?: number;
+  locationName?: string;
+  address?: string;
 }
 
 // Helper functions for SaveItem

@@ -5,7 +5,7 @@ import { classifyItem } from '../services/classification.js';
 import { generateItemEmbedding } from '../services/embeddings.js';
 import { getBlobUrl, listBlobs } from '../services/storage.js';
 import { extractHashtags } from '../utils/text.js';
-import { extractLocationQuery, geocodeLocation } from '../services/location.js';
+import { extractLocationQueries, geocodeLocation } from '../services/location.js';
 
 // Redis connection for job queue
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -143,8 +143,8 @@ export function startWorker(): void {
       const confidenceValue = classification.confidence >= 0.1 ? classification.confidence : null;
 
 
-      // Location Extraction Phase (Updated for Accuracy)
-      let locationData: { latitude: number; longitude: number; name: string; address: string } | null = null;
+      // Location Extraction Phase (supports multiple locations)
+      let locationData: { latitude: number; longitude: number; name: string; address: string }[] = [];
 
       console.log('   EARTH: Checking for location in content...');
       // Combine richer signals for location search (shared text + description + transcript + OCR + keywords + semantic context)
@@ -190,17 +190,45 @@ export function startWorker(): void {
         .filter(Boolean)
         .join('\n\n');
 
-      const locationQuery = await extractLocationQuery(locationText, locationContextText);
+      const locationQueries = await extractLocationQueries(locationText, locationContextText);
 
-      if (locationQuery) {
-        console.log(`   📍 Found location candidate: "${locationQuery}"`);
-        locationData = await geocodeLocation(locationQuery);
+      if (locationQueries.length > 0) {
+        console.log(`   📍 Found ${locationQueries.length} location candidate(s)`);
 
-        if (locationData) {
-          console.log(`   ✅ Geocoded: ${locationData.name} (${locationData.latitude}, ${locationData.longitude})`);
-        } else {
-          console.log('   ⚠️ Could not geocode location');
+        for (const q of locationQueries) {
+          const geo = await geocodeLocation(q);
+          if (geo) {
+            locationData.push(geo);
+            console.log(`   ✅ Geocoded: ${geo.name} (${geo.latitude}, ${geo.longitude})`);
+          } else {
+            console.log(`   ⚠️ Could not geocode: "${q}"`);
+          }
+          // Small delay to be nice to Google API
+          await new Promise((r) => setTimeout(r, 150));
         }
+
+        // De-duplicate near-identical coordinates (string compare is fine for our precision)
+        const seenCoords = new Set<string>();
+        locationData = locationData.filter((l) => {
+          const key = `${l.latitude},${l.longitude}`;
+          if (seenCoords.has(key)) return false;
+          seenCoords.add(key);
+          return true;
+        });
+      }
+
+      // Persist multiple locations (and keep first as legacy columns for compatibility)
+      try {
+        await query(`DELETE FROM save_item_locations WHERE item_id = $1`, [itemId]);
+        for (const loc of locationData) {
+          await query(
+            `INSERT INTO save_item_locations (item_id, latitude, longitude, location_name, address)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [itemId, loc.latitude, loc.longitude, loc.name || null, loc.address || null]
+          );
+        }
+      } catch (e) {
+        // Best-effort; do not block processing
       }
 
       // Update item with all results
@@ -241,10 +269,10 @@ export function startWorker(): void {
           videoIndexerId,
           JSON.stringify(enhancedInsights),
           embedding ? `[${embedding.join(',')}]` : null,
-          locationData?.latitude || null,
-          locationData?.longitude || null,
-          locationData?.name || null,
-          locationData?.address || null,
+          locationData[0]?.latitude || null,
+          locationData[0]?.longitude || null,
+          locationData[0]?.name || null,
+          locationData[0]?.address || null,
           itemId,
         ]
       );
