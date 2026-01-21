@@ -12,7 +12,7 @@ import { Spacing, BorderRadius, Typography } from '../config';
 import { AnimatedText, Skeleton } from '../components';
 
 export default function MapScreen({ navigation }: any) {
-    const { colors } = useTheme();
+    const { colors, isDark } = useTheme();
     const insets = useSafeAreaInsets();
 
     const [items, setItems] = useState<SaveItem[]>([]);
@@ -79,12 +79,21 @@ export default function MapScreen({ navigation }: any) {
         );
     }
 
+    const tileLayerUrl = isDark
+        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+    const tileLayerAttribution = isDark
+        ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
     // Inject Custom Leaflet Styles for divIcons
     const leafletStyles = `
     .leaflet-container {
         height: 100%;
         width: 100%;
         z-index: 1;
+        background: ${colors.background};
     }
     .leaflet-div-icon {
         background: transparent;
@@ -113,8 +122,9 @@ export default function MapScreen({ navigation }: any) {
                     style={{ height: '100%', width: '100%' }}
                 >
                     <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        key={isDark ? 'dark' : 'light'}
+                        attribution={tileLayerAttribution}
+                        url={tileLayerUrl}
                     />
 
                     {items.map((item) => (

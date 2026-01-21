@@ -39,12 +39,12 @@ export function AnimatedListItem({
     const getEnteringAnimation = () => {
         switch (direction) {
             case 'right':
-                return SlideInRight.duration(duration).springify().damping(14).stiffness(100).delay(delay);
+                return SlideInRight.duration(duration).springify().damping(14).stiffness(400).delay(delay);
             case 'fade':
                 return FadeIn.duration(duration).delay(delay);
             case 'up':
             default:
-                return SlideInUp.duration(duration).springify().damping(14).stiffness(100).delay(delay);
+                return SlideInUp.duration(duration).springify().damping(14).stiffness(400).delay(delay);
         }
     };
 

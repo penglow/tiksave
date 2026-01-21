@@ -64,10 +64,10 @@ interface OcrItem {
 // Get access token for Video Indexer API
 async function getAccessToken(config: VideoIndexerConfig): Promise<string> {
   const credential = new DefaultAzureCredential();
-  
+
   // Get ARM access token
   const armToken = await credential.getToken('https://management.azure.com/.default');
-  
+
   // Exchange for Video Indexer access token
   const response = await fetch(
     `https://management.azure.com/subscriptions/${config.subscriptionId}/resourceGroups/${config.resourceGroup}/providers/Microsoft.VideoIndexer/accounts/${config.accountId}/generateAccessToken?api-version=2024-01-01`,
@@ -83,11 +83,11 @@ async function getAccessToken(config: VideoIndexerConfig): Promise<string> {
       }),
     }
   );
-  
+
   if (!response.ok) {
     throw new Error(`Failed to get Video Indexer access token: ${response.statusText}`);
   }
-  
+
   const data = await response.json() as { accessToken: string };
   return data.accessToken;
 }
@@ -101,9 +101,9 @@ export async function indexVideo(
 ): Promise<string> {
   const config = getConfig();
   const accessToken = await getAccessToken(config);
-  
+
   const apiUrl = `https://api.videoindexer.ai/${config.location}/Accounts/${config.accountId}/Videos`;
-  
+
   const params = new URLSearchParams({
     accessToken,
     name: videoName,
@@ -113,19 +113,19 @@ export async function indexVideo(
     privacy: 'Private',
     sendSuccessEmail: 'false',
   });
-  
+
   const response = await fetch(`${apiUrl}?${params}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
   });
-  
+
   if (!response.ok) {
     const error = await response.text();
     throw new Error(`Failed to submit video for indexing: ${error}`);
   }
-  
+
   const data = await response.json() as { id: string };
   return data.id; // Return the video indexer ID
 }
@@ -136,20 +136,20 @@ export async function indexVideo(
 export async function getVideoIndex(videoId: string): Promise<IndexingResult> {
   const config = getConfig();
   const accessToken = await getAccessToken(config);
-  
+
   const apiUrl = `https://api.videoindexer.ai/${config.location}/Accounts/${config.accountId}/Videos/${videoId}/Index`;
-  
+
   const response = await fetch(`${apiUrl}?accessToken=${accessToken}`, {
     method: 'GET',
   });
-  
+
   if (!response.ok) {
     const error = await response.text();
     throw new Error(`Failed to get video index: ${error}`);
   }
-  
-  const data = await response.json() as { state: string; [key: string]: unknown };
-  
+
+  const data = await response.json() as { state: string;[key: string]: unknown };
+
   return {
     videoId,
     state: data.state, // 'Processing', 'Processed', 'Failed'
@@ -163,7 +163,7 @@ export async function getVideoIndex(videoId: string): Promise<IndexingResult> {
 export async function getThumbnailUrl(videoId: string, thumbnailId: string): Promise<string> {
   const config = getConfig();
   const accessToken = await getAccessToken(config);
-  
+
   return `https://api.videoindexer.ai/${config.location}/Accounts/${config.accountId}/Videos/${videoId}/Thumbnails/${thumbnailId}?accessToken=${accessToken}&format=Jpeg`;
 }
 
@@ -173,9 +173,9 @@ export async function getThumbnailUrl(videoId: string, thumbnailId: string): Pro
 export async function deleteVideo(videoId: string): Promise<void> {
   const config = getConfig();
   const accessToken = await getAccessToken(config);
-  
+
   const apiUrl = `https://api.videoindexer.ai/${config.location}/Accounts/${config.accountId}/Videos/${videoId}`;
-  
+
   await fetch(`${apiUrl}?accessToken=${accessToken}`, {
     method: 'DELETE',
   });
@@ -185,7 +185,7 @@ export async function deleteVideo(videoId: string): Promise<void> {
 function parseInsights(data: any): VideoInsights {
   const videos = data.videos?.[0];
   const insights = videos?.insights || {};
-  
+
   // Parse transcript
   const transcript: TranscriptItem[] = [];
   if (insights.transcript) {
@@ -199,7 +199,7 @@ function parseInsights(data: any): VideoInsights {
       });
     }
   }
-  
+
   // Parse topics
   const topics: TopicItem[] = [];
   if (insights.topics) {
@@ -211,7 +211,7 @@ function parseInsights(data: any): VideoInsights {
       });
     }
   }
-  
+
   // Parse labels
   const labels: LabelItem[] = [];
   if (insights.labels) {
@@ -226,7 +226,7 @@ function parseInsights(data: any): VideoInsights {
       });
     }
   }
-  
+
   // Parse keywords
   const keywords: KeywordItem[] = [];
   if (insights.keywords) {
@@ -237,7 +237,7 @@ function parseInsights(data: any): VideoInsights {
       });
     }
   }
-  
+
   // Parse faces (named entities)
   const faces: FaceItem[] = [];
   if (insights.faces) {
@@ -248,7 +248,7 @@ function parseInsights(data: any): VideoInsights {
       });
     }
   }
-  
+
   // Parse OCR (on-screen text)
   const ocr: OcrItem[] = [];
   if (insights.ocr) {
@@ -259,7 +259,7 @@ function parseInsights(data: any): VideoInsights {
       });
     }
   }
-  
+
   return {
     transcript,
     topics,
@@ -276,11 +276,11 @@ function parseInsights(data: any): VideoInsights {
 function parseTimeToSeconds(timeStr: string): number {
   const parts = timeStr.split(':');
   if (parts.length !== 3) return 0;
-  
+
   const hours = parseInt(parts[0]);
   const minutes = parseInt(parts[1]);
   const seconds = parseFloat(parts[2]);
-  
+
   return hours * 3600 + minutes * 60 + seconds;
 }
 
@@ -306,7 +306,7 @@ export async function analyzeUrlOnly(url: string, sharedText?: string): Promise<
   description?: string;
 }> {
   console.log('🔍 Analyzing URL:', url);
-  
+
   const result = {
     topics: [] as string[],
     labels: [] as string[],
@@ -316,14 +316,14 @@ export async function analyzeUrlOnly(url: string, sharedText?: string): Promise<
     title: undefined as string | undefined,
     description: undefined as string | undefined,
   };
-  
+
   // Extract creator from URL
   const creatorMatch = url.match(/tiktok\.com\/@([\w.-]+)/);
   if (creatorMatch) {
     result.creator = creatorMatch[1];
     console.log('👤 Creator:', result.creator);
   }
-  
+
   // Extract hashtags from shared text
   if (sharedText) {
     const hashtagMatches = sharedText.match(/#[\w\u4e00-\u9fff]+/g);
@@ -332,7 +332,7 @@ export async function analyzeUrlOnly(url: string, sharedText?: string): Promise<
       console.log('#️⃣ Hashtags:', result.hashtags);
     }
   }
-  
+
   // Fetch TikTok page metadata (thumbnail, title, description)
   try {
     console.log('🌐 Fetching TikTok metadata...');
@@ -347,7 +347,7 @@ export async function analyzeUrlOnly(url: string, sharedText?: string): Promise<
   } catch (error) {
     console.warn('⚠️ Failed to fetch TikTok metadata:', error);
   }
-  
+
   // Use AI to generate smart categories
   const contentForAI = [
     result.title,
@@ -356,7 +356,7 @@ export async function analyzeUrlOnly(url: string, sharedText?: string): Promise<
     result.hashtags.length > 0 ? `Hashtags: ${result.hashtags.join(', ')}` : '',
     result.creator ? `Creator: @${result.creator}` : '',
   ].filter(Boolean).join('\n');
-  
+
   if (contentForAI.trim()) {
     try {
       console.log('🤖 Using AI to categorize...');
@@ -403,25 +403,55 @@ async function fetchTikTokMetadata(url: string): Promise<{
   title?: string;
   description?: string;
 } | null> {
-  const videoId = extractVideoId(url);
+  // Resolve short links (vm.tiktok.com, vt.tiktok.com) to get canonical URL with Video ID
+  let canonicalUrl = url;
+  if (url.includes('vm.tiktok.com') || url.includes('vt.tiktok.com')) {
+    try {
+      console.log('🔗 Resolving short URL:', url);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+
+      const response = await fetch(url, {
+        method: 'HEAD',
+        redirect: 'follow',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        }
+      });
+      clearTimeout(timeout);
+
+      if (response.url && response.url !== url) {
+        canonicalUrl = response.url;
+        console.log('🔗 Resolved to:', canonicalUrl);
+      }
+    } catch (e) {
+      console.warn('⚠️ Failed to resolve short URL:', e);
+    }
+  }
+
+  const videoId = extractVideoId(canonicalUrl);
   let thumbnailUrl: string | undefined;
   let title: string | undefined;
   let description: string | undefined;
+
+  // Update check to use canonical URL for oEmbed if available
+  const urlToUse = canonicalUrl || url;
 
   // Method 1: Try TikTok's embed/oEmbed endpoint (most reliable)
   if (videoId) {
     try {
       // Try multiple oEmbed endpoints
       const embedUrls = [
-        `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`,
-        `https://api.tiktok.com/oembed?url=${encodeURIComponent(url)}`,
+        `https://www.tiktok.com/oembed?url=${encodeURIComponent(urlToUse)}`,
+        `https://api.tiktok.com/oembed?url=${encodeURIComponent(urlToUse)}`,
       ];
-      
+
       for (const embedUrl of embedUrls) {
         try {
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 5000);
-          
+
           const response = await fetch(embedUrl, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -429,9 +459,9 @@ async function fetchTikTokMetadata(url: string): Promise<{
             },
             signal: controller.signal,
           });
-          
+
           clearTimeout(timeout);
-          
+
           if (response.ok) {
             const data = await response.json() as { thumbnail_url?: string; title?: string };
             if (data.thumbnail_url) {
@@ -455,10 +485,10 @@ async function fetchTikTokMetadata(url: string): Promise<{
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
-    
+
     // Try with vm.tiktok.com (mobile version, sometimes easier to scrape)
     const mobileUrl = url.replace('www.tiktok.com', 'vm.tiktok.com');
-    
+
     const response = await fetch(mobileUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
@@ -476,29 +506,29 @@ async function fetchTikTokMetadata(url: string): Promise<{
       signal: controller.signal,
       redirect: 'follow',
     });
-    
+
     clearTimeout(timeout);
-    
+
     if (response.ok) {
       const html = await response.text();
       const $ = cheerio.load(html);
-      
+
       // Try to find thumbnail in various places
       thumbnailUrl = $('meta[property="og:image"]').attr('content') ||
-                    $('meta[name="twitter:image"]').attr('content') ||
-                    $('meta[property="og:image:secure_url"]').attr('content') ||
-                    $('img[alt*="video"]').first().attr('src') ||
-                    $('img').filter((i, el) => {
-                      const src = $(el).attr('src') || '';
-                      return src.includes('tiktokcdn.com') || src.includes('cover');
-                    }).first().attr('src');
-      
+        $('meta[name="twitter:image"]').attr('content') ||
+        $('meta[property="og:image:secure_url"]').attr('content') ||
+        $('img[alt*="video"]').first().attr('src') ||
+        $('img').filter((i, el) => {
+          const src = $(el).attr('src') || '';
+          return src.includes('tiktokcdn.com') || src.includes('cover');
+        }).first().attr('src');
+
       title = $('meta[property="og:title"]').attr('content') ||
-              $('meta[name="twitter:title"]').attr('content');
-      
+        $('meta[name="twitter:title"]').attr('content');
+
       description = $('meta[property="og:description"]').attr('content') ||
-                   $('meta[name="description"]').attr('content');
-      
+        $('meta[name="description"]').attr('content');
+
       // Try to extract from JSON in script tags
       if (!thumbnailUrl) {
         const scriptTags = $('script[type="application/json"]');
@@ -506,8 +536,8 @@ async function fetchTikTokMetadata(url: string): Promise<{
           try {
             const data = JSON.parse($(scriptTags[i]).html() || '{}');
             const cover = data?.props?.pageProps?.videoData?.itemInfo?.itemStruct?.video?.cover ||
-                         data?.props?.pageProps?.videoData?.itemInfo?.itemStruct?.cover ||
-                         data?.videoData?.cover;
+              data?.props?.pageProps?.videoData?.itemInfo?.itemStruct?.cover ||
+              data?.videoData?.cover;
             if (cover) {
               thumbnailUrl = cover;
               break;
@@ -517,7 +547,7 @@ async function fetchTikTokMetadata(url: string): Promise<{
           }
         }
       }
-      
+
       if (thumbnailUrl) {
         console.log('📷 Got thumbnail from page scraping ✅');
       }
@@ -533,7 +563,7 @@ async function fetchTikTokMetadata(url: string): Promise<{
       const shareUrl = `https://www.tiktok.com/t/${videoId}/`;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
-      
+
       const response = await fetch(shareUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -541,9 +571,9 @@ async function fetchTikTokMetadata(url: string): Promise<{
         },
         signal: controller.signal,
       });
-      
+
       clearTimeout(timeout);
-      
+
       if (response.ok) {
         const html = await response.text();
         const $ = cheerio.load(html);
@@ -563,7 +593,7 @@ async function fetchTikTokMetadata(url: string): Promise<{
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
-      
+
       const response = await fetch(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -573,9 +603,9 @@ async function fetchTikTokMetadata(url: string): Promise<{
         },
         signal: controller.signal,
       });
-      
+
       clearTimeout(timeout);
-      
+
       if (response.ok) {
         const html = await response.text();
         const $ = cheerio.load(html);
@@ -590,7 +620,7 @@ async function fetchTikTokMetadata(url: string): Promise<{
   if (thumbnailUrl) {
     // Clean up the URL
     thumbnailUrl = thumbnailUrl.trim();
-    
+
     // Ensure it's a valid URL format
     if (!thumbnailUrl.startsWith('http://') && !thumbnailUrl.startsWith('https://')) {
       console.log('⚠️ Invalid thumbnail URL format, discarding:', thumbnailUrl);
@@ -601,9 +631,9 @@ async function fetchTikTokMetadata(url: string): Promise<{
       console.log('📷 Final thumbnail URL:', thumbnailUrl.substring(0, 100) + '...');
     }
   }
-  
+
   console.log('📷 Final thumbnail result:', thumbnailUrl ? `✅ Found (${thumbnailUrl.length} chars)` : '❌ Not found');
-  
+
   return { thumbnailUrl, title, description };
 }
 
@@ -617,9 +647,9 @@ async function generateAICategories(content: string): Promise<{
   if (!process.env.OPENAI_API_KEY) {
     throw new Error('OpenAI API key not configured');
   }
-  
+
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  
+
   const prompt = `Analyze this TikTok video content and categorize it.
 
 Content:
@@ -669,10 +699,10 @@ Respond in JSON:
     temperature: 0.5,
     max_tokens: 150,
   });
-  
+
   const text = response.choices[0]?.message?.content || '';
   console.log('🤖 AI Response:', text);
-  
+
   try {
     // Extract JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -686,7 +716,7 @@ Respond in JSON:
   } catch {
     console.warn('Failed to parse AI response:', text);
   }
-  
+
   return { categories: ['Saved'], labels: [] };
 }
 
@@ -725,7 +755,7 @@ export async function generateSemanticContext(content: {
     if (content.topics && content.topics.length > 0) contentParts.push(`Topics: ${content.topics.join(', ')}`);
     if (content.labels && content.labels.length > 0) contentParts.push(`Labels: ${content.labels.join(', ')}`);
     if (content.keywords && content.keywords.length > 0) {
-      const keywordTexts = Array.isArray(content.keywords) 
+      const keywordTexts = Array.isArray(content.keywords)
         ? content.keywords.map((k: any) => typeof k === 'string' ? k : k.text || k.name || String(k))
         : [];
       if (keywordTexts.length > 0) {
@@ -773,14 +803,14 @@ Respond with just the semantic context description (no JSON, no labels, just the
     });
 
     const semanticContext = response.choices[0]?.message?.content?.trim() || '';
-    
+
     if (semanticContext) {
       console.log(`✅ Generated semantic context (${semanticContext.length} chars)`);
       console.log(`   Context: ${semanticContext.substring(0, 150)}...`);
     } else {
       console.warn('⚠️ No semantic context generated');
     }
-    
+
     return {
       semanticContext,
     };
@@ -821,7 +851,7 @@ export async function generateSemanticKeywords(content: {
 function inferTopicsFallback(text: string): string[] {
   const textLower = text.toLowerCase();
   const topics: string[] = [];
-  
+
   // Hierarchical patterns: "Parent > Subcategory"
   const patterns: [string, string[]][] = [
     ['Food > Japanese Cuisine', ['ramen', 'sushi', 'japanese food', 'tokyo eats', 'izakaya']],
@@ -853,14 +883,14 @@ function inferTopicsFallback(text: string): string[] {
     ['Finance > Investing', ['invest', 'stock', 'crypto', 'trading']],
     ['Finance > Money Tips', ['money', 'budget', 'saving', 'finance']],
   ];
-  
+
   for (const [topic, keywords] of patterns) {
     if (keywords.some(kw => textLower.includes(kw))) {
       topics.push(topic);
       break; // Only take the first match for cleaner categorization
     }
   }
-  
+
   return topics.length > 0 ? topics : ['Saved'];
 }
 
@@ -877,9 +907,9 @@ function inferTopicsFromHashtags(hashtags: string[]): string[] {
     'Finance': ['#finance', '#investing', '#money', '#stocks', '#crypto'],
     'Cars': ['#car', '#cars', '#auto', '#automotive', '#vehicle'],
   };
-  
+
   const detectedTopics = new Set<string>();
-  
+
   for (const hashtag of hashtags) {
     for (const [topic, keywords] of Object.entries(topicMap)) {
       if (keywords.includes(hashtag)) {
@@ -887,14 +917,14 @@ function inferTopicsFromHashtags(hashtags: string[]): string[] {
       }
     }
   }
-  
+
   return Array.from(detectedTopics);
 }
 
 function inferLabelsFromText(text: string): string[] {
   const labels: string[] = [];
   const textLower = text.toLowerCase();
-  
+
   const labelKeywords: { [key: string]: string[] } = {
     'restaurant': ['restaurant', 'dining', 'eat at', 'reservation'],
     'hotel': ['hotel', 'stay at', 'room tour', 'check in', 'lobby'],
@@ -903,13 +933,13 @@ function inferLabelsFromText(text: string): string[] {
     'street food': ['street food', 'food stall', 'market'],
     'cafe': ['cafe', 'coffee', 'coffeeshop'],
   };
-  
+
   for (const [label, keywords] of Object.entries(labelKeywords)) {
     if (keywords.some(kw => textLower.includes(kw))) {
       labels.push(label);
     }
   }
-  
+
   return labels;
 }
 

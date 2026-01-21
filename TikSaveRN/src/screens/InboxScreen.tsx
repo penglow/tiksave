@@ -97,7 +97,7 @@ export default function InboxScreen({ navigation }: Props) {
           <Text style={[styles.headerTitle, { color: colors.text }]}>Inbox</Text>
         </View>
         <Animated.View
-          entering={FadeIn.duration(300)}
+          entering={FadeIn.duration(150)}
           style={styles.emptyContainer}
         >
           <View style={[styles.emptyIconWrapper, { backgroundColor: colors.accentSubtle }]}>

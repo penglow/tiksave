@@ -11,9 +11,9 @@ interface AnimatedTextProps extends TextProps {
     duration?: number;
     /** Whether to use a spring animation (default: true) */
     spring?: boolean;
-    /** Damping for spring (default: 12) - lower = more bounce */
+    /** Damping for spring (default: 15) - lower = more bounce */
     damping?: number;
-    /** Stiffness for spring (default: 100) */
+    /** Stiffness for spring (default: 300) */
     stiffness?: number;
     style?: TextStyle | TextStyle[];
 }
@@ -26,8 +26,8 @@ export function AnimatedText({
     delay = 0,
     duration = Animation.duration.normal,
     spring = true,
-    damping = 12,
-    stiffness = 100,
+    damping = 15,
+    stiffness = 300,
     style,
     ...props
 }: AnimatedTextProps) {

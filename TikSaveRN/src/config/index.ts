@@ -1,7 +1,7 @@
 import { Platform, StyleSheet } from 'react-native';
 
 // API Configuration
-const LOCAL_IP = '192.168.100.150';
+const LOCAL_IP = '192.168.1.11';
 
 const getApiUrl = () => {
   if (!__DEV__) return 'https://your-production-api.com/api';
@@ -18,7 +18,7 @@ export const Config = {
   mediumConfidenceThreshold: 0.60,
   thumbnailCacheSize: 100 * 1024 * 1024,
   maxCachedThumbnails: 500,
-  apiTimeoutMs: 30000,
+  apiTimeoutMs: 60000,
   uploadTimeoutMs: 300000,
 };
 
@@ -282,19 +282,19 @@ export const BorderRadius = {
 export const Animation = {
   // Durations
   duration: {
-    instant: 100,
-    fast: 150,
-    normal: 200,
-    slow: 300,
-    entrance: 350,
-    exit: 250,
+    instant: 50,
+    fast: 75,
+    normal: 100,
+    slow: 150,
+    entrance: 175,
+    exit: 125,
   },
 
   // Spring configs for react-native-reanimated
   spring: {
-    snappy: { damping: 20, stiffness: 300, mass: 1 },
-    gentle: { damping: 25, stiffness: 200, mass: 1 },
-    bouncy: { damping: 15, stiffness: 200, mass: 1 },
+    snappy: { damping: 20, stiffness: 600, mass: 1 },
+    gentle: { damping: 25, stiffness: 400, mass: 1 },
+    bouncy: { damping: 15, stiffness: 400, mass: 1 },
   },
 
   // Stagger delay for lists

@@ -98,7 +98,7 @@ export default function AddVideoScreen({ navigation }: Props) {
       keyboardShouldPersistTaps="handled"
     >
       {/* Header */}
-      <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
+      <Animated.View entering={FadeIn.duration(150)} style={styles.header}>
         <AnimatedText style={[styles.title, { color: colors.text }]}>
           Import Video
         </AnimatedText>
@@ -107,7 +107,7 @@ export default function AddVideoScreen({ navigation }: Props) {
       {/* Status Display */}
       {isImporting && (
         <Animated.View
-          entering={FadeInDown.duration(300)}
+          entering={FadeInDown.duration(150)}
           style={[styles.statusCard, { backgroundColor: colors.accentSubtle }]}
         >
           <ActivityIndicator size="small" color={colors.text} />
@@ -119,7 +119,7 @@ export default function AddVideoScreen({ navigation }: Props) {
 
       {importStatus === 'success' && !isImporting && (
         <Animated.View
-          entering={FadeInDown.duration(300)}
+          entering={FadeInDown.duration(150)}
           style={[styles.statusCard, { backgroundColor: colors.successSubtle }]}
         >
           <Ionicons name="checkmark" size={18} color={colors.success} />
@@ -131,7 +131,7 @@ export default function AddVideoScreen({ navigation }: Props) {
 
       {importStatus === 'error' && !isImporting && (
         <Animated.View
-          entering={FadeInDown.duration(300)}
+          entering={FadeInDown.duration(150)}
           style={[styles.statusCard, { backgroundColor: colors.errorSubtle }]}
         >
           <Ionicons name="close" size={18} color={colors.error} />

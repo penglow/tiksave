@@ -50,7 +50,7 @@ export default function AuthScreen() {
       >
         <View style={[styles.content, { paddingTop: insets.top + 60 }]}>
           {/* Logo Section */}
-          <Animated.View entering={FadeIn.duration(400)} style={styles.logoSection}>
+          <Animated.View entering={FadeIn.duration(200)} style={styles.logoSection}>
             <View style={[styles.logoIcon, { backgroundColor: colors.text }]}>
               <Ionicons name="play" size={28} color={colors.background} />
             </View>
@@ -62,7 +62,7 @@ export default function AuthScreen() {
           </Animated.View>
 
           {/* Form Section */}
-          <Animated.View entering={FadeIn.duration(400).delay(100)} style={styles.formSection}>
+          <Animated.View entering={FadeIn.duration(200).delay(50)} style={styles.formSection}>
             <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>EMAIL</Text>
               <TextInput

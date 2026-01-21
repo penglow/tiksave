@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { View, StyleSheet, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 
 import { MainTabParamList, LibraryStackParamList, SearchStackParamList, AddStackParamList, MapStackParamList, LibraryStackScreenProps } from './types';
@@ -212,6 +213,7 @@ function MapStackNavigator() {
 
 export default function MainNavigator() {
   const { colors: themeColors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
@@ -221,9 +223,9 @@ export default function MainNavigator() {
           backgroundColor: themeColors.background,
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: themeColors.border,
-          paddingTop: Spacing.sm,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 12,
-          height: Platform.OS === 'ios' ? 64 : 56,
+          paddingTop: 12,
+          paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 12) : 12,
+          height: Platform.OS === 'ios' ? (insets.bottom > 0 ? 90 : 70) : 70,
           elevation: 0,
           shadowOpacity: 0,
         },
@@ -233,10 +235,10 @@ export default function MainNavigator() {
           fontSize: 10,
           fontWeight: '500',
           letterSpacing: 0.2,
-          marginTop: 2,
+          marginTop: 4,
         },
         tabBarItemStyle: {
-          paddingTop: 2,
+          paddingTop: 0,
         },
       }}
     >

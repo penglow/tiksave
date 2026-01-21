@@ -70,7 +70,7 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
       showsVerticalScrollIndicator={false}
     >
       {/* Video Preview */}
-      <Animated.View entering={FadeIn.duration(300)} style={styles.previewContainer}>
+      <Animated.View entering={FadeIn.duration(150)} style={styles.previewContainer}>
         <AnimatedPressable
           style={styles.previewWrapper}
           onPress={openInTikTok}
@@ -177,20 +177,24 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
               </View>
             </View>
           )}
+
+          {/* Location */}
+          {item.locationName && (
+            <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.infoLabel, { color: colors.textTertiary }]}>LOCATION</Text>
+              <View style={styles.locationContainer}>
+                <Ionicons name="location-sharp" size={16} color={colors.primary} />
+                <View style={styles.locationInfo}>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>{item.locationName}</Text>
+                  {item.address && (
+                    <Text style={[styles.addressText, { color: colors.textTertiary }]}>{item.address}</Text>
+                  )}
+                </View>
+              </View>
+            </View>
+          )}
         </View>
       </AnimatedListItem>
-
-      {/* Transcript */}
-      {item.transcriptText && (
-        <AnimatedListItem index={2} direction="fade">
-          <View style={styles.section}>
-            <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>TRANSCRIPT</Text>
-            <Text style={[styles.transcriptText, { color: colors.textSecondary }]} numberOfLines={10}>
-              {item.transcriptText}
-            </Text>
-          </View>
-        </AnimatedListItem>
-      )}
 
       {/* Actions */}
       <AnimatedListItem index={3} direction="fade">
@@ -200,11 +204,33 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
             onPress={openInTikTok}
             haptic
           >
-            <Ionicons name="open-outline" size={18} color={colors.background} />
+            <Ionicons name="logo-tiktok" size={18} color={colors.background} />
             <Text style={[styles.primaryButtonText, { color: colors.background }]}>
               Open in TikTok
             </Text>
           </AnimatedPressable>
+
+          {item.latitude && item.longitude && (
+            <AnimatedPressable
+              style={[styles.outlineButton, { borderColor: colors.primary }]}
+              onPress={() => {
+                const lat = item.latitude;
+                const lng = item.longitude;
+                const label = item.locationName || 'Location';
+                const url = Platform.select({
+                  ios: `maps:0,0?q=${label}@${lat},${lng}`,
+                  android: `geo:0,0?q=${lat},${lng}(${label})`
+                });
+                if (url) Linking.openURL(url);
+              }}
+              haptic
+            >
+              <Ionicons name="map-outline" size={18} color={colors.primary} />
+              <Text style={[styles.outlineButtonText, { color: colors.primary }]}>
+                Open in Google Maps
+              </Text>
+            </AnimatedPressable>
+          )}
 
           <AnimatedPressable
             style={[styles.deleteButton, { borderColor: colors.error }]}
@@ -217,13 +243,37 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
               <>
                 <Ionicons name="trash-outline" size={16} color={colors.error} />
                 <Text style={[styles.deleteButtonText, { color: colors.error }]}>
-                  Delete
+                  Delete Video
                 </Text>
               </>
             )}
           </AnimatedPressable>
         </View>
       </AnimatedListItem>
+
+      {/* Description Section */}
+      {item.rawSharedText && (
+        <AnimatedListItem index={4} direction="fade">
+          <View style={styles.section}>
+            <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>DESCRIPTION</Text>
+            <Text style={[styles.descriptionText, { color: colors.textSecondary }]}>
+              {item.rawSharedText}
+            </Text>
+          </View>
+        </AnimatedListItem>
+      )}
+
+      {/* Transcript */}
+      {item.transcriptText && (
+        <AnimatedListItem index={5} direction="fade">
+          <View style={styles.section}>
+            <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>TRANSCRIPT</Text>
+            <Text style={[styles.transcriptText, { color: colors.textSecondary }]} numberOfLines={10}>
+              {item.transcriptText}
+            </Text>
+          </View>
+        </AnimatedListItem>
+      )}
     </ScrollView>
   );
 }
@@ -363,6 +413,18 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     ...Typography.bodyStrong,
   },
+  outlineButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+  },
+  outlineButtonText: {
+    ...Typography.bodyStrong,
+  },
   deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -374,5 +436,22 @@ const styles = StyleSheet.create({
   },
   deleteButtonText: {
     ...Typography.body,
+  },
+  descriptionText: {
+    ...Typography.body,
+    lineHeight: 22,
+  },
+  locationContainer: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  locationInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  addressText: {
+    ...Typography.caption,
+    fontSize: 12,
   },
 });

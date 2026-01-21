@@ -17,7 +17,7 @@ interface SkeletonProps {
     height?: number;
     borderRadius?: number;
     style?: StyleProp<ViewStyle>;
-    /** Animation duration for one complete sweep (default: 1200ms) */
+    /** Animation duration for one complete sweep (default: 600ms) */
     duration?: number;
 }
 
@@ -29,7 +29,7 @@ export function Skeleton({
     height = 16,
     borderRadius = BorderRadius.sm,
     style,
-    duration = 1200,
+    duration = 600,
 }: SkeletonProps) {
     const { colors } = useTheme();
     const shimmer = useSharedValue(0);

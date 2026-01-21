@@ -157,7 +157,7 @@ export default function LibraryScreen({ navigation }: Props) {
           <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>Library</AnimatedText>
         </View>
         <Animated.View
-          entering={FadeIn.duration(300)}
+          entering={FadeIn.duration(150)}
           style={styles.emptyContainer}
         >
           <View style={[styles.emptyIconWrapper, { backgroundColor: colors.accentSubtle }]}>
