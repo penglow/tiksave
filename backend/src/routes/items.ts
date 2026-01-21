@@ -9,6 +9,7 @@ import { recordTrainingExample, updateUserPreferences } from '../services/learni
 import { extractKeywords, extractHashtags } from '../utils/text.js';
 import { analyzeUrlOnly } from '../services/videoIndexer.js';
 import { classifyItem } from '../services/classification.js';
+import { extractLocationQuery, geocodeLocation } from '../services/location.js';
 
 export const itemsRouter = Router();
 
@@ -25,10 +26,10 @@ const moveToFolderSchema = z.object({
 // Create a new save item
 itemsRouter.post('/', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
-  
+
   try {
     const { sourceURL, rawSharedText } = createItemSchema.parse(req.body);
-    
+
     // Check for exact duplicate URL (same URL in last 5 minutes only)
     const duplicate = await query(
       `SELECT id FROM save_items 
@@ -36,13 +37,13 @@ itemsRouter.post('/', async (req, res: Response) => {
        AND created_at > NOW() - INTERVAL '5 minutes'`,
       [authReq.userId, sourceURL]
     );
-    
+
     if (duplicate.rows.length > 0) {
       // Return existing item if just added
       const existing = await getItemById(duplicate.rows[0].id);
       return res.json(existing);
     }
-    
+
     // Create new item
     const result = await query(
       `INSERT INTO save_items (
@@ -51,15 +52,15 @@ itemsRouter.post('/', async (req, res: Response) => {
       RETURNING *`,
       [authReq.userId, sourceURL, rawSharedText]
     );
-    
+
     const item = formatSaveItem(result.rows[0]);
-    
+
     // Process immediately for faster feedback (dev mode)
     // In production, use the queue for scalability
     try {
       console.log('🚀 Processing item immediately:', item.id);
       await processItemNow(item.id, authReq.userId, sourceURL, rawSharedText);
-      
+
       // Return updated item
       const updated = await getItemById(item.id, authReq.userId);
       return res.status(201).json(updated);
@@ -73,7 +74,7 @@ itemsRouter.post('/', async (req, res: Response) => {
         rawSharedText,
       });
     }
-    
+
     res.status(201).json(item);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -87,26 +88,26 @@ itemsRouter.post('/', async (req, res: Response) => {
 itemsRouter.get('/', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { status, folderId, limit = '50', offset = '0' } = req.query;
-  
+
   let whereClause = 'WHERE user_id = $1';
   const params: any[] = [authReq.userId];
   let paramIndex = 2;
-  
+
   if (status) {
     whereClause += ` AND status = $${paramIndex}`;
     params.push(status);
     paramIndex++;
   }
-  
+
   if (folderId) {
     whereClause += ` AND folder_id = $${paramIndex}`;
     params.push(folderId);
     paramIndex++;
   }
-  
+
   params.push(parseInt(limit as string));
   params.push(parseInt(offset as string));
-  
+
   const result = await query(
     `SELECT * FROM save_items 
      ${whereClause}
@@ -114,12 +115,12 @@ itemsRouter.get('/', async (req, res: Response) => {
      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
     params
   );
-  
+
   const countResult = await query(
     `SELECT COUNT(*) FROM save_items ${whereClause}`,
     params.slice(0, -2)
   );
-  
+
   res.json({
     items: result.rows.map(formatSaveItem),
     total: parseInt(countResult.rows[0].count),
@@ -130,13 +131,13 @@ itemsRouter.get('/', async (req, res: Response) => {
 itemsRouter.get('/:id', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
-  
+
   const item = await getItemById(id, authReq.userId);
-  
+
   if (!item) {
     throw new AppError('Item not found', 404);
   }
-  
+
   res.json(item);
 });
 
@@ -144,50 +145,52 @@ itemsRouter.get('/:id', async (req, res: Response) => {
 itemsRouter.post('/:id/uploadUrl', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
-  
+
   // Verify item belongs to user
   const item = await getItemById(id, authReq.userId);
   if (!item) {
     throw new AppError('Item not found', 404);
   }
-  
+
   // Generate signed upload URL
   const { uploadURL, blobName, expiresAt } = await generateUploadUrl(id);
-  
+
   // Update item status
   await query(
-    `UPDATE save_items SET status = 'upload_requested', updated_at = NOW()
+    `UPDATE save_items 
+     SET status = 'upload_requested', video_blob_name = $2, updated_at = NOW()
      WHERE id = $1`,
-    [id]
+    [id, blobName]
   );
-  
-  res.json({ uploadURL, expiresAt });
+
+  // Return blobName too (helpful for debugging/clients), but server also persists it.
+  res.json({ uploadURL, expiresAt, blobName });
 });
 
 // Complete upload and start processing
 itemsRouter.post('/:id/completeUpload', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
-  
+
   const item = await getItemById(id, authReq.userId);
   if (!item) {
     throw new AppError('Item not found', 404);
   }
-  
+
   // Update status and re-queue for video processing
   await query(
     `UPDATE save_items SET status = 'uploading', updated_at = NOW()
      WHERE id = $1`,
     [id]
   );
-  
+
   await addToProcessingQueue({
     itemId: id,
     userId: authReq.userId,
     sourceURL: item.sourceURL,
     hasUploadedVideo: true,
   });
-  
+
   const updated = await getItemById(id, authReq.userId);
   res.json(updated);
 });
@@ -196,30 +199,30 @@ itemsRouter.post('/:id/completeUpload', async (req, res: Response) => {
 itemsRouter.post('/:id/moveFolder', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
-  
+
   try {
     const { folderId } = moveToFolderSchema.parse(req.body);
-    
+
     // Get current item
     const item = await getItemById(id, authReq.userId);
     if (!item) {
       throw new AppError('Item not found', 404);
     }
-    
+
     // If folderId is provided, verify folder belongs to user
     if (folderId !== null) {
       const folder = await query(
         'SELECT id, name FROM folders WHERE id = $1 AND user_id = $2',
         [folderId, authReq.userId]
       );
-      
+
       if (folder.rows.length === 0) {
         throw new AppError('Folder not found', 404);
       }
     }
-    
+
     const originalFolderId = item.folderId;
-    
+
     // Update item (folderId can be null to move back to library)
     await query(
       `UPDATE save_items 
@@ -227,7 +230,7 @@ itemsRouter.post('/:id/moveFolder', async (req, res: Response) => {
        WHERE id = $2`,
       [folderId, id]
     );
-    
+
     // Record training example if this was a correction (only if moving to a folder, not to library)
     if (originalFolderId !== folderId && folderId !== null) {
       await recordTrainingExample({
@@ -243,7 +246,7 @@ itemsRouter.post('/:id/moveFolder', async (req, res: Response) => {
           creatorUsername: item.creatorUsername,
         },
       });
-      
+
       // Update user preferences
       await updateUserPreferences(authReq.userId, folderId, {
         topics: item.detectedTopics || [],
@@ -251,7 +254,7 @@ itemsRouter.post('/:id/moveFolder', async (req, res: Response) => {
         creator: item.creatorUsername,
       }, originalFolderId);
     }
-    
+
     const updated = await getItemById(id, authReq.userId);
     res.json(updated);
   } catch (error) {
@@ -266,16 +269,16 @@ itemsRouter.post('/:id/moveFolder', async (req, res: Response) => {
 itemsRouter.delete('/:id', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
-  
+
   const result = await query(
     'DELETE FROM save_items WHERE id = $1 AND user_id = $2 RETURNING id',
     [id, authReq.userId]
   );
-  
+
   if (result.rows.length === 0) {
     throw new AppError('Item not found', 404);
   }
-  
+
   res.json({ success: true });
 });
 
@@ -288,18 +291,18 @@ async function getItemById(id: string, userId?: string) {
     WHERE si.id = $1
   `;
   const params: any[] = [id];
-  
+
   if (userId) {
     queryStr += ' AND si.user_id = $2';
     params.push(userId);
   }
-  
+
   const result = await query(queryStr, params);
-  
+
   if (result.rows.length === 0) {
     return null;
   }
-  
+
   return formatSaveItem(result.rows[0]);
 }
 
@@ -323,6 +326,10 @@ function formatSaveItem(row: any) {
     creatorName: row.creator_name,
     creatorUsername: row.creator_username,
     errorMessage: row.error_message,
+    latitude: row.latitude ? parseFloat(row.latitude) : null,
+    longitude: row.longitude ? parseFloat(row.longitude) : null,
+    locationName: row.location_name,
+    address: row.address,
   };
 }
 
@@ -334,15 +341,15 @@ async function processItemNow(
   rawSharedText?: string
 ): Promise<void> {
   console.log(`\n🎬 Processing item ${itemId} NOW`);
-  
+
   // Update status
   await query('UPDATE save_items SET status = $1 WHERE id = $2', ['processing', itemId]);
-  
+
   // Analyze URL - now includes thumbnail, title, description
   const analysis = await analyzeUrlOnly(sourceURL, rawSharedText);
   console.log('📊 Categories:', analysis.topics);
   console.log('📷 Thumbnail:', analysis.thumbnailUrl ? 'found' : 'not found');
-  
+
   // Use AI-generated title or fallback
   let title = analysis.title || 'TikTok Video';
   if (!analysis.title && rawSharedText) {
@@ -351,7 +358,36 @@ async function processItemNow(
       title = withoutHashtags.slice(0, 100);
     }
   }
-  
+
+  // Location extraction (match worker behavior so new imports can appear on map)
+  let locationData: { latitude: number; longitude: number; name: string; address: string } | null = null;
+  try {
+    const description = analysis.description || '';
+    const locationText = [
+      rawSharedText,
+      title ? `Title: ${title}` : '',
+      description ? `Description: ${description}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const locationContextText = [
+      (analysis.topics || []).length > 0 ? `Topics: ${analysis.topics.join(', ')}` : '',
+      (analysis.labels || []).length > 0 ? `Labels: ${analysis.labels.join(', ')}` : '',
+      analysis.creator ? `Creator: @${analysis.creator}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const locationQuery = await extractLocationQuery(locationText, locationContextText);
+
+    if (locationQuery) {
+      locationData = await geocodeLocation(locationQuery);
+    }
+  } catch (e) {
+    // Location extraction is best-effort; failures should not block item creation.
+  }
+
   // Classify into folder
   const classification = await classifyItem(userId, {
     topics: analysis.topics || [],
@@ -360,18 +396,18 @@ async function processItemNow(
     hashtags: extractHashtags(rawSharedText),
     creatorUsername: analysis.creator,
   });
-  
+
   // Determine final status based on confidence
   // Assign folder if classification found one (confidence >= 0.3 threshold in classification service)
   const folderId = classification.folderId || null;
-  
+
   // If a folder was assigned, mark as ready so it appears in library
   // The classification service already ensures confidence >= 0.3 before returning a folderId
   const status = folderId ? 'ready' : 'needs_review';
-  
+
   // Only store confidence if it's meaningful (>= 0.1), otherwise store NULL
   const confidenceValue = classification.confidence >= 0.1 ? classification.confidence : null;
-  
+
   // Update item with results including classification and confidence
   await query(
     `UPDATE save_items SET
@@ -384,8 +420,12 @@ async function processItemNow(
       predicted_folder_id = $7,
       confidence = $8,
       folder_id = $9,
+      latitude = $10,
+      longitude = $11,
+      location_name = $12,
+      address = $13,
       updated_at = NOW()
-     WHERE id = $10`,
+     WHERE id = $14`,
     [
       status,
       analysis.topics,
@@ -396,10 +436,14 @@ async function processItemNow(
       classification.folderId,
       confidenceValue,
       folderId,
+      locationData?.latitude || null,
+      locationData?.longitude || null,
+      locationData?.name || null,
+      locationData?.address || null,
       itemId,
     ]
   );
-  
+
   console.log(`✅ Item ${itemId} processed!`);
   console.log(`   Categories: ${analysis.topics.join(', ')}`);
   console.log(`   Folder: ${classification.folderName || 'none'} (${Math.round(classification.confidence * 100)}% confidence)`);

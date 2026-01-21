@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS save_items (
     source_url TEXT NOT NULL,
     raw_shared_text TEXT,
     status VARCHAR(50) DEFAULT 'queued',
+    video_blob_name TEXT,
     thumbnail_url TEXT,
     transcript_text TEXT,
     detected_topics TEXT[],
@@ -54,6 +55,10 @@ CREATE TABLE IF NOT EXISTS save_items (
     insights_json JSONB,
     error_message TEXT,
     embedding vector(1536),
+    latitude DECIMAL(10, 8),
+    longitude DECIMAL(11, 8),
+    location_name VARCHAR(255),
+    address TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
