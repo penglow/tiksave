@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
   thumbnail: {
     width: 70,
     height: 93,
-    borderRadius: BorderRadius.none,
+    borderRadius: BorderRadius.xs,
     overflow: 'hidden',
   },
   thumbnailImage: {

@@ -278,8 +278,9 @@ export default function MapScreen({ navigation }: any) {
                 }}
                 onPress={handleMapPress}
                 provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
-                userInterfaceStyle="dark"
-                customMapStyle={isDark ? darkMapStyle : undefined}
+                mapType="standard"
+                userInterfaceStyle={isDark ? 'dark' : 'light'}
+                customMapStyle={isDark ? darkMapStyle : []}
                 showsUserLocation={false}
                 showsMyLocationButton={false}
                 showsCompass={false}
@@ -434,15 +435,12 @@ export default function MapScreen({ navigation }: any) {
                         }
                     ]}
                     onPress={() => {
-                        mapRef.current?.animateCamera({
-                            center: {
-                                latitude: userLocation.coords.latitude,
-                                longitude: userLocation.coords.longitude,
-                            },
-                            pitch: 0,
-                            heading: 0,
-                            zoom: 15,
-                        }, { duration: 500 });
+                        mapRef.current?.animateToRegion({
+                            latitude: userLocation.coords.latitude,
+                            longitude: userLocation.coords.longitude,
+                            latitudeDelta: 0.002,
+                            longitudeDelta: 0.002,
+                        }, 500);
                     }}
                 >
                     <Ionicons name="navigate" size={24} color={colors.primary} />
@@ -542,7 +540,7 @@ const styles = StyleSheet.create({
         width: 50,
         height: 70,
         borderRadius: 6,
-        borderColor: 'white',
+        borderColor: 'black',
         borderWidth: 2,
         backgroundColor: '#ddd'
     },

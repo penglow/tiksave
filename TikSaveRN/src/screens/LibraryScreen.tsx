@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
   thumbnailWrapper: {
     width: 140,
     height: 186,
-    borderRadius: BorderRadius.none,
+    borderRadius: BorderRadius.xs,
     overflow: 'hidden',
   },
   thumbnail: {

@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
   },
   thumbnail: {
     aspectRatio: 9 / 16,
-    borderRadius: BorderRadius.none,
+    borderRadius: BorderRadius.xs,
     width: '100%',
   },
   thumbnailPlaceholder: {
