@@ -1,179 +1,97 @@
-# TikSave
+# TikSave 🚀
 
-A smart mobile app that transforms your saved TikTok videos into an organized, searchable library with AI-powered categorization. Built with React Native and Expo.
+A high-performance mobile application that transforms your saved TikTok videos into an organized, searchable library with AI-powered categorization.
 
-## Features
+Now powered by **Bun** for blazing-fast development and execution.
 
-- **📥 Smart Inbox** - Incoming videos categorized by status (processing, needs review, recently filed)
-- **📁 Folder Organization** - Hierarchical folder structure with custom icons
-- **🔍 Smart Search** - Semantic and keyword search powered by AI
-- **🤖 AI Categorization** - Automatic folder suggestions based on video content
-- **🎨 Dual Theme Support** - Light and dark themes with system preference option
+## 🌟 Key Features
 
-## Project Structure
+- **📥 Smart Inbox** - Auto-sorts incoming videos into "Processing", "Needs Review", and "Filed" status.
+- **📁 AI Folder Organization** - Hierarchical folder structure with AI-suggested icons and placement.
+- **🔍 Semantic Search** - Find videos by *meaning*, not just keywords, powered by vector embeddings.
+- **🤖 Intelligence** - Automatic categorization based on video transcripts and visual content.
+- **🎨 Modern UI** - Beautiful glassmorphic design with full Dark Mode support.
 
-```
-├── TikSaveRN/                  # Mobile App (React Native + Expo)
-│   ├── src/
-│   │   ├── components/         # Reusable components
-│   │   ├── config/             # App configuration & theme
-│   │   ├── navigation/         # React Navigation setup
-│   │   ├── screens/            # App screens
-│   │   ├── services/           # API services
-│   │   ├── stores/             # Zustand state management
-│   │   ├── types/              # TypeScript types
-│   │   └── utils/              # Utility functions
-│   ├── App.tsx                 # Entry point
-│   └── package.json
-│
-├── backend/                    # Node.js API Server
-│   ├── src/
-│   │   ├── database/           # Database init, migrations, seeds
-│   │   ├── middleware/         # Auth & error handling
-│   │   ├── routes/             # API endpoints
-│   │   ├── services/           # Business logic
-│   │   ├── workers/            # Job queue workers
-│   │   └── utils/              # Shared utilities
-│   └── package.json
-│
-└── database/                   # Docker & SQL init scripts
+## 📂 Project Structure
+
+```text
+├── TikSaveRN/          # Mobile App (React Native + Expo SDK 54)
+├── backend/            # Bun API Server (Express + Bull + OpenAI)
+├── database/           # Docker configuration for PostgreSQL + Redis
+└── start-dev.ps1       # One-click startup script (Windows)
 ```
 
-## Tech Stack
+## ⚡ Tech Stack
 
-### Mobile App
-- React Native with Expo SDK 51
-- TypeScript
-- React Navigation (bottom tabs + stack)
-- Zustand for state management
-- Expo Secure Store for auth tokens
-- Expo Linear Gradient for UI effects
+| Component | Technology | Why? |
+| :--- | :--- | :--- |
+| **Runtime** | [Bun](https://bun.sh) | Blazing fast execution and package management |
+| **Mobile** | React Native / Expo | Cross-platform performance and ease of updates |
+| **State** | Zustand | Lightweight and robust state management |
+| **Database** | PostgreSQL + pgvector | Industry standard with AI vector support |
+| **Queue** | Redis + Bull | Reliable background video processing |
+| **AI** | OpenAI + Azure Video Indexer | State-of-the-art content analysis |
 
-### Backend
-- Node.js + Express
-- PostgreSQL with pgvector extension (for vector embeddings)
-- Redis (for job queue and caching)
-- Azure AI Video Indexer (required for video processing and analysis)
-- Optional: OpenAI API (for AI-powered categorization)
+## 🛠️ Quick Start
 
-## Setup Instructions
+### 1. Prerequisites
+- **Bun** (Installed automatically in recent migration)
+- **Node.js** (Required for some Expo native tools)
+- **Docker Desktop** (For database and cache)
 
-### Prerequisites
-- **Node.js 18+** - [Download Node.js](https://nodejs.org/)
-- **npm** or **yarn** (comes with Node.js)
-- **Docker Desktop** - [Download Docker Desktop](https://www.docker.com/products/docker-desktop/) (for running PostgreSQL and Redis)
-- **Expo CLI** (optional, can use `npx expo` instead): `npm install -g expo-cli`
-- **iOS Simulator** (macOS only) or **Android Emulator** (for testing)
+### 2. Automatic Setup
+Run the startup script to launch both the backend and frontend simultaneously:
+```powershell
+.\start-dev.ps1
+```
 
-### Mobile App Setup
+### 3. Manual Setup
 
-1. Navigate to the app directory:
-   ```bash
-   cd TikSaveRN
-   ```
+#### **Database**
+```bash
+cd database
+docker-compose up -d
+```
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+#### **Backend**
+```bash
+cd backend
+bun install
+bun run migrate
+bun run dev
+```
 
-3. Configure the API URL in `src/config/index.ts`:
-   ```typescript
-   apiBaseURL: __DEV__ 
-     ? 'http://localhost:3000/api'  // Development - adjust if backend runs on different port
-     : 'https://your-production-api.com/api', // Production - update with your production URL
-   ```
-
-4. Start the development server:
-   ```bash
-   npx expo start
-   ```
-
-5. Run on your preferred platform:
-   - Press `i` for iOS Simulator (macOS only)
-   - Press `a` for Android Emulator
-   - Scan QR code with Expo Go app on your physical device
-
-### Backend Setup
-
-For detailed backend setup instructions, see `backend/START-BACKEND.md`.
-
-Quick start:
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the database (requires Docker):
-   ```bash
-   cd ../database
-   docker-compose up -d
-   cd ../backend
-   ```
-
-4. Create a `.env` file in the `backend` directory with:
-   ```env
-   DATABASE_URL=postgresql://tiksave:tiksave_password@localhost:5432/tiksave
-   REDIS_URL=redis://localhost:6379
-   PORT=3000
-   NODE_ENV=development
-   
-   # Azure Video Indexer (Required)
-   AZURE_VIDEO_INDEXER_KEY=your_azure_key_here
-   AZURE_VIDEO_INDEXER_ACCOUNT_ID=your_account_id_here
-   AZURE_VIDEO_INDEXER_LOCATION=your_location_here
-   ```
-
-5. Run database migrations:
-   ```bash
-   npm run migrate
-   ```
-
-6. Start the server:
-   ```bash
-   npm run dev
-   ```
-
-## Required: Azure Video Indexer Configuration
-
-The app **requires** Azure Video Indexer for video processing and analysis. This is not optional.
-
-- **Azure Video Indexer** - Required for video analysis and transcription
-  - Requires an Azure account: [azure.microsoft.com](https://azure.microsoft.com/)
-  - Add to `.env`:
-    ```env
-    AZURE_VIDEO_INDEXER_KEY=your_key_here
-    AZURE_VIDEO_INDEXER_ACCOUNT_ID=your_account_id_here
-    AZURE_VIDEO_INDEXER_LOCATION=your_location_here
-    ```
-
-## Optional: OpenAI API Key for Enhanced Features
-
-- **OpenAI API key** - Enables AI-powered categorization and semantic search
-  - Get one at: [platform.openai.com](https://platform.openai.com/)
-  - Add to `.env`: `OPENAI_API_KEY=your_key_here`
-
-**Note:** Azure Video Indexer is required for the app to function. OpenAI API key is optional and only needed for additional AI-powered features like semantic search.
-
-## Building for Production
-
-### iOS
+#### **Mobile App**
 ```bash
 cd TikSaveRN
-eas build --platform ios
+bun install
+bun start
 ```
 
-### Android
+## ⚙️ Configuration
+
+Create a `.env` file in the `backend/` directory:
+
+```env
+# Infrastructure
+DATABASE_URL=postgresql://tiksave:tiksave_password@localhost:5432/tiksave
+REDIS_URL=redis://localhost:6379
+
+# AI Services (Required)
+AZURE_VIDEO_INDEXER_KEY=your_key
+AZURE_VIDEO_INDEXER_ACCOUNT_ID=your_id
+AZURE_VIDEO_INDEXER_LOCATION=your_location
+OPENAI_API_KEY=your_key
+```
+
+## 🏗️ Production
+
+### Mobile
 ```bash
 cd TikSaveRN
-eas build --platform android
+bunx eas build --platform ios    # For iOS
+bunx eas build --platform android # For Android
 ```
 
-## License
-
-MIT License
+---
+*Built with ❤️ for better video organization.*
