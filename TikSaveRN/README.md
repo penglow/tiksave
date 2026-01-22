@@ -60,9 +60,10 @@ TikSaveRN/
 
 ### Prerequisites
 
-- Node.js 18+
-- npm or yarn
-- Expo CLI (`npm install -g expo-cli`)
+- Bun 1.0+ (Recommended)
+- Node.js 18+ (Required as fallback for certain Expo tools)
+- Bun Package Manager (`bun install`)
+- Expo CLI (`bunx expo`)
 - iOS Simulator (macOS) or Android Emulator
 
 ### Installation
@@ -74,12 +75,12 @@ TikSaveRN/
 
 2. Install dependencies:
    ```bash
-   npm install
+   bun install
    ```
 
 3. Start the development server:
    ```bash
-   npx expo start
+   bun start
    ```
 
 4. Run on your preferred platform:
@@ -103,8 +104,8 @@ This app connects to the same Node.js backend as the iOS version. Make sure the 
 
 ```bash
 cd ../backend
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 ## Screens

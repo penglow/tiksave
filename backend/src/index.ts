@@ -24,8 +24,8 @@ app.use(helmet({
   contentSecurityPolicy: false, // Disable for development
 }));
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-app-domain.com'] 
+  origin: process.env.NODE_ENV === 'production'
+    ? ['https://your-app-domain.com']
     : true, // Allow all origins in development
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -43,6 +43,12 @@ app.use('/api', limiter);
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Request logging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - ${req.ip}`);
+  next();
+});
 
 // Health check
 app.get('/health', (req, res) => {

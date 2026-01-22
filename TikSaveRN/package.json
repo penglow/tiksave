@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "main": "expo/AppEntry.js",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "start": "bunx expo start",
+    "android": "bunx expo start --android",
+    "ios": "bunx expo start --ios",
+    "web": "bunx expo start --web",
+    "lint": "bunx eslint .",
+    "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

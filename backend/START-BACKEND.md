@@ -4,9 +4,9 @@
 
 Before starting the backend server, you need:
 
-1. **Node.js 18+** installed on your system
-2. **Docker Desktop** installed and running (for PostgreSQL and Redis)
-3. **npm** or **yarn** package manager
+1. **Bun 1.0+** installed on your system (Recommended)
+2. **Node.js 18+** installed (Optional fallback)
+3. **Docker Desktop** installed and running (for PostgreSQL and Redis)
 
 ## Step 1: Start the Database
 
@@ -66,23 +66,23 @@ AZURE_VIDEO_INDEXER_LOCATION=your_location_here
    ```bash
    cd backend
    ```
-2. Install npm packages:
+2. Install dependencies:
    ```bash
-   npm install
+   bun install
    ```
 
 ## Step 4: Run Database Migrations
 
 Set up the database schema:
 ```bash
-npm run migrate
+bun run migrate
 ```
 
 ## Step 5: Start the Server
 
 Start the development server:
 ```bash
-npm run dev
+bun run dev
 ```
 
 ## Verify Server is Running
