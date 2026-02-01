@@ -1,5 +1,6 @@
 import { query } from '../database/init.js';
 import { createOrFindFolder } from './folderCreation.js';
+import { getUserFoldersForClassification } from './folderCache.js';
 
 interface ClassificationInput {
   topics: string[];
@@ -28,17 +29,8 @@ export async function classifyItem(
   userId: string,
   input: ClassificationInput
 ): Promise<ClassificationResult> {
-  // Get user's folders including parent folder info for subfolders
-  const foldersResult = await query(
-    `SELECT f.*, up.weights, parent.name as parent_name
-     FROM folders f
-     LEFT JOIN user_preferences up ON f.id = up.folder_id AND up.user_id = $1
-     LEFT JOIN folders parent ON f.parent_id = parent.id
-     WHERE f.user_id = $1`,
-    [userId]
-  );
-
-  const folders = foldersResult.rows;
+  // Get user's folders from cache (includes parent folder info and preference weights)
+  const folders = await getUserFoldersForClassification(userId);
 
   return classifyItemWithFolders(userId, folders, input);
 }

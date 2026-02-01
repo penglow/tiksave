@@ -2,23 +2,20 @@ import { Router, Response } from 'express';
 import { query } from '../database/init.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { generateEmbedding } from '../services/embeddings.js';
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { getOpenAIClient, isOpenAIConfigured, withRetry } from '../services/openai.js';
 
 /**
  * Enhance search query with context understanding
  * Converts simple queries like "chicken" into context-rich queries
  * that better match semantic meaning
  */
-async function enhanceSearchQuery(query: string): Promise<string> {
-  if (!process.env.OPENAI_API_KEY || query.length < 2) {
-    return query; // Return original if no API key or too short
+async function enhanceSearchQuery(searchQuery: string): Promise<string> {
+  if (!isOpenAIConfigured() || searchQuery.length < 2) {
+    return searchQuery; // Return original if no API key or too short
   }
 
   try {
+    const openai = getOpenAIClient();
     const prompt = `Transform this search query into a natural, context-rich description that captures what the user is looking for.
 
 The goal is to understand the intent and context behind the search, not just match keywords.
@@ -29,22 +26,24 @@ Examples:
 - "cooking" → "videos about cooking, recipes, cooking tutorials, cooking tips, or food preparation"
 - "popeyes" → "videos about Popeyes restaurant, Popeyes food, Popeyes reviews, or Popeyes chicken"
 
-Search query: "${query}"
+Search query: "${searchQuery}"
 
 Respond with just the enhanced query description (no labels, no JSON, just natural language):`;
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.5,
-      max_tokens: 100,
-    });
+    const response = await withRetry(() =>
+      openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.5,
+        max_tokens: 100,
+      })
+    );
 
     const enhanced = response.choices[0]?.message?.content?.trim();
-    return enhanced || query; // Fallback to original if enhancement fails
+    return enhanced || searchQuery; // Fallback to original if enhancement fails
   } catch (error) {
     console.warn('Failed to enhance search query, using original:', error);
-    return query; // Fallback to original query
+    return searchQuery; // Fallback to original query
   }
 }
 
@@ -87,8 +86,8 @@ async function semanticSearch(userId: string, searchQuery: string, limit: number
     // Enhance search query with context understanding using OpenAI
     const enhancedQuery = await enhanceSearchQuery(searchQuery);
     
-    // Generate embedding for enhanced search query
-    const embedding = await generateEmbedding(enhancedQuery);
+    // Generate embedding for enhanced search query (with caching for frequent searches)
+    const embedding = await generateEmbedding(enhancedQuery, true);
     
     if (!embedding) {
       return [];
@@ -101,6 +100,7 @@ async function semanticSearch(userId: string, searchQuery: string, limit: number
        FROM save_items si
        LEFT JOIN folders f ON si.folder_id = f.id
        WHERE si.user_id = $2 
+         AND si.deleted_at IS NULL
          AND si.embedding IS NOT NULL
          AND si.status = 'ready'
        ORDER BY si.embedding <=> $1::vector
@@ -116,12 +116,20 @@ async function semanticSearch(userId: string, searchQuery: string, limit: number
   }
 }
 
+// Escape special characters for PostgreSQL tsquery
+function escapeTsQueryTerm(term: string): string {
+  // Remove or escape special tsquery characters: & | ! ( ) : ' \ *
+  // Keep only alphanumeric and common punctuation that's safe
+  return term.replace(/[&|!():'\\*<>]/g, '').trim();
+}
+
 // Keyword search using PostgreSQL full-text search
 async function keywordSearch(userId: string, searchQuery: string, limit: number) {
-  // Prepare search terms
+  // Prepare search terms - escape special characters to prevent injection
   const terms = searchQuery
     .toLowerCase()
     .split(/\s+/)
+    .map(term => escapeTsQueryTerm(term))
     .filter(term => term.length > 1)
     .map(term => term + ':*')
     .join(' & ');
@@ -145,6 +153,7 @@ async function keywordSearch(userId: string, searchQuery: string, limit: number)
      FROM save_items si
      LEFT JOIN folders f ON si.folder_id = f.id
      WHERE si.user_id = $2 
+       AND si.deleted_at IS NULL
        AND si.status = 'ready'
        AND (
          to_tsvector('english', 
@@ -189,4 +198,3 @@ function formatSearchResult(row: any) {
     similarity: row.similarity ? parseFloat(row.similarity) : undefined,
   };
 }
-

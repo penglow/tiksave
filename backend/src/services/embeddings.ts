@@ -1,29 +1,68 @@
-import OpenAI from 'openai';
+import { getOpenAIClient, isOpenAIConfigured, withRetry } from './openai.js';
+import { RedisCache } from './redis.js';
+import crypto from 'crypto';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Cache for search query embeddings (1 hour TTL - searches are often repeated)
+const searchEmbeddingCache = new RedisCache('search-embedding', 3600);
+
+// Hash function for cache keys
+function hashText(text: string): string {
+  return crypto.createHash('sha256').update(text).digest('hex').slice(0, 32);
+}
 
 /**
  * Generate embedding for text using OpenAI's embedding model
+ * @param text - The text to embed
+ * @param useCache - Whether to use Redis caching (default: false, enable for search queries)
  */
-export async function generateEmbedding(text: string): Promise<number[] | null> {
-  if (!process.env.OPENAI_API_KEY) {
+export async function generateEmbedding(text: string, useCache: boolean = false): Promise<number[] | null> {
+  if (!isOpenAIConfigured()) {
     console.warn('OpenAI API key not configured, skipping embedding generation');
     return null;
   }
   
+  // Truncate text if too long (model has token limits)
+  const truncatedText = text.slice(0, 8000);
+  
+  // Check cache if enabled
+  if (useCache) {
+    const cacheKey = hashText(truncatedText);
+    try {
+      const cached = await searchEmbeddingCache.get<number[]>(cacheKey);
+      if (cached) {
+        console.log('📦 Search embedding cache hit');
+        return cached;
+      }
+    } catch {
+      // Cache miss or error, continue to generate
+    }
+  }
+  
   try {
-    // Truncate text if too long (model has token limits)
-    const truncatedText = text.slice(0, 8000);
+    const openai = getOpenAIClient();
     
-    const response = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: truncatedText,
-      dimensions: 1536, // Standard dimension for this model
-    });
+    const response = await withRetry(() =>
+      openai.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: truncatedText,
+        dimensions: 1536, // Standard dimension for this model
+      })
+    );
     
-    return response.data[0].embedding;
+    const embedding = response.data[0].embedding;
+    
+    // Store in cache if enabled
+    if (useCache && embedding) {
+      const cacheKey = hashText(truncatedText);
+      try {
+        await searchEmbeddingCache.set(cacheKey, embedding);
+        console.log('📦 Search embedding cached');
+      } catch {
+        // Cache write failure is non-fatal
+      }
+    }
+    
+    return embedding;
   } catch (error) {
     console.error('Error generating embedding:', error);
     return null;

@@ -1,4 +1,5 @@
 import { query } from '../database/init.js';
+import { invalidateUserFolderCache } from './folderCache.js';
 
 interface TrainingFeatures {
   topics: string[];
@@ -137,6 +138,9 @@ async function updateFolderWeights(
      DO UPDATE SET weights = $3, updated_at = NOW()`,
     [userId, folderId, JSON.stringify(weights)]
   );
+  
+  // Invalidate classification cache since preferences affect classification
+  await invalidateUserFolderCache(userId);
 }
 
 /**

@@ -1,17 +1,30 @@
-import Queue from 'bull';
+import { Queue, Worker, Job } from 'bullmq';
 import { query } from '../database/init.js';
 import { indexVideo, getVideoIndex, analyzeUrlOnly, getThumbnailUrl, generateSemanticContext } from '../services/videoIndexer.js';
 import { classifyItem } from '../services/classification.js';
 import { generateItemEmbedding } from '../services/embeddings.js';
 import { getBlobUrl, listBlobs } from '../services/storage.js';
 import { extractHashtags } from '../utils/text.js';
-import { extractLocationQueries, geocodeLocation } from '../services/location.js';
+import { extractLocationQueries, batchGeocodeLocations } from '../services/location.js';
 
 // Redis connection for job queue
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
+// Parse Redis URL for BullMQ connection options
+function parseRedisUrl(url: string): { host: string; port: number; password?: string } {
+  const parsed = new URL(url);
+  return {
+    host: parsed.hostname || 'localhost',
+    port: parseInt(parsed.port || '6379', 10),
+    password: parsed.password || undefined,
+  };
+}
+
+const redisConnection = parseRedisUrl(REDIS_URL);
+
 // Job queue
-const processingQueue = new Queue('video-processing', REDIS_URL, {
+const processingQueue = new Queue('video-processing', {
+  connection: redisConnection,
   defaultJobOptions: {
     attempts: 3,
     backoff: {
@@ -22,6 +35,9 @@ const processingQueue = new Queue('video-processing', REDIS_URL, {
     removeOnFail: 50,
   },
 });
+
+// Worker instance (initialized in startWorker)
+let processingWorker: Worker | null = null;
 
 interface ProcessingJob {
   itemId: string;
@@ -36,7 +52,7 @@ interface ProcessingJob {
  */
 export async function addToProcessingQueue(job: ProcessingJob): Promise<void> {
   await processingQueue.add('process', job, {
-    priority: job.hasUploadedVideo ? 1 : 2, // Uploaded videos get priority
+    priority: job.hasUploadedVideo ? 1 : 2, // Uploaded videos get priority (lower number = higher priority)
   });
 }
 
@@ -44,8 +60,10 @@ export async function addToProcessingQueue(job: ProcessingJob): Promise<void> {
  * Start the background worker
  */
 export function startWorker(): void {
-  processingQueue.process('process', 5, async (job) => {
-    const { itemId, userId, sourceURL, rawSharedText, hasUploadedVideo } = job.data as ProcessingJob;
+  processingWorker = new Worker(
+    'video-processing',
+    async (job: Job<ProcessingJob>) => {
+      const { itemId, userId, sourceURL, rawSharedText, hasUploadedVideo } = job.data;
 
     console.log(`\n🎬 Processing item ${itemId}`);
     console.log(`   URL: ${sourceURL}`);
@@ -195,16 +213,20 @@ export function startWorker(): void {
       if (locationQueries.length > 0) {
         console.log(`   📍 Found ${locationQueries.length} location candidate(s)`);
 
-        for (const q of locationQueries) {
-          const geo = await geocodeLocation(q);
+        // Use batch geocoding for parallel processing with rate limiting
+        const geocodeResults = await batchGeocodeLocations(locationQueries, {
+          concurrency: 3,  // Process 3 at a time
+          delayMs: 100,    // 100ms between batches
+        });
+
+        for (let i = 0; i < geocodeResults.length; i++) {
+          const geo = geocodeResults[i];
           if (geo) {
             locationData.push(geo);
             console.log(`   ✅ Geocoded: ${geo.name} (${geo.latitude}, ${geo.longitude})`);
           } else {
-            console.log(`   ⚠️ Could not geocode: "${q}"`);
+            console.log(`   ⚠️ Could not geocode: "${locationQueries[i]}"`);
           }
-          // Small delay to be nice to Google API
-          await new Promise((r) => setTimeout(r, 150));
         }
 
         // De-duplicate near-identical coordinates (string compare is fine for our precision)
@@ -297,15 +319,19 @@ export function startWorker(): void {
 
       throw error;
     }
+  },
+  {
+    connection: redisConnection,
+    concurrency: 5,
   });
 
   // Error handling
-  processingQueue.on('failed', (job, err) => {
-    console.error(`Job ${job.id} failed:`, err);
+  processingWorker.on('failed', (job, err) => {
+    console.error(`Job ${job?.id} failed:`, err);
   });
 
-  processingQueue.on('completed', (job) => {
-    console.log(`Job ${job.id} completed`);
+  processingWorker.on('completed', (job) => {
+    console.log(`Job ${job?.id} completed`);
   });
 }
 
@@ -426,9 +452,33 @@ async function updateItemStatus(itemId: string, status: string): Promise<void> {
   );
 }
 
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('Received SIGTERM, closing queue...');
-  await processingQueue.close();
-  process.exit(0);
-});
+// Graceful shutdown - exported for coordination with main server
+let isShuttingDown = false;
+
+export async function shutdownWorker(): Promise<void> {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  
+  console.log('Shutting down video processing queue...');
+  try {
+    // Close worker first (stops processing new jobs)
+    if (processingWorker) {
+      await processingWorker.close();
+      console.log('Video processing worker closed');
+    }
+    // Then close the queue
+    await processingQueue.close();
+    console.log('Video processing queue closed');
+  } catch (error) {
+    console.error('Error closing video processing queue:', error);
+  }
+}
+
+// Handle SIGTERM only if this file is run directly (not imported)
+if (require.main === module) {
+  process.on('SIGTERM', async () => {
+    console.log('Received SIGTERM, closing queue...');
+    await shutdownWorker();
+    process.exit(0);
+  });
+}

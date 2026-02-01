@@ -1,9 +1,12 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
+import crypto from 'crypto';
 import { z } from 'zod';
 import { query } from '../database/init.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { sanitizeEmail, sanitizeString } from '../utils/sanitize.js';
+import { logger } from '../utils/logger.js';
 
 export const authRouter = Router();
 
@@ -22,7 +25,17 @@ const signInSchema = z.object({
 // Sign up
 authRouter.post('/signup', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { email, password, displayName } = signUpSchema.parse(req.body);
+    const parsed = signUpSchema.parse(req.body);
+    
+    // Sanitize inputs
+    const email = sanitizeEmail(parsed.email);
+    if (!email) {
+      throw new AppError('Invalid email format', 400);
+    }
+    const password = parsed.password;
+    const displayName = parsed.displayName 
+      ? sanitizeString(parsed.displayName, { maxLength: 255, allowNewlines: false }) 
+      : undefined;
     
     // Check if user exists
     const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
@@ -71,7 +84,14 @@ authRouter.post('/signup', async (req: Request, res: Response, next: NextFunctio
 // Sign in
 authRouter.post('/signin', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { email, password } = signInSchema.parse(req.body);
+    const parsed = signInSchema.parse(req.body);
+    
+    // Sanitize email
+    const email = sanitizeEmail(parsed.email);
+    if (!email) {
+      throw new AppError('Invalid email or password', 401);
+    }
+    const password = parsed.password;
     
     // Find user
     const result = await query(
@@ -148,7 +168,154 @@ authRouter.post('/refresh', async (req: Request, res: Response, next: NextFuncti
   }
 });
 
+// Password reset schemas
+const requestPasswordResetSchema = z.object({
+  email: z.string().email(),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(8),
+});
+
+// Request password reset - generates a reset token
+authRouter.post('/password-reset/request', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = requestPasswordResetSchema.parse(req.body);
+    const email = sanitizeEmail(parsed.email);
+    
+    if (!email) {
+      // Don't reveal if email exists
+      return res.json({ message: 'If the email exists, a reset link will be sent.' });
+    }
+    
+    // Find user
+    const result = await query('SELECT id, email FROM users WHERE email = $1', [email]);
+    
+    if (result.rows.length === 0) {
+      // Don't reveal if email exists - same response
+      logger.info('Password reset requested for non-existent email', { email });
+      return res.json({ message: 'If the email exists, a reset link will be sent.' });
+    }
+    
+    const user = result.rows[0];
+    
+    // Generate secure reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    
+    // Store hashed token in database
+    await query(
+      `UPDATE users SET 
+        settings = settings || $1::jsonb,
+        updated_at = NOW()
+       WHERE id = $2`,
+      [JSON.stringify({ 
+        passwordResetToken: resetTokenHash,
+        passwordResetExpiry: resetTokenExpiry.toISOString()
+      }), user.id]
+    );
+    
+    logger.info('Password reset token generated', { userId: user.id });
+    
+    // In production, this would send an email with the reset link
+    // For development, return the token (remove this in production!)
+    if (process.env.NODE_ENV === 'development') {
+      return res.json({ 
+        message: 'If the email exists, a reset link will be sent.',
+        // DEV ONLY: Include token for testing
+        _devToken: resetToken,
+        _devResetUrl: `${process.env.FRONTEND_URL || 'http://localhost:8081'}/reset-password?token=${resetToken}`
+      });
+    }
+    
+    // TODO: Integrate with email service (SendGrid, SES, etc.)
+    // await sendPasswordResetEmail(user.email, resetToken);
+    
+    res.json({ message: 'If the email exists, a reset link will be sent.' });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    next(error);
+  }
+});
+
+// Reset password with token
+authRouter.post('/password-reset/confirm', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = resetPasswordSchema.parse(req.body);
+    
+    // Hash the provided token
+    const tokenHash = crypto.createHash('sha256').update(parsed.token).digest('hex');
+    
+    // Find user with matching token that hasn't expired
+    const result = await query(
+      `SELECT id, email, settings FROM users 
+       WHERE settings->>'passwordResetToken' = $1
+       AND (settings->>'passwordResetExpiry')::timestamp > NOW()`,
+      [tokenHash]
+    );
+    
+    if (result.rows.length === 0) {
+      throw new AppError('Invalid or expired reset token', 400);
+    }
+    
+    const user = result.rows[0];
+    
+    // Hash new password
+    const passwordHash = await bcrypt.hash(parsed.newPassword, 12);
+    
+    // Update password and clear reset token
+    const currentSettings = user.settings || {};
+    delete currentSettings.passwordResetToken;
+    delete currentSettings.passwordResetExpiry;
+    
+    await query(
+      `UPDATE users SET 
+        password_hash = $1,
+        settings = $2,
+        updated_at = NOW()
+       WHERE id = $3`,
+      [passwordHash, JSON.stringify(currentSettings), user.id]
+    );
+    
+    logger.info('Password reset completed', { userId: user.id });
+    
+    // Generate new tokens for automatic login
+    const tokens = generateTokens(user.id);
+    
+    res.json({
+      message: 'Password reset successful',
+      ...tokens,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    next(error);
+  }
+});
+
 // Helper functions
+function parseExpiresIn(expiresIn: string): number {
+  // Parse duration string like '7d', '24h', '30m' into milliseconds
+  const match = expiresIn.match(/^(\d+)([dhms])$/);
+  if (!match) return 7 * 24 * 60 * 60 * 1000; // Default 7 days
+  
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+  
+  switch (unit) {
+    case 'd': return value * 24 * 60 * 60 * 1000;
+    case 'h': return value * 60 * 60 * 1000;
+    case 'm': return value * 60 * 1000;
+    case 's': return value * 1000;
+    default: return 7 * 24 * 60 * 60 * 1000;
+  }
+}
+
 function generateTokens(userId: string) {
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
@@ -169,8 +336,8 @@ function generateTokens(userId: string) {
     { expiresIn: '30d' }
   );
   
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7);
+  // Calculate expiresAt based on actual expiresIn value
+  const expiresAt = new Date(Date.now() + parseExpiresIn(expiresIn));
   
   return { accessToken, refreshToken, expiresAt };
 }

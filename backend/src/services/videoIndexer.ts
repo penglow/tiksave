@@ -1,6 +1,6 @@
 import { DefaultAzureCredential } from '@azure/identity';
 import * as cheerio from 'cheerio';
-import OpenAI from 'openai';
+import { getOpenAIClient, isOpenAIConfigured, withRetry } from './openai.js';
 
 interface VideoIndexerConfig {
   subscriptionId: string;
@@ -644,11 +644,11 @@ async function generateAICategories(content: string): Promise<{
   categories: string[];
   labels: string[];
 }> {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!isOpenAIConfigured()) {
     throw new Error('OpenAI API key not configured');
   }
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const openai = getOpenAIClient();
 
   const prompt = `Analyze this TikTok video content and categorize it.
 
@@ -693,12 +693,14 @@ Respond in JSON:
   "labels": ["tag1", "tag2"]
 }`;
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-3.5-turbo',
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.5,
-    max_tokens: 150,
-  });
+  const response = await withRetry(() =>
+    openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.5,
+      max_tokens: 150,
+    })
+  );
 
   const text = response.choices[0]?.message?.content || '';
   console.log('🤖 AI Response:', text);
@@ -737,7 +739,7 @@ export async function generateSemanticContext(content: {
 }): Promise<{
   semanticContext: string;
 }> {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!isOpenAIConfigured()) {
     console.warn('OpenAI API key not configured, skipping semantic context generation');
     return {
       semanticContext: '',
@@ -745,7 +747,7 @@ export async function generateSemanticContext(content: {
   }
 
   try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = getOpenAIClient();
 
     // Combine all available content for context understanding
     const contentParts: string[] = [];
@@ -795,12 +797,14 @@ ${combinedContent}
 
 Respond with just the semantic context description (no JSON, no labels, just the description text):`;
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.6, // Balanced temperature for natural language generation
-      max_tokens: 400,
-    });
+    const response = await withRetry(() =>
+      openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.6, // Balanced temperature for natural language generation
+        max_tokens: 400,
+      })
+    );
 
     const semanticContext = response.choices[0]?.message?.content?.trim() || '';
 

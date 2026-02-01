@@ -1,9 +1,5 @@
-import OpenAI from 'openai';
 import axios from 'axios';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { getOpenAIClient, isOpenAIConfigured, withRetry } from './openai.js';
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -22,9 +18,11 @@ export async function extractLocationQuery(
   context?: string
 ): Promise<string | null> {
   if (!text && !context) return null;
+  if (!isOpenAIConfigured()) return null;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const openai = getOpenAIClient();
+    const completion = await withRetry(() => openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
@@ -48,7 +46,7 @@ export async function extractLocationQuery(
       ],
       temperature: 0.1,
       max_tokens: 60,
-    });
+    }));
 
     const query = completion.choices[0]?.message.content?.trim();
     console.log(`   🤖 AI Location Query: "${query}"`);
@@ -71,9 +69,11 @@ export async function extractLocationQueries(
   context?: string
 ): Promise<string[]> {
   if (!text && !context) return [];
+  if (!isOpenAIConfigured()) return [];
 
   try {
-    const completion = await openai.chat.completions.create({
+    const openai = getOpenAIClient();
+    const completion = await withRetry(() => openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
@@ -102,7 +102,7 @@ Rules:
       ],
       temperature: 0.1,
       max_tokens: 200,
-    });
+    }));
 
     const raw = completion.choices[0]?.message.content?.trim() || '[]';
 
@@ -187,6 +187,52 @@ export async function geocodeLocation(searchQuery: string): Promise<GeocodeResul
     console.error('Geocoding error:', error);
     return null;
   }
+}
+
+/**
+ * Batch geocode multiple locations in parallel with rate limiting.
+ * Uses Promise.allSettled for parallel execution with controlled concurrency.
+ */
+export async function batchGeocodeLocations(
+  queries: string[],
+  options: {
+    concurrency?: number;  // Max concurrent requests
+    delayMs?: number;      // Delay between batches
+  } = {}
+): Promise<(GeocodeResult | null)[]> {
+  const { concurrency = 3, delayMs = 100 } = options;
+  
+  if (queries.length === 0) return [];
+  if (!GOOGLE_MAPS_API_KEY) {
+    console.error('❌ GOOGLE_MAPS_API_KEY is missing in .env');
+    return queries.map(() => null);
+  }
+
+  const results: (GeocodeResult | null)[] = [];
+  
+  // Process in batches for controlled concurrency
+  for (let i = 0; i < queries.length; i += concurrency) {
+    const batch = queries.slice(i, i + concurrency);
+    
+    const batchPromises = batch.map(query => geocodeLocation(query));
+    const batchResults = await Promise.allSettled(batchPromises);
+    
+    for (const result of batchResults) {
+      if (result.status === 'fulfilled') {
+        results.push(result.value);
+      } else {
+        console.warn('Geocoding failed for query:', result.reason);
+        results.push(null);
+      }
+    }
+    
+    // Small delay between batches to respect rate limits
+    if (i + concurrency < queries.length) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  
+  return results;
 }
 
 // Wrapper to match previous interface
