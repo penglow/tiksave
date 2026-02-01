@@ -19,11 +19,18 @@ import { apiService } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import { LibraryStackScreenProps, AddStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
-import { AnimatedPressable, AnimatedListItem, AnimatedText } from '../components';
+import { useClipboard } from '../hooks/useClipboard';
+import { AnimatedPressable, AnimatedListItem, AnimatedText, ProcessingProgress } from '../components';
 
 type Props =
   | LibraryStackScreenProps<'AddVideo'>
   | AddStackScreenProps<'AddMain'>;
+
+interface ImportingItem {
+  id: string;
+  url: string;
+  status: 'processing' | 'complete' | 'error';
+}
 
 export default function AddVideoScreen({ navigation }: Props) {
   const { colors } = useTheme();
@@ -31,8 +38,15 @@ export default function AddVideoScreen({ navigation }: Props) {
   const [isImporting, setIsImporting] = useState(false);
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [manualUrl, setManualUrl] = useState('');
+  const [importingItems, setImportingItems] = useState<ImportingItem[]>([]);
   const pendingShareUrl = useAppStore((state) => state.pendingShareUrl);
   const clearPendingShare = useAppStore((state) => state.clearPendingShare);
+  
+  // Clipboard detection
+  const { urls: clipboardUrls, hasUrls: hasClipboardUrls, dismissUrls, clearUrls } = useClipboard({
+    autoCheck: true,
+    onlyNew: true,
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -40,6 +54,7 @@ export default function AddVideoScreen({ navigation }: Props) {
         setImportStatus('idle');
         setManualUrl('');
         setIsImporting(false);
+        setImportingItems([]);
       };
     }, [])
   );
@@ -65,24 +80,49 @@ export default function AddVideoScreen({ navigation }: Props) {
     setImportStatus('idle');
 
     try {
-      await apiService.createSaveItem(url);
-
-      setImportStatus('success');
+      const item = await apiService.createSaveItem(url);
+      
+      // Track this item for progress display
+      setImportingItems([{ id: item.id, url, status: 'processing' }]);
       setManualUrl('');
 
+      // Don't auto-navigate - let ProcessingProgress handle completion
+    } catch (error) {
+      console.error('Failed to import:', error);
+      setImportStatus('error');
+      setIsImporting(false);
+    }
+  };
+
+  const handleItemComplete = (itemId: string) => {
+    setImportingItems(prev => 
+      prev.map(item => 
+        item.id === itemId ? { ...item, status: 'complete' as const } : item
+      )
+    );
+    
+    // Check if all items are complete
+    setTimeout(() => {
+      setImportStatus('success');
+      setIsImporting(false);
+      
       setTimeout(() => {
         try {
           (navigation as any).navigate('LibraryMain');
         } catch {
           navigation.goBack();
         }
-      }, 1500);
-    } catch (error) {
-      console.error('Failed to import:', error);
-      setImportStatus('error');
-    } finally {
-      setIsImporting(false);
-    }
+      }, 1000);
+    }, 500);
+  };
+
+  const handleItemError = (itemId: string, error: string) => {
+    setImportingItems(prev => 
+      prev.map(item => 
+        item.id === itemId ? { ...item, status: 'error' as const } : item
+      )
+    );
+    console.error(`Item ${itemId} failed:`, error);
   };
 
   const handleBatchImport = async () => {
@@ -123,26 +163,38 @@ export default function AddVideoScreen({ navigation }: Props) {
         autoOrganize: true,
       });
 
-      const message = `${result.queued} queued, ${result.duplicates} duplicates, ${result.errors} errors`;
+      // Track all queued items for progress display
+      const queuedItems: ImportingItem[] = result.items
+        .filter(item => item.status === 'queued')
+        .map(item => ({ id: item.id, url: item.url, status: 'processing' as const }));
       
-      setImportStatus('success');
+      setImportingItems(queuedItems);
       setManualUrl('');
 
-      if (Platform.OS === 'web') {
-        window.alert(`Import successful! ${message}`);
+      // Show summary for duplicates/errors
+      if (result.duplicates > 0 || result.errors > 0) {
+        const message = `${result.queued} queued, ${result.duplicates} duplicates, ${result.errors} errors`;
+        if (Platform.OS === 'web') {
+          window.alert(message);
+        } else {
+          Alert.alert('Import Status', message);
+        }
       }
 
-      setTimeout(() => {
-        try {
-          (navigation as any).navigate('LibraryMain');
-        } catch {
-          navigation.goBack();
-        }
-      }, 2000);
+      // If no items to process, navigate back
+      if (queuedItems.length === 0) {
+        setIsImporting(false);
+        setTimeout(() => {
+          try {
+            (navigation as any).navigate('LibraryMain');
+          } catch {
+            navigation.goBack();
+          }
+        }, 1500);
+      }
     } catch (error) {
       console.error('Failed to batch import:', error);
       setImportStatus('error');
-    } finally {
       setIsImporting(false);
     }
   };
@@ -171,15 +223,92 @@ export default function AddVideoScreen({ navigation }: Props) {
         </AnimatedText>
       </Animated.View>
 
-      {/* Status Display */}
-      {isImporting && (
+      {/* Clipboard Detection Banner */}
+      {hasClipboardUrls && !isImporting && importStatus === 'idle' && (
+        <Animated.View
+          entering={FadeInDown.duration(200)}
+          style={[styles.clipboardBanner, { backgroundColor: colors.accentSubtle, borderColor: colors.border }]}
+        >
+          <View style={styles.clipboardHeader}>
+            <View style={styles.clipboardTitleRow}>
+              <Ionicons name="clipboard-outline" size={18} color={colors.text} />
+              <Text style={[styles.clipboardTitle, { color: colors.text }]}>
+                {clipboardUrls.length === 1 ? 'TikTok URL detected' : `${clipboardUrls.length} TikTok URLs detected`}
+              </Text>
+            </View>
+            <AnimatedPressable onPress={dismissUrls} style={styles.clipboardDismiss}>
+              <Ionicons name="close" size={18} color={colors.textTertiary} />
+            </AnimatedPressable>
+          </View>
+          
+          <Text style={[styles.clipboardPreview, { color: colors.textSecondary }]} numberOfLines={2}>
+            {clipboardUrls.slice(0, 2).join('\n')}
+            {clipboardUrls.length > 2 && `\n...and ${clipboardUrls.length - 2} more`}
+          </Text>
+          
+          <AnimatedPressable
+            style={[styles.clipboardImportButton, { backgroundColor: colors.text }]}
+            onPress={() => {
+              // Set the URLs in the input and clear clipboard state
+              setManualUrl(clipboardUrls.join('\n'));
+              clearUrls();
+            }}
+            haptic
+          >
+            <Ionicons name="download-outline" size={16} color={colors.background} />
+            <Text style={[styles.clipboardImportText, { color: colors.background }]}>
+              Import from clipboard
+            </Text>
+          </AnimatedPressable>
+        </Animated.View>
+      )}
+
+      {/* Processing Progress Display */}
+      {isImporting && importingItems.length > 0 && (
+        <Animated.View entering={FadeInDown.duration(150)} style={styles.progressSection}>
+          <Text style={[styles.progressHeader, { color: colors.text }]}>
+            Processing {importingItems.filter(i => i.status === 'processing').length} of {importingItems.length} video{importingItems.length > 1 ? 's' : ''}
+          </Text>
+          <ScrollView style={styles.progressList} nestedScrollEnabled>
+            {importingItems.map((item) => (
+              <View key={item.id} style={styles.progressItem}>
+                {item.status === 'processing' ? (
+                  <ProcessingProgress
+                    itemId={item.id}
+                    onComplete={() => handleItemComplete(item.id)}
+                    onError={(error) => handleItemError(item.id, error)}
+                    pollInterval={500}
+                  />
+                ) : item.status === 'complete' ? (
+                  <View style={[styles.statusCard, { backgroundColor: colors.successSubtle }]}>
+                    <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                    <Text style={[styles.statusText, { color: colors.success }]} numberOfLines={1}>
+                      Complete
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={[styles.statusCard, { backgroundColor: colors.errorSubtle }]}>
+                    <Ionicons name="close-circle" size={18} color={colors.error} />
+                    <Text style={[styles.statusText, { color: colors.error }]} numberOfLines={1}>
+                      Failed
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ))}
+          </ScrollView>
+        </Animated.View>
+      )}
+
+      {/* Fallback loading state (before item ID is available) */}
+      {isImporting && importingItems.length === 0 && (
         <Animated.View
           entering={FadeInDown.duration(150)}
           style={[styles.statusCard, { backgroundColor: colors.accentSubtle }]}
         >
           <ActivityIndicator size="small" color={colors.text} />
           <Text style={[styles.statusText, { color: colors.text }]}>
-            Importing...
+            Starting import...
           </Text>
         </Animated.View>
       )}
@@ -191,7 +320,7 @@ export default function AddVideoScreen({ navigation }: Props) {
         >
           <Ionicons name="checkmark" size={18} color={colors.success} />
           <Text style={[styles.statusText, { color: colors.success }]}>
-            Video imported
+            Video{importingItems.length > 1 ? 's' : ''} imported successfully
           </Text>
         </Animated.View>
       )}
@@ -347,6 +476,60 @@ const styles = StyleSheet.create({
     ...Typography.displayMd,
   },
 
+  // Clipboard banner
+  clipboardBanner: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  clipboardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  clipboardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  clipboardTitle: {
+    ...Typography.bodyStrong,
+  },
+  clipboardDismiss: {
+    padding: Spacing.xs,
+  },
+  clipboardPreview: {
+    ...Typography.bodySm,
+  },
+  clipboardImportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+  },
+  clipboardImportText: {
+    ...Typography.bodyStrong,
+  },
+
+  // Progress section
+  progressSection: {
+    marginBottom: Spacing.lg,
+  },
+  progressHeader: {
+    ...Typography.bodyStrong,
+    marginBottom: Spacing.sm,
+  },
+  progressList: {
+    maxHeight: 300,
+  },
+  progressItem: {
+    marginBottom: Spacing.sm,
+  },
+
   // Status cards
   statusCard: {
     flexDirection: 'row',
@@ -358,6 +541,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     ...Typography.bodyStrong,
+    flex: 1,
   },
 
   // Input section
@@ -380,6 +564,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: Spacing.md,
     ...Typography.body,
+  },
+  multilineInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
   clearButton: {
     padding: Spacing.xs,
