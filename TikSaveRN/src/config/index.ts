@@ -1,12 +1,27 @@
 import { Platform, StyleSheet } from 'react-native';
+import Constants from 'expo-constants';
 
 // API Configuration
-const LOCAL_IP = '192.168.1.11';
+// Priority: 1. Environment variable, 2. Expo config, 3. Default based on platform
+const getLocalIp = (): string => {
+  // Check for environment variable (set in app.json or .env)
+  const envApiHost = Constants.expoConfig?.extra?.apiHost;
+  if (envApiHost) return envApiHost;
+  
+  // For Expo Go on physical devices, use the debugger host IP
+  const debuggerHost = Constants.expoConfig?.hostUri?.split(':')[0];
+  if (debuggerHost && Platform.OS !== 'web') return debuggerHost;
+  
+  // Fallback for development
+  return 'localhost';
+};
 
 const getApiUrl = () => {
   if (!__DEV__) return 'https://your-production-api.com/api';
   if (Platform.OS === 'web') return 'http://localhost:3000/api';
-  return `http://${LOCAL_IP}:3000/api`;
+  
+  const localIp = getLocalIp();
+  return `http://${localIp}:3000/api`;
 };
 
 export const Config = {

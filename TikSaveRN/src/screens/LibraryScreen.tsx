@@ -15,7 +15,7 @@ import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 
 import { Spacing, BorderRadius, Typography, CategoryColors, Hairline } from '../config';
 import { SaveItem, getDisplayTitle } from '../types';
-import { apiService } from '../services/api';
+import { apiService, APIError } from '../services/api';
 import { LibraryStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
 import { AnimatedPressable, AnimatedListItem, Skeleton, SkeletonVideoCard, AnimatedText } from '../components';
@@ -67,14 +67,21 @@ export default function LibraryScreen({ navigation }: Props) {
   const [items, setItems] = useState<SaveItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loadItems = useCallback(async () => {
     try {
+      setError(null);
       const allItems = await apiService.getItems();
       const readyItems = allItems.filter(item => item.status === 'ready');
       setItems(readyItems);
-    } catch (error) {
-      console.error('Failed to load items:', error);
+    } catch (err) {
+      console.error('Failed to load items:', err);
+      if (err instanceof APIError) {
+        setError(err.message);
+      } else {
+        setError('Failed to load your library. Please try again.');
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -149,6 +156,46 @@ export default function LibraryScreen({ navigation }: Props) {
     );
   }
 
+  // Error state
+  if (error && items.length === 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>Library</AnimatedText>
+        </View>
+        <Animated.View
+          entering={FadeIn.duration(150)}
+          style={styles.emptyContainer}
+        >
+          <View style={[styles.emptyIconWrapper, { backgroundColor: colors.errorSubtle }]}>
+            <Ionicons name="cloud-offline-outline" size={32} color={colors.error} />
+          </View>
+          <AnimatedText delay={100} style={[styles.emptyTitle, { color: colors.text }]}>
+            Unable to load library
+          </AnimatedText>
+          <AnimatedText delay={200} style={[styles.emptySubtitle, { color: colors.textTertiary }]}>
+            {error}
+          </AnimatedText>
+          <AnimatedPressable
+            style={[styles.importButton, { borderColor: colors.border }]}
+            onPress={() => {
+              setIsLoading(true);
+              loadItems();
+            }}
+            haptic
+            accessibilityLabel="Retry loading library"
+            accessibilityRole="button"
+          >
+            <Ionicons name="refresh" size={18} color={colors.text} />
+            <Text style={[styles.importButtonText, { color: colors.text }]}>
+              Try again
+            </Text>
+          </AnimatedPressable>
+        </Animated.View>
+      </View>
+    );
+  }
+
   // Empty state
   if (items.length === 0) {
     return (
@@ -173,6 +220,9 @@ export default function LibraryScreen({ navigation }: Props) {
             style={[styles.importButton, { borderColor: colors.border }]}
             onPress={() => navigation.navigate('AddVideo')}
             haptic
+            accessibilityLabel="Import videos"
+            accessibilityHint="Open the add video screen to import TikTok videos"
+            accessibilityRole="button"
           >
             <Ionicons name="add" size={18} color={colors.text} />
             <Text style={[styles.importButtonText, { color: colors.text }]}>
@@ -294,6 +344,7 @@ function VideoCard({
   onPlayPress: () => void;
 }) {
   const { colors } = useTheme();
+  const title = getDisplayTitle(item);
 
   return (
     <View style={styles.videoCard}>
@@ -302,12 +353,16 @@ function VideoCard({
         style={styles.thumbnailWrapper}
         onPress={onPlayPress}
         scaleOnPress={0.98}
+        accessibilityLabel={`Play ${title} in TikTok`}
+        accessibilityHint="Opens the video in the TikTok app"
+        accessibilityRole="button"
       >
         {item.thumbnailURL ? (
           <Image
             source={{ uri: item.thumbnailURL, cache: 'force-cache' }}
             style={styles.thumbnail}
             resizeMode="cover"
+            accessibilityIgnoresInvertColors
           />
         ) : (
           <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.accentSubtle }]}>
@@ -317,7 +372,7 @@ function VideoCard({
 
         {/* Duration Badge */}
         {item.duration && (
-          <View style={styles.durationBadge}>
+          <View style={styles.durationBadge} accessibilityLabel={`Duration: ${Math.floor(item.duration / 60)} minutes ${Math.floor(item.duration % 60)} seconds`}>
             <Text style={styles.durationText}>
               {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
             </Text>
@@ -331,9 +386,11 @@ function VideoCard({
         onPress={onPress}
         noScale
         opacityOnPress={0.6}
+        accessibilityLabel={`View details for ${title}${item.creatorUsername ? ` by @${item.creatorUsername}` : ''}`}
+        accessibilityRole="button"
       >
         <Text style={[styles.videoTitle, { color: colors.text }]} numberOfLines={2}>
-          {getDisplayTitle(item)}
+          {title}
         </Text>
         {item.creatorUsername && (
           <Text style={[styles.creatorName, { color: colors.textTertiary }]}>

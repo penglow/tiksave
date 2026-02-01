@@ -14,11 +14,11 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Spacing, BorderRadius, Typography, Hairline } from '../config';
 import { SaveItem, getDisplayTitle, isLoadingStatus } from '../types';
-import { apiService } from '../services/api';
+import { apiService, APIError } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import { InboxStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
-import { AnimatedPressable, AnimatedListItem } from '../components';
+import { AnimatedPressable, AnimatedListItem, AnimatedText } from '../components';
 import MoveFolderModal from '../components/MoveFolderModal';
 import { formatTimeAgo } from '../utils/date';
 
@@ -32,11 +32,14 @@ export default function InboxScreen({ navigation }: Props) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SaveItem | null>(null);
   const [showMoveModal, setShowMoveModal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isMoving, setIsMoving] = useState(false);
 
   const setUnreadInboxCount = useAppStore((state) => state.setUnreadInboxCount);
 
   const loadItems = useCallback(async () => {
     try {
+      setError(null);
       const allItems = await apiService.getItems();
       const sorted = allItems.sort(
         (a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
@@ -45,8 +48,13 @@ export default function InboxScreen({ navigation }: Props) {
 
       const needsReviewCount = sorted.filter((item) => item.status === 'needs_review').length;
       setUnreadInboxCount(needsReviewCount);
-    } catch (error) {
-      console.error('Failed to load items:', error);
+    } catch (err) {
+      console.error('Failed to load items:', err);
+      if (err instanceof APIError) {
+        setError(err.message);
+      } else {
+        setError('Failed to load inbox. Please try again.');
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -66,13 +74,22 @@ export default function InboxScreen({ navigation }: Props) {
 
   const handleMoveItem = async (folderId: string | null) => {
     if (!selectedItem) return;
+    setIsMoving(true);
     try {
       await apiService.moveItemToFolder(selectedItem.id, folderId);
       setShowMoveModal(false);
       setSelectedItem(null);
       loadItems();
-    } catch (error) {
-      console.error('Failed to move item:', error);
+    } catch (err) {
+      console.error('Failed to move item:', err);
+      // Show error inline - don't close modal
+      if (err instanceof APIError) {
+        setError(err.message);
+      } else {
+        setError('Failed to move item. Please try again.');
+      }
+    } finally {
+      setIsMoving(false);
     }
   };
 
@@ -86,6 +103,45 @@ export default function InboxScreen({ navigation }: Props) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="small" color={colors.text} />
+      </View>
+    );
+  }
+
+  // Error state
+  if (error && items.length === 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Inbox</Text>
+        </View>
+        <Animated.View
+          entering={FadeIn.duration(150)}
+          style={styles.emptyContainer}
+        >
+          <View style={[styles.emptyIconWrapper, { backgroundColor: colors.errorSubtle }]}>
+            <Ionicons name="cloud-offline-outline" size={32} color={colors.error} />
+          </View>
+          <AnimatedText delay={100} style={[styles.emptyTitle, { color: colors.text }]}>
+            Unable to load inbox
+          </AnimatedText>
+          <AnimatedText delay={200} style={[styles.emptySubtitle, { color: colors.textTertiary }]}>
+            {error}
+          </AnimatedText>
+          <AnimatedPressable
+            style={[styles.retryButton, { borderColor: colors.border }]}
+            onPress={() => {
+              setIsLoading(true);
+              loadItems();
+            }}
+            accessibilityLabel="Retry loading inbox"
+            accessibilityRole="button"
+          >
+            <Ionicons name="refresh" size={18} color={colors.text} />
+            <Text style={[styles.retryButtonText, { color: colors.text }]}>
+              Try again
+            </Text>
+          </AnimatedPressable>
+        </Animated.View>
       </View>
     );
   }
@@ -321,6 +377,19 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     ...Typography.body,
     textAlign: 'center',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+  },
+  retryButtonText: {
+    ...Typography.bodyStrong,
   },
   section: {
     marginBottom: Spacing.lg,

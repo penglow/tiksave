@@ -6,7 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { StyleSheet, useColorScheme } from 'react-native';
 import * as Linking from 'expo-linking';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing, runOnJS } from 'react-native-reanimated';
+// Note: Animated import kept for potential future theme transitions
 
 import RootNavigator from './src/navigation/RootNavigator';
 import { Colors, getThemeColors } from './src/config';

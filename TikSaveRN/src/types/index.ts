@@ -218,6 +218,7 @@ export type SearchMode = 'semantic' | 'keyword';
 export interface ItemsResponse {
   items: SaveItem[];
   total?: number;
+  pagination?: PaginationInfo;
 }
 
 export interface FoldersResponse {
@@ -227,5 +228,24 @@ export interface FoldersResponse {
 export interface UploadURLResponse {
   uploadURL: string;
   expiresAt: string;
+}
+
+// Pagination Types (added 2026-02-01)
+export interface PaginationInfo {
+  nextCursor: string | null;
+  prevCursor: string | null;
+  hasMore: boolean;
+}
+
+export interface PaginationParams {
+  cursor?: string;
+  limit?: number;
+  direction?: 'next' | 'prev';
+}
+
+// Legacy offset-based pagination (for backward compatibility)
+export interface OffsetPaginationParams {
+  limit?: number;
+  offset?: number;
 }
 

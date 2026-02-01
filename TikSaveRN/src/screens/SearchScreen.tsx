@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { Spacing, BorderRadius, Typography, Hairline } from '../config';
 import { SaveItem, SearchMode, getDisplayTitle } from '../types';
-import { apiService } from '../services/api';
+import { apiService, APIError } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import { SearchStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
@@ -40,68 +40,108 @@ export default function SearchScreen({ navigation }: Props) {
   const [searchMode, setSearchMode] = useState<SearchMode>('semantic');
   const [results, setResults] = useState<SaveItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
+  const searchIdRef = useRef(0); // Track search requests to handle race conditions
 
   const { recentSearches, addRecentSearch, clearRecentSearches } = useAppStore();
 
-  // Refactor: split search logic
-  const performSearch = async (query: string) => {
+  // Memoized search function to prevent stale closures
+  const performSearch = useCallback(async (query: string, mode: SearchMode, searchId: number) => {
     if (!query.trim()) {
       setResults([]);
+      setError(null);
       return;
     }
 
     setIsLoading(true);
+    setError(null);
 
     try {
-      const data = await apiService.search(query, searchMode === 'semantic');
-      // Only update results if the query matches current text to avoid race conditions
-      // (Simple check - more robust would be request ID, but sticky effect is usually enough)
-      setResults(data);
-    } catch (error) {
-      console.error('Search failed:', error);
-      setResults([]);
+      const data = await apiService.search(query, mode === 'semantic');
+      // Only update results if this is still the latest search
+      if (searchId === searchIdRef.current) {
+        setResults(data);
+      }
+    } catch (err) {
+      console.error('Search failed:', err);
+      // Only update error if this is still the latest search
+      if (searchId === searchIdRef.current) {
+        if (err instanceof APIError) {
+          setError(err.message);
+        } else {
+          setError('Search failed. Please try again.');
+        }
+        setResults([]);
+      }
     } finally {
-      setIsLoading(false);
+      if (searchId === searchIdRef.current) {
+        setIsLoading(false);
+        setIsTyping(false);
+      }
     }
-  };
+  }, []);
 
-  const handleSearch = async (query?: string) => {
+  const handleSearch = useCallback(async (query?: string) => {
     const searchQuery = query || searchText;
     if (!searchQuery.trim()) return;
 
     Keyboard.dismiss();
+    searchIdRef.current += 1;
+    const currentSearchId = searchIdRef.current;
     // Immediate search on submit
-    await performSearch(searchQuery);
+    await performSearch(searchQuery, searchMode, currentSearchId);
     addRecentSearch(searchQuery);
-  };
+  }, [searchText, searchMode, performSearch, addRecentSearch]);
 
-  // Debounced search effect
+  // Debounced search effect with proper cleanup
   useEffect(() => {
+    let isMounted = true;
+    
+    // Show typing indicator immediately
+    if (searchText.trim()) {
+      setIsTyping(true);
+    }
+
     const timer = setTimeout(() => {
+      if (!isMounted) return;
+      
+      searchIdRef.current += 1;
+      const currentSearchId = searchIdRef.current;
+      
       if (searchText.trim()) {
-        performSearch(searchText);
+        performSearch(searchText, searchMode, currentSearchId);
       } else {
         setResults([]);
+        setError(null);
+        setIsTyping(false);
       }
-    }, 500);
+    }, 300); // Reduced from 500ms for better responsiveness
 
-    return () => clearTimeout(timer);
-  }, [searchText, searchMode]);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [searchText, searchMode, performSearch]);
 
-  const handleClear = () => {
+  const handleClear = useCallback(() => {
     setSearchText('');
     setResults([]);
-  };
+    setError(null);
+    setIsTyping(false);
+  }, []);
 
-  const handleModeChange = (mode: SearchMode) => {
+  const handleModeChange = useCallback((mode: SearchMode) => {
     setSearchMode(mode);
+    setError(null);
     // Effect will trigger search
-  };
+  }, []);
 
-  const showInitialState = !searchText && results.length === 0 && !isLoading;
-  const showNoResults = searchText && results.length === 0 && !isLoading;
+  const showInitialState = !searchText && results.length === 0 && !isLoading && !error;
+  const showNoResults = searchText && results.length === 0 && !isLoading && !error;
+  const showError = error && !isLoading;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
@@ -115,6 +155,10 @@ export default function SearchScreen({ navigation }: Props) {
         <View style={[styles.searchInputContainer, { borderColor: colors.border }]}>
           {isLoading ? (
             <ActivityIndicator size="small" color={colors.textQuaternary} />
+          ) : isTyping ? (
+            <View style={styles.typingIndicator}>
+              <View style={[styles.typingDot, { backgroundColor: colors.textQuaternary }]} />
+            </View>
           ) : (
             <Ionicons name="search" size={16} color={colors.textQuaternary} />
           )}
@@ -131,9 +175,15 @@ export default function SearchScreen({ navigation }: Props) {
             returnKeyType="search"
             autoCapitalize="none"
             autoCorrect={false}
+            accessibilityLabel="Search videos"
+            accessibilityHint="Enter keywords to search your saved videos"
           />
           {searchText.length > 0 && (
-            <AnimatedPressable onPress={handleClear}>
+            <AnimatedPressable 
+              onPress={handleClear}
+              accessibilityLabel="Clear search"
+              accessibilityRole="button"
+            >
               <Ionicons name="close-circle" size={16} color={colors.textQuaternary} />
             </AnimatedPressable>
           )}
@@ -146,6 +196,8 @@ export default function SearchScreen({ navigation }: Props) {
               Keyboard.dismiss();
               handleClear();
             }}
+            accessibilityLabel="Cancel search"
+            accessibilityRole="button"
           >
             <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
               Cancel
@@ -181,6 +233,28 @@ export default function SearchScreen({ navigation }: Props) {
       {isLoading && results.length === 0 ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="small" color={colors.text} />
+          <Text style={[styles.loadingText, { color: colors.textTertiary }]}>
+            {searchMode === 'semantic' ? 'Understanding your query...' : 'Searching...'}
+          </Text>
+        </View>
+      ) : showError ? (
+        <View style={styles.centerContainer}>
+          <Ionicons name="cloud-offline-outline" size={32} color={colors.error} />
+          <AnimatedText delay={100} style={[styles.errorTitle, { color: colors.text }]}>
+            Search failed
+          </AnimatedText>
+          <AnimatedText delay={200} style={[styles.errorSubtitle, { color: colors.textTertiary }]}>
+            {error}
+          </AnimatedText>
+          <AnimatedPressable
+            style={[styles.retryButton, { borderColor: colors.border }]}
+            onPress={() => handleSearch()}
+            accessibilityLabel="Retry search"
+            accessibilityRole="button"
+          >
+            <Ionicons name="refresh" size={16} color={colors.text} />
+            <Text style={[styles.retryButtonText, { color: colors.text }]}>Retry</Text>
+          </AnimatedPressable>
         </View>
       ) : showInitialState ? (
         <ScrollView
@@ -442,6 +516,44 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: Spacing.xl,
+  },
+  loadingText: {
+    ...Typography.caption,
+    marginTop: Spacing.sm,
+  },
+  typingIndicator: {
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    opacity: 0.6,
+  },
+  errorTitle: {
+    ...Typography.headingSm,
+    marginTop: Spacing.md,
+  },
+  errorSubtitle: {
+    ...Typography.caption,
+    marginTop: Spacing.xs,
+    textAlign: 'center',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+  },
+  retryButtonText: {
+    ...Typography.captionStrong,
   },
   noResultsTitle: {
     ...Typography.headingSm,
