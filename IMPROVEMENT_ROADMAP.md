@@ -6,7 +6,7 @@
 **Goal**: Show users exactly what's happening during import
 
 **Step 1.1: Update Processing Pipeline**
-- [ ] Add processing stage tracking to save_items table
+- [x] Add processing stage tracking to save_items table
 ```sql
 ALTER TABLE save_items ADD COLUMN processing_stage VARCHAR(50);
 ALTER TABLE save_items ADD COLUMN processing_progress INT DEFAULT 0;
@@ -27,14 +27,14 @@ export const ProcessingStages = {
 ```
 
 **Step 1.3: Update Worker to Report Progress**
-- [ ] Modify videoProcessor.ts to update stage every major step
-- [ ] Add WebSocket or polling endpoint for real-time updates
-- [ ] Update processItemNow in items.ts to broadcast progress
+- [x] Modify videoProcessor.ts to update stage every major step
+- [x] Add WebSocket or polling endpoint for real-time updates
+- [x] Update processItemNow in items.ts to broadcast progress
 
 **Step 1.4: Frontend Progress UI**
-- [ ] Create ProcessingProgress component
-- [ ] Add progress bar with stage labels
-- [ ] Implement real-time status polling (every 500ms)
+- [x] Create ProcessingProgress component
+- [x] Add progress bar with stage labels
+- [x] Implement real-time status polling (every 500ms)
 - [ ] Add cancel button during processing
 
 **Estimated Time**: 2-3 days
@@ -45,7 +45,7 @@ export const ProcessingStages = {
 **Goal**: Allow importing multiple videos at once
 
 **Step 2.1: Backend Batch API**
-- [ ] Create POST /items/batch endpoint
+- [x] Create POST /items/batch endpoint
 ```typescript
 // Request
 {
@@ -66,20 +66,20 @@ export const ProcessingStages = {
 ```
 
 **Step 2.2: Batch Processing Queue**
-- [ ] Create dedicated BullMQ queue for batch jobs
-- [ ] Implement batch job processor with concurrency control
-- [ ] Add batch status tracking endpoint GET /items/batch/:id
+- [x] Create dedicated BullMQ queue for batch jobs
+- [x] Implement batch job processor with concurrency control
+- [x] Add batch status tracking endpoint GET /items/batch/:id
 
 **Step 2.3: Frontend Multi-URL Input**
-- [ ] Replace single URL input with textarea supporting multiple URLs
-- [ ] Add URL validation and preview count
-- [ ] Show batch progress with individual item status
-- [ ] Add "Import from clipboard" button with multi-URL detection
+- [x] Replace single URL input with textarea supporting multiple URLs
+- [x] Add URL validation and preview count
+- [x] Show batch progress with individual item status
+- [x] Add "Import from clipboard" button with multi-URL detection
 
 **Step 2.4: Duplicate Detection Enhancement**
-- [ ] Check all URLs against existing items
-- [ ] Show duplicates before importing with option to skip
-- [ ] Store URL hash for faster duplicate checks
+- [x] Check all URLs against existing items
+- [x] Show duplicates before importing with option to skip
+- [x] Store URL hash for faster duplicate checks
 
 **Estimated Time**: 3-4 days
 
@@ -89,13 +89,13 @@ export const ProcessingStages = {
 **Goal**: Auto-detect TikTok URLs when app opens
 
 **Step 3.1: Clipboard Monitoring Service**
-- [ ] Create clipboardService.ts
-- [ ] Check clipboard on app foreground
-- [ ] Parse multiple TikTok URL formats (vm.tiktok, tiktok.com/@user/video, etc.)
-- [ ] Cache last checked clipboard content to avoid re-processing
+- [x] Create clipboardService.ts
+- [x] Check clipboard on app foreground
+- [x] Parse multiple TikTok URL formats (vm.tiktok, tiktok.com/@user/video, etc.)
+- [x] Cache last checked clipboard content to avoid re-processing
 
 **Step 3.2: Smart Suggestion UI**
-- [ ] Show "Import from clipboard?" modal when URLs detected
+- [x] Show "Import from clipboard?" modal when URLs detected
 - [ ] Preview video thumbnails before importing
 - [ ] One-tap import from notification/quick action
 
@@ -114,7 +114,7 @@ export const ProcessingStages = {
 **Goal**: Load videos incrementally instead of all at once
 
 **Step 1.1: Backend Pagination API**
-- [ ] Update GET /items to support cursor-based pagination
+- [x] Update GET /items to support cursor-based pagination
 ```typescript
 // Query parameters
 {
@@ -140,14 +140,14 @@ export const ProcessingStages = {
 - [ ] Support filtering by category
 
 **Step 1.3: Frontend Pagination State**
-- [ ] Create usePaginatedItems hook
-- [ ] Implement infinite scroll with react-native-infinite-scroll
-- [ ] Add pull-to-refresh support
+- [x] Create usePaginatedItems hook
+- [x] Implement infinite scroll with FlashList
+- [x] Add pull-to-refresh support
 - [ ] Cache pages in React Query or Zustand
 
 **Step 1.4: UI Updates**
-- [ ] Add loading spinner at bottom during fetch
-- [ ] Show "Load more" button as fallback
+- [x] Add loading spinner at bottom during fetch
+- [x] Show "Load more" button as fallback
 - [ ] Implement smooth scroll preservation
 
 **Estimated Time**: 4-5 days
@@ -158,17 +158,17 @@ export const ProcessingStages = {
 **Goal**: Render only visible items for smooth scrolling
 
 **Step 2.1: Install Dependencies**
-- [ ] Add @shopify/flash-list for better performance
+- [x] Add @shopify/flash-list for better performance
 - [ ] OR implement custom virtualization with react-native-reanimated
 
 **Step 2.2: Refactor LibraryScreen**
-- [ ] Replace ScrollView with FlashList
-- [ ] Calculate item heights dynamically
+- [x] Replace ScrollView with FlashList
+- [x] Calculate item heights dynamically (estimatedItemSize)
 - [ ] Implement getItemLayout for optimization
 
 **Step 2.3: Category Section Virtualization**
-- [ ] Create VirtualizedCategoryList component
-- [ ] Render only visible categories
+- [x] Create VirtualizedCategoryList component (CategorySection)
+- [x] Render only visible categories
 - [ ] Lazy-load category contents
 
 **Step 2.4: Image Optimization**
@@ -184,7 +184,7 @@ export const ProcessingStages = {
 **Goal**: Update UI immediately before API confirmation
 
 **Step 3.1: Optimistic Update Utilities**
-- [ ] Create optimisticUpdate.ts utility
+- [x] Create optimisticUpdate.ts utility
 ```typescript
 export async function optimisticUpdate<T>({
   mutate,      // API call
@@ -196,19 +196,19 @@ export async function optimisticUpdate<T>({
 ```
 
 **Step 3.2: Move Folder Operation**
-- [ ] Update moveItemToFolder to use optimistic updates
-- [ ] Show item moving to new folder immediately
-- [ ] Rollback with animation if API fails
+- [x] Update moveItemToFolder to use optimistic updates
+- [x] Show item moving to new folder immediately
+- [x] Rollback with animation if API fails
 
 **Step 3.3: Delete Operation**
-- [ ] Fade out item immediately on delete
-- [ ] Show undo toast for 5 seconds
-- [ ] Permanent delete after undo period
+- [x] Fade out item immediately on delete
+- [x] Show undo toast for 5 seconds (UndoToast component)
+- [x] Permanent delete after undo period
 
 **Step 3.4: Create Item Operation**
-- [ ] Show placeholder card while processing
-- [ ] Replace with real data when ready
-- [ ] Handle processing errors gracefully
+- [x] Show placeholder card while processing (ProcessingProgress)
+- [x] Replace with real data when ready
+- [x] Handle processing errors gracefully
 
 **Estimated Time**: 2-3 days
 
@@ -304,6 +304,7 @@ const CacheTTL = {
 **Goal**: Protect API from abuse
 
 **Step 3.1: Rate Limiting Middleware**
+- [x] Implemented in index.ts
 ```typescript
 // Middleware: middleware/rateLimiter.ts
 const rateLimits = {
@@ -314,19 +315,19 @@ const rateLimits = {
 ```
 
 **Step 3.2: Per-User Rate Limiting**
-- [ ] Implement token bucket algorithm
-- [ ] Store counters in Redis
-- [ ] Return 429 with Retry-After header
+- [x] Implement token bucket algorithm
+- [x] Store counters in Redis
+- [x] Return 429 with Retry-After header
 
 **Step 3.3: Input Validation**
-- [ ] Add stricter URL validation (validate TikTok domains)
-- [ ] Sanitize all user inputs
-- [ ] Validate file uploads (size, type)
+- [x] Add stricter URL validation (validate TikTok domains)
+- [x] Sanitize all user inputs
+- [x] Validate file uploads (size, type)
 
 **Step 3.4: Security Headers**
-- [ ] Add helmet.js for security headers
-- [ ] Configure CORS properly
-- [ ] Add request ID tracking
+- [x] Add helmet.js for security headers
+- [x] Configure CORS properly
+- [x] Add request ID tracking
 
 **Estimated Time**: 2-3 days
 
@@ -430,21 +431,21 @@ USING gin(to_tsvector('english',
    ON save_items(user_id, status, created_at DESC);
    ```
 
-2. **Add API Response Compression** (30 minutes)
+2. **Add API Response Compression** (30 minutes) ✅ DONE
    ```typescript
    // In index.ts
    import compression from 'compression';
    app.use(compression());
    ```
 
-3. **Add Basic Rate Limiting** (1 hour)
+3. **Add Basic Rate Limiting** (1 hour) ✅ DONE
    ```typescript
    import rateLimit from 'express-rate-limit';
    const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
    app.use('/api/', limiter);
    ```
 
-4. **Add Health Check Endpoint** (15 minutes)
+4. **Add Health Check Endpoint** (15 minutes) ✅ DONE
    ```typescript
    app.get('/health', async (req, res) => {
      const dbHealthy = await checkDatabase();
@@ -458,7 +459,7 @@ USING gin(to_tsvector('english',
    });
    ```
 
-5. **Add Request Logging** (30 minutes)
+5. **Add Request Logging** (30 minutes) ✅ DONE
    ```typescript
    app.use((req, res, next) => {
      const start = Date.now();
