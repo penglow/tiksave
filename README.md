@@ -22,7 +22,6 @@ A mobile app that organizes your saved TikTok videos with AI-powered categorizat
 
 ### Prerequisites
 - Bun
-- Node.js
 - Docker Desktop
 
 ### Setup
