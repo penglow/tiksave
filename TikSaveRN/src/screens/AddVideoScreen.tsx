@@ -85,9 +85,76 @@ export default function AddVideoScreen({ navigation }: Props) {
     }
   };
 
+  const handleBatchImport = async () => {
+    const urls = manualUrl
+      .split(/\n/)
+      .map(url => url.trim())
+      .filter(url => url.length > 0);
+
+    if (urls.length === 0) {
+      if (Platform.OS === 'web') {
+        window.alert('Please enter at least one URL');
+      } else {
+        Alert.alert('No URLs', 'Please enter at least one URL');
+      }
+      return;
+    }
+
+    // Validate all URLs
+    const invalidUrls = urls.filter(
+      url => !url.includes('tiktok.com') && !url.includes('vm.tiktok')
+    );
+
+    if (invalidUrls.length > 0) {
+      if (Platform.OS === 'web') {
+        window.alert(`Invalid URLs found: ${invalidUrls.join(', ')}`);
+      } else {
+        Alert.alert('Invalid URLs', `Found ${invalidUrls.length} invalid URL(s)`);
+      }
+      return;
+    }
+
+    setIsImporting(true);
+    setImportStatus('idle');
+
+    try {
+      const result = await apiService.batchCreateSaveItems(urls, {
+        skipDuplicates: true,
+        autoOrganize: true,
+      });
+
+      const message = `${result.queued} queued, ${result.duplicates} duplicates, ${result.errors} errors`;
+      
+      setImportStatus('success');
+      setManualUrl('');
+
+      if (Platform.OS === 'web') {
+        window.alert(`Import successful! ${message}`);
+      }
+
+      setTimeout(() => {
+        try {
+          (navigation as any).navigate('LibraryMain');
+        } catch {
+          navigation.goBack();
+        }
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to batch import:', error);
+      setImportStatus('error');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const handleManualImport = () => {
     if (manualUrl.trim()) {
-      handleImport(manualUrl.trim());
+      // Check if multiple URLs (contains newlines)
+      if (manualUrl.includes('\n')) {
+        handleBatchImport();
+      } else {
+        handleImport(manualUrl.trim());
+      }
     }
   };
 
@@ -148,20 +215,21 @@ export default function AddVideoScreen({ navigation }: Props) {
           <AnimatedListItem index={0} direction="fade">
             <View style={styles.inputSection}>
               <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>
-                PASTE TIKTOK URL
+                PASTE TIKTOK URLS (ONE PER LINE)
               </Text>
-              <View style={[styles.inputWrapper, { borderColor: colors.border }]}>
+              <View style={[styles.inputWrapper, { borderColor: colors.border, minHeight: 100 }]}>
                 <TextInput
-                  style={[styles.input, { color: colors.text }]}
-                  placeholder="https://tiktok.com/..."
+                  style={[styles.input, styles.multilineInput, { color: colors.text }]}
+                  placeholder="https://tiktok.com/...&#10;https://tiktok.com/...&#10;https://tiktok.com/..."
                   placeholderTextColor={colors.textQuaternary}
                   value={manualUrl}
                   onChangeText={setManualUrl}
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="url"
-                  returnKeyType="go"
-                  onSubmitEditing={handleManualImport}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
                 />
                 {manualUrl.length > 0 && (
                   <AnimatedPressable
@@ -172,6 +240,13 @@ export default function AddVideoScreen({ navigation }: Props) {
                   </AnimatedPressable>
                 )}
               </View>
+              
+              {/* URL Count Indicator */}
+              {manualUrl.length > 0 && (
+                <Text style={[styles.urlCount, { color: colors.textTertiary }]}>
+                  {manualUrl.split(/\n/).filter(url => url.trim().length > 0).length} URL(s)
+                </Text>
+              )}
 
               <AnimatedPressable
                 style={[
