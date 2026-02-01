@@ -77,9 +77,19 @@ export async function initializeDatabase() {
         longitude DECIMAL(11, 8),
         location_name VARCHAR(255),
         address TEXT,
+        deleted_at TIMESTAMP DEFAULT NULL,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
+    `);
+
+    // Add deleted_at column if it doesn't exist (migration for existing databases)
+    await client.query(`
+      DO $$ BEGIN
+        ALTER TABLE save_items ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP DEFAULT NULL;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+      END $$;
     `);
 
     // Save item locations table (supports multiple locations per item)
@@ -126,9 +136,16 @@ export async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_save_items_user_id ON save_items(user_id);
       CREATE INDEX IF NOT EXISTS idx_save_items_folder_id ON save_items(folder_id);
       CREATE INDEX IF NOT EXISTS idx_save_items_status ON save_items(status);
+      CREATE INDEX IF NOT EXISTS idx_save_items_created_at ON save_items(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_folders_user_id ON folders(user_id);
       CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id);
       CREATE INDEX IF NOT EXISTS idx_training_examples_user_id ON training_examples(user_id);
+    `);
+
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_folders_root_unique
+      ON folders(user_id, name)
+      WHERE parent_id IS NULL;
     `);
 
     await client.query(`
