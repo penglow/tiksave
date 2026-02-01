@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,9 @@ import {
   RefreshControl,
   Image,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,9 +17,10 @@ import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 
 import { Spacing, BorderRadius, Typography, CategoryColors, Hairline } from '../config';
 import { SaveItem, getDisplayTitle } from '../types';
-import { apiService, APIError } from '../services/api';
+import { APIError } from '../services/api';
 import { LibraryStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
+import { usePaginatedItems } from '../hooks/usePaginatedItems';
 import { AnimatedPressable, AnimatedListItem, Skeleton, SkeletonVideoCard, AnimatedText } from '../components';
 
 type Props = LibraryStackScreenProps<'LibraryMain'>;
@@ -64,40 +67,34 @@ function getCategoryColor(topic: string): string {
 export default function LibraryScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const [items, setItems] = useState<SaveItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  
+  // Use paginated items hook for efficient data loading
+  const {
+    items,
+    isLoading,
+    isLoadingMore,
+    hasMore,
+    error,
+    loadItems,
+    loadMore,
+    refresh,
+  } = usePaginatedItems({ status: 'ready', limit: 50 });
 
-  const loadItems = useCallback(async () => {
-    try {
-      setError(null);
-      const allItems = await apiService.getItems();
-      const readyItems = allItems.filter(item => item.status === 'ready');
-      setItems(readyItems);
-    } catch (err) {
-      console.error('Failed to load items:', err);
-      if (err instanceof APIError) {
-        setError(err.message);
-      } else {
-        setError('Failed to load your library. Please try again.');
-      }
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, []);
-
+  // Load items on mount/focus
   useFocusEffect(
     useCallback(() => {
-      loadItems();
-    }, [loadItems])
+      if (items.length === 0) {
+        loadItems();
+      }
+    }, [loadItems, items.length])
   );
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    loadItems();
-  };
+    await loadItems();
+    setIsRefreshing(false);
+  }, [loadItems]);
 
   // Group items by AI-detected topics
   const categories = useMemo(() => {
@@ -133,8 +130,44 @@ export default function LibraryScreen({ navigation }: Props) {
     return result.sort((a, b) => b.items.length - a.items.length);
   }, [items]);
 
+  // Render category item for FlashList
+  const renderCategory = useCallback(({ item: category, index }: { item: AICategory; index: number }) => (
+    <CategorySection
+      category={category}
+      index={index}
+      navigation={navigation}
+    />
+  ), [navigation]);
+
+  // Footer component for loading more
+  const ListFooter = useCallback(() => {
+    if (isLoadingMore) {
+      return (
+        <View style={styles.loadingMoreContainer}>
+          <ActivityIndicator size="small" color={colors.textTertiary} />
+          <Text style={[styles.loadingMoreText, { color: colors.textTertiary }]}>
+            Loading more...
+          </Text>
+        </View>
+      );
+    }
+    if (hasMore) {
+      return (
+        <AnimatedPressable
+          style={[styles.loadMoreButton, { borderColor: colors.border }]}
+          onPress={loadMore}
+        >
+          <Text style={[styles.loadMoreText, { color: colors.text }]}>
+            Load more
+          </Text>
+        </AnimatedPressable>
+      );
+    }
+    return <View style={{ height: Spacing.xxl }} />;
+  }, [isLoadingMore, hasMore, loadMore, colors]);
+
   // Loading state
-  if (isLoading) {
+  if (isLoading && items.length === 0) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={styles.header}>
@@ -178,10 +211,7 @@ export default function LibraryScreen({ navigation }: Props) {
           </AnimatedText>
           <AnimatedPressable
             style={[styles.importButton, { borderColor: colors.border }]}
-            onPress={() => {
-              setIsLoading(true);
-              loadItems();
-            }}
+            onPress={loadItems}
             haptic
             accessibilityLabel="Retry loading library"
             accessibilityRole="button"
@@ -244,10 +274,14 @@ export default function LibraryScreen({ navigation }: Props) {
         </Text>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      {/* Virtualized Category List */}
+      <FlashList
+        data={categories}
+        renderItem={renderCategory}
+        estimatedItemSize={250}
+        keyExtractor={(item) => item.name}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.3}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -255,84 +289,92 @@ export default function LibraryScreen({ navigation }: Props) {
             tintColor={colors.text}
           />
         }
-      >
-        {categories.map((category, categoryIndex) => (
-          <AnimatedListItem
-            key={category.name}
-            index={categoryIndex}
-            direction="fade"
-            style={styles.categorySection}
-          >
-            {/* Category Header */}
-            <AnimatedPressable
-              style={styles.categoryHeader}
-              onPress={() => navigation.navigate('CategoryDetail', {
-                categoryName: category.name,
-                icon: '',
-                color: category.color,
-              })}
-            >
-              <View style={styles.categoryTitleRow}>
-                <Text style={[styles.categoryName, { color: colors.text }]}>
-                  {category.name}
-                </Text>
-                <View style={[styles.categoryDot, { backgroundColor: category.color }]} />
-              </View>
-              <View style={styles.categoryMeta}>
-                <Text style={[styles.categoryCount, { color: colors.textTertiary }]}>
-                  {category.items.length} videos
-                </Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.textQuaternary} />
-              </View>
-            </AnimatedPressable>
-
-            {/* Video Row */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.videoRow}
-            >
-              {category.items.slice(0, 6).map((item, itemIndex) => (
-                <VideoCard
-                  key={item.id}
-                  item={item}
-                  index={itemIndex}
-                  onPress={() => navigation.navigate('VideoDetail', { item })}
-                  onPlayPress={() => item.sourceURL && Linking.openURL(item.sourceURL)}
-                />
-              ))}
-
-              {/* See More Card */}
-              {category.items.length > 6 && (
-                <AnimatedPressable
-                  style={[styles.seeMoreCard, { backgroundColor: colors.accentSubtle }]}
-                  onPress={() => navigation.navigate('CategoryDetail', {
-                    categoryName: category.name,
-                    icon: '',
-                    color: category.color,
-                  })}
-                >
-                  <Text style={[styles.seeMoreCount, { color: colors.text }]}>
-                    +{category.items.length - 6}
-                  </Text>
-                  <Text style={[styles.seeMoreLabel, { color: colors.textTertiary }]}>
-                    more
-                  </Text>
-                </AnimatedPressable>
-              )}
-            </ScrollView>
-          </AnimatedListItem>
-        ))}
-
-        {/* Bottom padding */}
-        <View style={{ height: Spacing.xxl }} />
-      </ScrollView>
+        ListFooterComponent={ListFooter}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+      />
     </View>
   );
 }
 
+// Separate component for category section to optimize re-renders
+const CategorySection = React.memo(function CategorySection({
+  category,
+  index,
+  navigation,
+}: {
+  category: AICategory;
+  index: number;
+  navigation: Props['navigation'];
+}) {
+  const { colors } = useTheme();
+
+  return (
+    <View style={styles.categorySection}>
+      {/* Category Header */}
+      <AnimatedPressable
+        style={styles.categoryHeader}
+        onPress={() => navigation.navigate('CategoryDetail', {
+          categoryName: category.name,
+          icon: '',
+          color: category.color,
+        })}
+      >
+        <View style={styles.categoryTitleRow}>
+          <Text style={[styles.categoryName, { color: colors.text }]}>
+            {category.name}
+          </Text>
+          <View style={[styles.categoryDot, { backgroundColor: category.color }]} />
+        </View>
+        <View style={styles.categoryMeta}>
+          <Text style={[styles.categoryCount, { color: colors.textTertiary }]}>
+            {category.items.length} videos
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.textQuaternary} />
+        </View>
+      </AnimatedPressable>
+
+      {/* Video Row - Horizontal scrolling */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.videoRow}
+      >
+        {category.items.slice(0, 6).map((item, itemIndex) => (
+          <VideoCard
+            key={item.id}
+            item={item}
+            index={itemIndex}
+            onPress={() => navigation.navigate('VideoDetail', { item })}
+            onPlayPress={() => item.sourceURL && Linking.openURL(item.sourceURL)}
+          />
+        ))}
+
+        {/* See More Card */}
+        {category.items.length > 6 && (
+          <AnimatedPressable
+            style={[styles.seeMoreCard, { backgroundColor: colors.accentSubtle }]}
+            onPress={() => navigation.navigate('CategoryDetail', {
+              categoryName: category.name,
+              icon: '',
+              color: category.color,
+            })}
+          >
+            <Text style={[styles.seeMoreCount, { color: colors.text }]}>
+              +{category.items.length - 6}
+            </Text>
+            <Text style={[styles.seeMoreLabel, { color: colors.textTertiary }]}>
+              more
+            </Text>
+          </AnimatedPressable>
+        )}
+      </ScrollView>
+    </View>
+  );
+});
+
 // Video Card Component
-function VideoCard({
+const VideoCard = React.memo(function VideoCard({
   item,
   index,
   onPress,
@@ -400,7 +442,7 @@ function VideoCard({
       </AnimatedPressable>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -420,11 +462,30 @@ const styles = StyleSheet.create({
   headerCount: {
     ...Typography.caption,
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
+  listContent: {
     paddingBottom: Spacing.xl,
+  },
+
+  // Loading more
+  loadingMoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  loadingMoreText: {
+    ...Typography.bodySm,
+  },
+  loadMoreButton: {
+    alignItems: 'center',
+    padding: Spacing.md,
+    marginHorizontal: Spacing.md,
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+  },
+  loadMoreText: {
+    ...Typography.bodyStrong,
   },
 
   // Loading state
