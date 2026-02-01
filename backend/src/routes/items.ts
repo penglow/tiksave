@@ -328,24 +328,24 @@ itemsRouter.get('/paginated', async (req, res: Response) => {
       return res.status(400).json({ error: 'Invalid cursor format' });
     }
 
-    // Build base WHERE clause
-    let baseWhere = 'user_id = $1';
+    // Build base WHERE clause (use si. prefix to avoid ambiguity with joined tables)
+    let baseWhere = 'si.user_id = $1';
     const baseParams: (string | number | boolean)[] = [authReq.userId];
     let paramIndex = 2;
     
     // Exclude soft-deleted items unless explicitly requested
     if (includeDeleted !== 'true') {
-      baseWhere += ` AND deleted_at IS NULL`;
+      baseWhere += ` AND si.deleted_at IS NULL`;
     }
 
     if (status) {
-      baseWhere += ` AND status = $${paramIndex}`;
+      baseWhere += ` AND si.status = $${paramIndex}`;
       baseParams.push(String(status));
       paramIndex++;
     }
 
     if (folderId) {
-      baseWhere += ` AND folder_id = $${paramIndex}`;
+      baseWhere += ` AND si.folder_id = $${paramIndex}`;
       baseParams.push(String(folderId));
       paramIndex++;
     }
@@ -353,15 +353,15 @@ itemsRouter.get('/paginated', async (req, res: Response) => {
     // Add cursor condition for efficient pagination
     if (cursorData) {
       const operator = direction === 'next' ? '<' : '>';
-      baseWhere += ` AND (created_at, id) ${operator} ($${paramIndex}, $${paramIndex + 1})`;
+      baseWhere += ` AND (si.created_at, si.id) ${operator} ($${paramIndex}, $${paramIndex + 1})`;
       baseParams.push(cursorData.createdAt, cursorData.id);
       paramIndex += 2;
     }
 
-    // Determine sort order
+    // Determine sort order (use si. prefix for clarity)
     const orderBy = direction === 'next' 
-      ? 'ORDER BY created_at DESC, id DESC'
-      : 'ORDER BY created_at ASC, id ASC';
+      ? 'ORDER BY si.created_at DESC, si.id DESC'
+      : 'ORDER BY si.created_at ASC, si.id ASC';
 
     // Fetch one extra item to determine if there's more data
     const result = await query(
