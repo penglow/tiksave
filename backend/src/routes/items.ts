@@ -10,6 +10,21 @@ import { extractKeywords, extractHashtags } from '../utils/text.js';
 import { analyzeUrlOnly } from '../services/videoIndexer.js';
 import { classifyItem } from '../services/classification.js';
 import { extractLocationQueries, geocodeLocation } from '../services/location.js';
+import { withLock } from '../services/redis.js';
+import { sanitizeUrl, sanitizeUserContent, sanitizeString } from '../utils/sanitize.js';
+import { validateParams, CommonSchemas } from '../middleware/validation.js';
+import {
+  parseCursorPagination,
+  decodeCursor,
+  encodeCursor,
+  processPaginatedResults,
+  type CursorPaginationResult,
+} from '../utils/pagination.js';
+import { 
+  getStageConfig, 
+  getStageDisplayInfo,
+  type ProcessingStage 
+} from '../services/processingStages.js';
 
 export const itemsRouter = Router();
 
@@ -17,6 +32,14 @@ export const itemsRouter = Router();
 const createItemSchema = z.object({
   sourceURL: z.string().url(),
   rawSharedText: z.string().optional(),
+});
+
+const batchCreateSchema = z.object({
+  urls: z.array(z.string().url()).min(1).max(50), // Max 50 URLs per batch
+  options: z.object({
+    skipDuplicates: z.boolean().default(true),
+    autoOrganize: z.boolean().default(true),
+  }).optional(),
 });
 
 const moveToFolderSchema = z.object({
@@ -28,7 +51,17 @@ itemsRouter.post('/', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
 
   try {
-    const { sourceURL, rawSharedText } = createItemSchema.parse(req.body);
+    const parsed = createItemSchema.parse(req.body);
+    
+    // Sanitize user input
+    const sourceURL = sanitizeUrl(parsed.sourceURL);
+    if (!sourceURL) {
+      return res.status(400).json({ error: 'Invalid URL format' });
+    }
+    
+    const rawSharedText = parsed.rawSharedText 
+      ? sanitizeUserContent(parsed.rawSharedText, 5000) 
+      : undefined;
 
     // Check for exact duplicate URL (same URL in last 5 minutes only)
     const duplicate = await query(
@@ -84,46 +117,334 @@ itemsRouter.post('/', async (req, res: Response) => {
   }
 });
 
-// Get items list
+// Batch create items (multiple URLs at once)
+itemsRouter.post('/batch', async (req, res: Response) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+
+  try {
+    const parsed = batchCreateSchema.parse(req.body);
+    const { skipDuplicates = true, autoOrganize = true } = parsed.options || {};
+
+    const results = {
+      total: parsed.urls.length,
+      queued: 0,
+      duplicates: 0,
+      errors: 0,
+      items: [] as Array<{
+        id: string;
+        url: string;
+        status: 'queued' | 'duplicate' | 'error';
+        error?: string;
+      }>,
+    };
+
+    // Process URLs in parallel (with concurrency limit)
+    const concurrencyLimit = 5;
+    const batches = [];
+    
+    for (let i = 0; i < parsed.urls.length; i += concurrencyLimit) {
+      batches.push(parsed.urls.slice(i, i + concurrencyLimit));
+    }
+
+    for (const batch of batches) {
+      const batchPromises = batch.map(async (url) => {
+        try {
+          // Sanitize URL
+          const sourceURL = sanitizeUrl(url);
+          if (!sourceURL) {
+            results.errors++;
+            return {
+              id: '',
+              url,
+              status: 'error' as const,
+              error: 'Invalid URL format',
+            };
+          }
+
+          // Check for duplicates (if enabled)
+          if (skipDuplicates) {
+            const duplicate = await query(
+              `SELECT id FROM save_items 
+               WHERE user_id = $1 AND source_url = $2 
+               AND deleted_at IS NULL`,
+              [authReq.userId, sourceURL]
+            );
+
+            if (duplicate.rows.length > 0) {
+              results.duplicates++;
+              return {
+                id: duplicate.rows[0].id,
+                url: sourceURL,
+                status: 'duplicate' as const,
+              };
+            }
+          }
+
+          // Create new item
+          const result = await query(
+            `INSERT INTO save_items (
+              user_id, source_url, status, detected_topics, detected_labels,
+              processing_stage, processing_progress, processing_message
+            ) VALUES ($1, $2, 'queued', '{}', '{}', 'queued', 5, 'In queue...')
+            RETURNING id`,
+            [authReq.userId, sourceURL]
+          );
+
+          const itemId = result.rows[0].id;
+          results.queued++;
+
+          // Queue for processing (don't wait)
+          addToProcessingQueue({
+            itemId,
+            userId: authReq.userId,
+            sourceURL,
+          }).catch(err => {
+            console.error(`Failed to queue item ${itemId}:`, err);
+          });
+
+          return {
+            id: itemId,
+            url: sourceURL,
+            status: 'queued' as const,
+          };
+        } catch (error) {
+          results.errors++;
+          return {
+            id: '',
+            url,
+            status: 'error' as const,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+        }
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+      results.items.push(...batchResults);
+    }
+
+    res.status(202).json({
+      batchId: `${Date.now()}-${authReq.userId}`,
+      ...results,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ 
+        error: 'Invalid batch request',
+        details: error.errors 
+      });
+    }
+    throw error;
+  }
+});
+
+// Helper to safely parse pagination params
+function parsePaginationParams(limitStr: string, offsetStr: string, maxLimit = 100): { limit: number; offset: number } {
+  const parsedLimit = parseInt(limitStr, 10);
+  const parsedOffset = parseInt(offsetStr, 10);
+  
+  return {
+    limit: Math.max(1, Math.min(maxLimit, isNaN(parsedLimit) ? 50 : parsedLimit)),
+    offset: Math.max(0, isNaN(parsedOffset) ? 0 : parsedOffset),
+  };
+}
+
+// Get items list (excludes soft-deleted items by default)
 itemsRouter.get('/', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
-  const { status, folderId, limit = '50', offset = '0' } = req.query;
+  const { status, folderId, limit = '50', offset = '0', includeDeleted } = req.query;
 
-  let whereClause = 'WHERE user_id = $1';
-  const params: any[] = [authReq.userId];
-  let paramIndex = 2;
+  try {
+    let whereClause = 'WHERE user_id = $1';
+    const params: any[] = [authReq.userId];
+    let paramIndex = 2;
+    
+    // Exclude soft-deleted items unless explicitly requested
+    if (includeDeleted !== 'true') {
+      whereClause += ' AND deleted_at IS NULL';
+    }
 
-  if (status) {
-    whereClause += ` AND status = $${paramIndex}`;
-    params.push(status);
-    paramIndex++;
+    if (status) {
+      whereClause += ` AND status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    if (folderId) {
+      whereClause += ` AND folder_id = $${paramIndex}`;
+      params.push(folderId);
+      paramIndex++;
+    }
+
+    const { limit: parsedLimit, offset: parsedOffset } = parsePaginationParams(
+      limit as string,
+      offset as string
+    );
+    params.push(parsedLimit);
+    params.push(parsedOffset);
+
+    const result = await query(
+      `SELECT * FROM save_items 
+       ${whereClause}
+       ORDER BY created_at DESC
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      params
+    );
+
+    const countResult = await query(
+      `SELECT COUNT(*) FROM save_items ${whereClause}`,
+      params.slice(0, -2)
+    );
+
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    // Add pagination headers
+    res.setHeader('X-Total-Count', total);
+    res.setHeader('X-Limit', parsedLimit);
+    res.setHeader('X-Offset', parsedOffset);
+
+    res.json({
+      items: result.rows.map(formatSaveItem),
+      total,
+    });
+  } catch (error) {
+    console.error('Error fetching items:', error);
+    throw error;
+  }
+});
+
+// Get items with cursor-based pagination (more efficient for large datasets)
+// Query params: cursor (base64), limit (default 20, max 100), direction (next|prev)
+itemsRouter.get('/paginated', async (req, res: Response) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const { status, folderId, includeDeleted } = req.query;
+
+  try {
+    // Parse pagination parameters
+    const { cursor, limit, direction } = parseCursorPagination(req.query, 20, 100);
+    
+    // Decode cursor if provided
+    const cursorData = cursor ? decodeCursor(cursor) : null;
+    if (cursor && !cursorData) {
+      return res.status(400).json({ error: 'Invalid cursor format' });
+    }
+
+    // Build base WHERE clause
+    let baseWhere = 'user_id = $1';
+    const baseParams: (string | number | boolean)[] = [authReq.userId];
+    let paramIndex = 2;
+    
+    // Exclude soft-deleted items unless explicitly requested
+    if (includeDeleted !== 'true') {
+      baseWhere += ` AND deleted_at IS NULL`;
+    }
+
+    if (status) {
+      baseWhere += ` AND status = $${paramIndex}`;
+      baseParams.push(String(status));
+      paramIndex++;
+    }
+
+    if (folderId) {
+      baseWhere += ` AND folder_id = $${paramIndex}`;
+      baseParams.push(String(folderId));
+      paramIndex++;
+    }
+
+    // Add cursor condition for efficient pagination
+    if (cursorData) {
+      const operator = direction === 'next' ? '<' : '>';
+      baseWhere += ` AND (created_at, id) ${operator} ($${paramIndex}, $${paramIndex + 1})`;
+      baseParams.push(cursorData.createdAt, cursorData.id);
+      paramIndex += 2;
+    }
+
+    // Determine sort order
+    const orderBy = direction === 'next' 
+      ? 'ORDER BY created_at DESC, id DESC'
+      : 'ORDER BY created_at ASC, id ASC';
+
+    // Fetch one extra item to determine if there's more data
+    const result = await query(
+      `SELECT si.*, f.name as folder_name 
+       FROM save_items si
+       LEFT JOIN folders f ON si.folder_id = f.id
+       WHERE ${baseWhere}
+       ${orderBy}
+       LIMIT $${paramIndex}`,
+      [...baseParams, limit + 1]
+    );
+
+    // Process results
+    const items = result.rows.map(formatSaveItem);
+    const hasMore = items.length > limit;
+    const actualItems = hasMore ? items.slice(0, limit) : items;
+    
+    // Reverse items if paginating backwards to maintain consistent order
+    const finalItems = direction === 'prev' ? [...actualItems].reverse() : actualItems;
+
+    // Generate cursors
+    let nextCursor: string | null = null;
+    let prevCursor: string | null = null;
+
+    if (finalItems.length > 0) {
+      // Next cursor from last item
+      if (hasMore || direction === 'prev') {
+        const lastItem = finalItems[finalItems.length - 1];
+        nextCursor = encodeCursor(lastItem.dateAdded, lastItem.id);
+      }
+      
+      // Prev cursor from first item
+      if (direction === 'next' && (cursor || finalItems.length > 0)) {
+        const firstItem = finalItems[0];
+        prevCursor = encodeCursor(firstItem.dateAdded, firstItem.id);
+      }
+    }
+
+    // Add pagination headers
+    res.setHeader('X-Limit', limit);
+    res.setHeader('X-Direction', direction);
+    if (nextCursor) res.setHeader('X-Next-Cursor', nextCursor);
+    if (prevCursor) res.setHeader('X-Prev-Cursor', prevCursor);
+
+    res.json({
+      items: finalItems,
+      pagination: {
+        nextCursor,
+        prevCursor,
+        hasMore,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching paginated items:', error);
+    throw error;
+  }
+});
+
+// Get processing status for an item (for real-time progress updates)
+itemsRouter.get('/:id/progress', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const { id } = req.params;
+
+  const item = await getItemById(id, authReq.userId);
+
+  if (!item) {
+    throw new AppError('Item not found', 404);
   }
 
-  if (folderId) {
-    whereClause += ` AND folder_id = $${paramIndex}`;
-    params.push(folderId);
-    paramIndex++;
-  }
-
-  params.push(parseInt(limit as string));
-  params.push(parseInt(offset as string));
-
-  const result = await query(
-    `SELECT * FROM save_items 
-     ${whereClause}
-     ORDER BY created_at DESC
-     LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
-    params
-  );
-
-  const countResult = await query(
-    `SELECT COUNT(*) FROM save_items ${whereClause}`,
-    params.slice(0, -2)
-  );
+  // Return processing status with display info
+  const stageInfo = getStageDisplayInfo(item.status === 'ready' ? 'ready' : 
+    item.status === 'error' ? 'error' : 
+    (item as any).processing_stage || 'queued');
 
   res.json({
-    items: result.rows.map(formatSaveItem),
-    total: parseInt(countResult.rows[0].count),
+    id: item.id,
+    status: item.status,
+    processing: {
+      stage: stageInfo.stage,
+      progress: (item as any).processing_progress || stageInfo.progress,
+      message: (item as any).processing_message || stageInfo.message,
+      emoji: stageInfo.emoji,
+    },
   });
 });
 
@@ -132,64 +453,113 @@ itemsRouter.get('/map', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { limit = '500', offset = '0' } = req.query;
 
-  const resultLimit = Math.min(parseInt(limit as string) || 500, 2000);
-  const resultOffset = parseInt(offset as string) || 0;
+  try {
+    const { limit: parsedLimit, offset: parsedOffset } = parsePaginationParams(
+      limit as string,
+      offset as string,
+      2000 // Higher max for map data
+    );
 
-  const result = await query(
-    `(
-      SELECT
-        si.*,
-        sil.id as location_id,
-        sil.latitude as sil_latitude,
-        sil.longitude as sil_longitude,
-        sil.location_name as sil_location_name,
-        sil.address as sil_address,
-        f.name as folder_name
-      FROM save_item_locations sil
-      JOIN save_items si ON si.id = sil.item_id
-      LEFT JOIN folders f ON si.folder_id = f.id
-      WHERE si.user_id = $1
-    )
-    UNION ALL
-    (
-      -- Backwards-compatible fallback for legacy single-location columns
-      SELECT
-        si.*,
-        NULL::uuid as location_id,
-        si.latitude as sil_latitude,
-        si.longitude as sil_longitude,
-        si.location_name as sil_location_name,
-        si.address as sil_address,
-        f.name as folder_name
-      FROM save_items si
-      LEFT JOIN folders f ON si.folder_id = f.id
-      WHERE si.user_id = $1
-        AND si.latitude IS NOT NULL
-        AND si.longitude IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM save_item_locations sil WHERE sil.item_id = si.id
-        )
-    )
-    ORDER BY created_at DESC
-    LIMIT $2 OFFSET $3`,
-    [authReq.userId, resultLimit, resultOffset]
-  );
+    // Use a CTE to ensure we don't get duplicates when both new locations table
+    // and legacy columns have data for the same item
+    const result = await query(
+      `WITH location_data AS (
+        -- Primary source: save_item_locations table (supports multiple locations per item)
+        SELECT
+          si.*,
+          sil.id as location_id,
+          sil.latitude as sil_latitude,
+          sil.longitude as sil_longitude,
+          sil.location_name as sil_location_name,
+          sil.address as sil_address,
+          f.name as folder_name,
+          1 as source_priority
+        FROM save_item_locations sil
+        JOIN save_items si ON si.id = sil.item_id
+        LEFT JOIN folders f ON si.folder_id = f.id
+        WHERE si.user_id = $1
+          AND si.deleted_at IS NULL
+        
+        UNION ALL
+        
+        -- Fallback: legacy single-location columns (only if no entries in save_item_locations)
+        SELECT
+          si.*,
+          NULL::uuid as location_id,
+          si.latitude as sil_latitude,
+          si.longitude as sil_longitude,
+          si.location_name as sil_location_name,
+          si.address as sil_address,
+          f.name as folder_name,
+          2 as source_priority
+        FROM save_items si
+        LEFT JOIN folders f ON si.folder_id = f.id
+        WHERE si.user_id = $1
+          AND si.deleted_at IS NULL
+          AND si.latitude IS NOT NULL
+          AND si.longitude IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM save_item_locations sil2 WHERE sil2.item_id = si.id
+          )
+      )
+      SELECT * FROM location_data
+      ORDER BY created_at DESC, source_priority ASC
+      LIMIT $2 OFFSET $3`,
+      [authReq.userId, parsedLimit, parsedOffset]
+    );
 
-  res.json({
-    items: result.rows.map((row: any) => ({
-      ...formatSaveItem(row),
-      locationId: row.location_id,
-      latitude: row.sil_latitude ? parseFloat(row.sil_latitude) : null,
-      longitude: row.sil_longitude ? parseFloat(row.sil_longitude) : null,
-      locationName: row.sil_location_name,
-      address: row.sil_address,
-    })),
-    total: result.rows.length,
-  });
+    const countResult = await query(
+      `WITH location_data AS (
+        SELECT
+          si.id,
+          1 as source_priority
+        FROM save_item_locations sil
+        JOIN save_items si ON si.id = sil.item_id
+        WHERE si.user_id = $1
+          AND si.deleted_at IS NULL
+
+        UNION ALL
+
+        SELECT
+          si.id,
+          2 as source_priority
+        FROM save_items si
+        WHERE si.user_id = $1
+          AND si.deleted_at IS NULL
+          AND si.latitude IS NOT NULL
+          AND si.longitude IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM save_item_locations sil2 WHERE sil2.item_id = si.id
+          )
+      )
+      SELECT COUNT(*) as count FROM location_data`,
+      [authReq.userId]
+    );
+
+    // Add pagination headers for consistency with /items endpoint
+    res.setHeader('X-Total-Count', countResult.rows[0]?.count || 0);
+    res.setHeader('X-Limit', parsedLimit);
+    res.setHeader('X-Offset', parsedOffset);
+
+    res.json({
+      items: result.rows.map((row: any) => ({
+        ...formatSaveItem(row),
+        locationId: row.location_id,
+        latitude: row.sil_latitude ? parseFloat(row.sil_latitude) : null,
+        longitude: row.sil_longitude ? parseFloat(row.sil_longitude) : null,
+        locationName: row.sil_location_name,
+        address: row.sil_address,
+      })),
+      total: parseInt(countResult.rows[0]?.count || '0', 10),
+    });
+  } catch (error) {
+    console.error('Error fetching map items:', error);
+    throw error;
+  }
 });
 
 // Get single item
-itemsRouter.get('/:id', async (req, res: Response) => {
+itemsRouter.get('/:id', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
 
@@ -203,7 +573,7 @@ itemsRouter.get('/:id', async (req, res: Response) => {
 });
 
 // Get upload URL for video
-itemsRouter.post('/:id/uploadUrl', async (req, res: Response) => {
+itemsRouter.post('/:id/uploadUrl', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
 
@@ -229,7 +599,7 @@ itemsRouter.post('/:id/uploadUrl', async (req, res: Response) => {
 });
 
 // Complete upload and start processing
-itemsRouter.post('/:id/completeUpload', async (req, res: Response) => {
+itemsRouter.post('/:id/completeUpload', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
 
@@ -257,7 +627,7 @@ itemsRouter.post('/:id/completeUpload', async (req, res: Response) => {
 });
 
 // Move item to folder (user correction)
-itemsRouter.post('/:id/moveFolder', async (req, res: Response) => {
+itemsRouter.post('/:id/moveFolder', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
 
@@ -326,21 +696,88 @@ itemsRouter.post('/:id/moveFolder', async (req, res: Response) => {
   }
 });
 
-// Delete item
-itemsRouter.delete('/:id', async (req, res: Response) => {
+// Soft delete item
+itemsRouter.delete('/:id', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const { id } = req.params;
+  const { permanent } = req.query; // ?permanent=true for hard delete
+
+  if (permanent === 'true') {
+    // Hard delete - permanent removal
+    const result = await query(
+      'DELETE FROM save_items WHERE id = $1 AND user_id = $2 RETURNING id',
+      [id, authReq.userId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new AppError('Item not found', 404);
+    }
+  } else {
+    // Soft delete - mark as deleted
+    const result = await query(
+      `UPDATE save_items 
+       SET deleted_at = NOW(), updated_at = NOW() 
+       WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
+       RETURNING id`,
+      [id, authReq.userId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new AppError('Item not found', 404);
+    }
+  }
+
+  res.json({ success: true });
+});
+
+// Restore soft-deleted item
+itemsRouter.post('/:id/restore', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
 
   const result = await query(
-    'DELETE FROM save_items WHERE id = $1 AND user_id = $2 RETURNING id',
+    `UPDATE save_items 
+     SET deleted_at = NULL, updated_at = NOW() 
+     WHERE id = $1 AND user_id = $2 AND deleted_at IS NOT NULL
+     RETURNING *`,
     [id, authReq.userId]
   );
 
   if (result.rows.length === 0) {
-    throw new AppError('Item not found', 404);
+    throw new AppError('Item not found or not deleted', 404);
   }
 
-  res.json({ success: true });
+  res.json(formatSaveItem(result.rows[0]));
+});
+
+// Get deleted items (trash)
+itemsRouter.get('/trash/list', async (req, res: Response) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const { limit = '50', offset = '0' } = req.query;
+
+  const { limit: parsedLimit, offset: parsedOffset } = parsePaginationParams(
+    limit as string,
+    offset as string
+  );
+
+  const result = await query(
+    `SELECT * FROM save_items 
+     WHERE user_id = $1 AND deleted_at IS NOT NULL
+     ORDER BY deleted_at DESC
+     LIMIT $2 OFFSET $3`,
+    [authReq.userId, parsedLimit, parsedOffset]
+  );
+
+  const countResult = await query(
+    `SELECT COUNT(*) FROM save_items WHERE user_id = $1 AND deleted_at IS NOT NULL`,
+    [authReq.userId]
+  );
+
+  res.setHeader('X-Total-Count', countResult.rows[0].count);
+  res.json({
+    items: result.rows.map(formatSaveItem),
+    total: parseInt(countResult.rows[0].count, 10),
+  });
 });
 
 // Helper functions
@@ -394,35 +831,81 @@ function formatSaveItem(row: any) {
   };
 }
 
-// Process an item immediately (synchronous)
+// Process an item immediately (synchronous) with distributed locking
 async function processItemNow(
   itemId: string,
   userId: string,
   sourceURL: string,
   rawSharedText?: string
 ): Promise<void> {
-  console.log(`\n🎬 Processing item ${itemId} NOW`);
+  // Use distributed lock to prevent concurrent processing across multiple server instances
+  const result = await withLock(
+    `processing:${itemId}`,
+    async () => {
+      console.log(`\n🎬 Processing item ${itemId} NOW`);
 
-  // Update status
-  await query('UPDATE save_items SET status = $1 WHERE id = $2', ['processing', itemId]);
+      // Update status with optimistic lock check
+      const lockResult = await query(
+        `UPDATE save_items 
+         SET status = 'processing', updated_at = NOW() 
+         WHERE id = $1 AND status NOT IN ('processing', 'ready')
+         RETURNING id`,
+        [itemId]
+      );
+      
+      if (lockResult.rows.length === 0) {
+        console.log(`⏳ Item ${itemId} is already processed or being processed`);
+        return 'skipped';
+      }
+      
+      await doProcessItem(itemId, userId, sourceURL, rawSharedText);
+      return 'processed';
+    },
+    { ttlMs: 120000 } // 2 minute lock timeout for processing
+  );
+  
+  if (result === null) {
+    console.log(`⏳ Item ${itemId} is already being processed by another worker, skipping`);
+  }
+}
 
-  // Analyze URL - now includes thumbnail, title, description
-  const analysis = await analyzeUrlOnly(sourceURL, rawSharedText);
-  console.log('📊 Categories:', analysis.topics);
-  console.log('📷 Thumbnail:', analysis.thumbnailUrl ? 'found' : 'not found');
+// Internal processing logic (called while holding the lock)
+async function doProcessItem(
+  itemId: string,
+  userId: string,
+  sourceURL: string,
+  rawSharedText?: string
+): Promise<void> {
+  try {
+    // Stage 1: Downloading
+    await updateProcessingStage(itemId, 'downloading');
+    console.log(`⬇️  [${itemId}] Downloading video info...`);
 
-  // Use AI-generated title or fallback
-  let title = analysis.title || 'TikTok Video';
+    // Analyze URL - now includes thumbnail, title, description
+    const analysis = await analyzeUrlOnly(sourceURL, rawSharedText);
+    console.log('📊 Categories:', analysis.topics);
+    console.log('📷 Thumbnail:', analysis.thumbnailUrl ? 'found' : 'not found');
+
+  // Stage 2: Analyzing
+  await updateProcessingStage(itemId, 'analyzing');
+  console.log(`🤖 [${itemId}] Analyzing content with AI...`);
+
+  // Use AI-generated title or fallback, sanitize to prevent XSS
+  let title = sanitizeString(analysis.title, { maxLength: 500, allowNewlines: false }) || 'TikTok Video';
   if (!analysis.title && rawSharedText) {
     const withoutHashtags = rawSharedText.replace(/#[\w]+/g, '').trim();
     if (withoutHashtags.length > 5) {
-      title = withoutHashtags.slice(0, 100);
+      title = sanitizeString(withoutHashtags, { maxLength: 100, allowNewlines: false });
     }
   }
 
   // Location extraction (match worker behavior so new imports can appear on map)
   let locationData: { latitude: number; longitude: number; name: string; address: string }[] = [];
   try {
+    // Stage 3: Extracting location
+    await updateProcessingStage(itemId, 'extracting_location');
+    console.log(`📍 [${itemId}] Extracting location data...`);
+    
     const description = analysis.description || '';
     const locationText = [
       rawSharedText,
@@ -475,6 +958,10 @@ async function processItemNow(
     // Best-effort
   }
 
+  // Stage 4: Classifying
+  await updateProcessingStage(itemId, 'classifying');
+  console.log(`📁 [${itemId}] Classifying into folder...`);
+
   // Classify into folder
   const classification = await classifyItem(userId, {
     topics: analysis.topics || [],
@@ -494,6 +981,10 @@ async function processItemNow(
 
   // Only store confidence if it's meaningful (>= 0.1), otherwise store NULL
   const confidenceValue = classification.confidence >= 0.1 ? classification.confidence : null;
+
+  // Stage 5: Saving
+  await updateProcessingStage(itemId, 'saving');
+  console.log(`💾 [${itemId}] Saving results...`);
 
   // Update item with results including classification and confidence
   await query(
@@ -531,9 +1022,39 @@ async function processItemNow(
     ]
   );
 
+  // Stage 6: Ready
+  await updateProcessingStage(itemId, 'ready');
+  
   console.log(`✅ Item ${itemId} processed!`);
   console.log(`   Categories: ${analysis.topics.join(', ')}`);
   console.log(`   Folder: ${classification.folderName || 'none'} (${Math.round(classification.confidence * 100)}% confidence)`);
+  
+  } catch (error) {
+    // Update to error state
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error during processing';
+    console.error(`❌ [${itemId}] Processing failed:`, errorMessage);
+    await updateProcessingStage(itemId, 'error', errorMessage);
+    throw error;
+  }
 }
 
+// Helper function to update processing stage
+async function updateProcessingStage(
+  itemId: string, 
+  stage: ProcessingStage,
+  errorMessage?: string
+): Promise<void> {
+  const config = getStageConfig(stage);
+  
+  await query(
+    `UPDATE save_items SET
+      processing_stage = $1,
+      processing_progress = $2,
+      processing_message = $3,
+      error_message = COALESCE($4, error_message),
+      updated_at = NOW()
+     WHERE id = $5`,
+    [stage, config.progress, config.message, errorMessage || null, itemId]
+  );
+}
 

@@ -3,6 +3,14 @@ import { z } from 'zod';
 import { query } from '../database/init.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { 
+  getUserFolders, 
+  getFolderById, 
+  invalidateUserFolderCache, 
+  invalidateFolderCache,
+  formatFolder 
+} from '../services/folderCache.js';
+import { validateParams, CommonSchemas } from '../middleware/validation.js';
 
 export const foldersRouter = Router();
 
@@ -21,42 +29,29 @@ const updateFolderSchema = z.object({
   sortOrder: z.number().int().optional(),
 });
 
-// Get all folders
+// Get all folders (with caching)
 foldersRouter.get('/', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   
-  const result = await query(
-    `SELECT f.*, 
-      (SELECT COUNT(*) FROM save_items WHERE folder_id = f.id) as item_count
-     FROM folders f
-     WHERE f.user_id = $1
-     ORDER BY f.sort_order, f.name`,
-    [authReq.userId]
-  );
+  const folders = await getUserFolders(authReq.userId);
   
   res.json({
-    folders: result.rows.map(formatFolder),
+    folders,
   });
 });
 
-// Get single folder
-foldersRouter.get('/:id', async (req, res: Response) => {
+// Get single folder (with caching)
+foldersRouter.get('/:id', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
   
-  const result = await query(
-    `SELECT f.*, 
-      (SELECT COUNT(*) FROM save_items WHERE folder_id = f.id) as item_count
-     FROM folders f
-     WHERE f.id = $1 AND f.user_id = $2`,
-    [id, authReq.userId]
-  );
+  const folder = await getFolderById(id, authReq.userId);
   
-  if (result.rows.length === 0) {
+  if (!folder) {
     throw new AppError('Folder not found', 404);
   }
   
-  res.json(formatFolder(result.rows[0]));
+  res.json(folder);
 });
 
 // Create folder
@@ -107,7 +102,10 @@ foldersRouter.post('/', async (req, res: Response) => {
       [authReq.userId, name, parentId, iconName, colorHex, sortOrder]
     );
     
-    const folder = formatFolder({ ...result.rows[0], item_count: 0 });
+    const folder = formatFolder({ ...result.rows[0], item_count: '0' });
+    
+    // Invalidate cache
+    await invalidateUserFolderCache(authReq.userId);
     
     res.status(201).json(folder);
   } catch (error) {
@@ -119,7 +117,7 @@ foldersRouter.post('/', async (req, res: Response) => {
 });
 
 // Update folder
-foldersRouter.patch('/:id', async (req, res: Response) => {
+foldersRouter.patch('/:id', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
   
@@ -171,19 +169,28 @@ foldersRouter.patch('/:id', async (req, res: Response) => {
     
     setClause.push(`updated_at = NOW()`);
     params.push(id);
+    params.push(authReq.userId);
     
     const result = await query(
       `UPDATE folders SET ${setClause.join(', ')} 
-       WHERE id = $${paramIndex}
+       WHERE id = $${paramIndex} AND user_id = $${paramIndex + 1}
        RETURNING *`,
       params
     );
+    
+    if (result.rows.length === 0) {
+      throw new AppError('Folder not found or access denied', 404);
+    }
     
     // Get item count
     const countResult = await query(
       'SELECT COUNT(*) as count FROM save_items WHERE folder_id = $1',
       [id]
     );
+    
+    // Invalidate cache
+    await invalidateUserFolderCache(authReq.userId);
+    await invalidateFolderCache(id);
     
     res.json(formatFolder({ 
       ...result.rows[0], 
@@ -198,7 +205,7 @@ foldersRouter.patch('/:id', async (req, res: Response) => {
 });
 
 // Delete folder
-foldersRouter.delete('/:id', async (req, res: Response) => {
+foldersRouter.delete('/:id', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
   
@@ -212,21 +219,29 @@ foldersRouter.delete('/:id', async (req, res: Response) => {
     throw new AppError('Folder not found', 404);
   }
   
-  // Delete all items in this folder
+  const isDefault = existing.rows[0].is_default === true;
+  if (isDefault) {
+    throw new AppError('Default folders cannot be deleted', 400);
+  }
+
+  // Delete all items in this folder subtree
   await query(
-    'DELETE FROM save_items WHERE folder_id = $1',
-    [id]
-  );
-  
-  // Also delete items from child folders
-  await query(
-    `DELETE FROM save_items 
-     WHERE folder_id IN (SELECT id FROM folders WHERE parent_id = $1)`,
-    [id]
+    `WITH RECURSIVE folder_tree AS (
+       SELECT id FROM folders WHERE id = $1 AND user_id = $2
+       UNION ALL
+       SELECT f.id FROM folders f
+       JOIN folder_tree ft ON f.parent_id = ft.id
+     )
+     DELETE FROM save_items WHERE folder_id IN (SELECT id FROM folder_tree)`,
+    [id, authReq.userId]
   );
   
   // Delete folder (cascade will delete children)
   await query('DELETE FROM folders WHERE id = $1', [id]);
+  
+  // Invalidate cache
+  await invalidateUserFolderCache(authReq.userId);
+  await invalidateFolderCache(id);
   
   res.json({ success: true });
 });
@@ -250,6 +265,9 @@ foldersRouter.post('/reorder', async (req, res: Response) => {
       );
     }
     
+    // Invalidate cache
+    await invalidateUserFolderCache(authReq.userId);
+    
     res.json({ success: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -258,21 +276,4 @@ foldersRouter.post('/reorder', async (req, res: Response) => {
     throw error;
   }
 });
-
-// Helper function
-function formatFolder(row: any) {
-  return {
-    id: row.id,
-    name: row.name,
-    parentId: row.parent_id,
-    iconName: row.icon_name,
-    colorHex: row.color_hex,
-    sortOrder: row.sort_order,
-    isDefault: row.is_default,
-    rules: row.rules,
-    itemCount: parseInt(row.item_count || '0'),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
 
