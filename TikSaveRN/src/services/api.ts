@@ -539,6 +539,20 @@ class APIService {
     return this.request<SaveItem>(`/items/${id}`);
   }
 
+  // Get processing progress for an item (real-time status updates)
+  async getItemProgress(id: string): Promise<{
+    id: string;
+    status: string;
+    processing: {
+      stage: string;
+      progress: number;
+      message: string;
+      emoji: string;
+    };
+  }> {
+    return this.request(`/items/${id}/progress`, { skipDedup: true });
+  }
+
   async moveItemToFolder(itemId: string, folderId: string | null): Promise<SaveItem> {
     return this.request<SaveItem>(`/items/${itemId}/moveFolder`, {
       method: 'POST',
