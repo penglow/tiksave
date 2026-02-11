@@ -19,7 +19,7 @@ jobs:
     
     services:
       postgres:
-        image: postgres:15
+        image: postgres:16
         env:
           POSTGRES_USER: tiksave
           POSTGRES_PASSWORD: tiksave_password
@@ -46,29 +46,27 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
       with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: backend/package-lock.json
+        bun-version: latest
         
     - name: Install dependencies
       working-directory: ./backend
-      run: npm install
+      run: bun install
       
     - name: Run TypeScript type check
       working-directory: ./backend
-      run: npx tsc --noEmit
+      run: bunx tsc --noEmit
       
     - name: Run tests (if available)
       working-directory: ./backend
-      run: npm test || echo "No tests configured yet"
+      run: bun test || echo "No tests configured yet"
       continue-on-error: true
       
     - name: Build backend
       working-directory: ./backend
-      run: npm run build
+      run: bun run build
       
     - name: Check build output
       run: |
