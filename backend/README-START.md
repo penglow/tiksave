@@ -9,7 +9,7 @@
    Then update `.env` values for local development only.
 
 1. **Prerequisites**: Make sure you have:
-   - Node.js 18+ installed
+   - Bun 1.0+ installed
    - Docker Desktop installed and running
    - Database containers started (see `START-BACKEND.md` for details)
 
@@ -22,12 +22,12 @@
 
 4. Install dependencies (if you haven't already):
    ```bash
-   npm install
+   bun install
    ```
 
 5. Start the server:
    ```bash
-   npm run dev
+   bun run dev
    ```
 
 ## Keep the Window Open!
@@ -53,7 +53,7 @@ You should see a JSON response with `{"status":"ok","timestamp":"..."}`
 
 - **Port 3000 already in use**: Change the `PORT` value in your `.env` file or stop the process using port 3000
 - **Database connection errors**: Make sure Docker is running and the database containers are started (see `START-BACKEND.md`)
-- **Missing dependencies**: Run `npm install` in the backend directory
+- **Missing dependencies**: Run `bun install` in the backend directory
 - **Environment variables**: Make sure you have a `.env` file configured (see `START-BACKEND.md` for details)
 - Check the terminal output for any error messages
 

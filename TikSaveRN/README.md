@@ -60,9 +60,7 @@ TikSaveRN/
 
 ### Prerequisites
 
-- Bun 1.0+ (Recommended)
-- Node.js 18+ (Required as fallback for certain Expo tools)
-- Bun Package Manager (`bun install`)
+- Bun 1.0+
 - Expo CLI (`bunx expo`)
 - iOS Simulator (macOS) or Android Emulator
 
@@ -100,7 +98,7 @@ apiBaseURL: __DEV__
 
 ## Backend Integration
 
-This app connects to the same Node.js backend as the iOS version. Make sure the backend is running:
+This app connects to the same Bun backend as the iOS version. Make sure the backend is running:
 
 ```bash
 cd ../backend
@@ -153,16 +151,16 @@ The app supports dual themes (light and dark) with a system preference option:
 
 ### iOS
 ```bash
-npx expo build:ios
+bunx expo build:ios
 # or with EAS
-eas build --platform ios
+bunx eas build --platform ios
 ```
 
 ### Android
 ```bash
-npx expo build:android
+bunx expo build:android
 # or with EAS
-eas build --platform android
+bunx eas build --platform android
 ```
 
 ## Contributing

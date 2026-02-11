@@ -4,9 +4,8 @@
 
 Before starting the backend server, you need:
 
-1. **Bun 1.0+** installed on your system (Recommended)
-2. **Node.js 18+** installed (Optional fallback)
-3. **Docker Desktop** installed and running (for PostgreSQL and Redis)
+1. **Bun 1.0+** installed on your system
+2. **Docker Desktop** installed and running (for PostgreSQL and Redis)
 
 ## Step 1: Start the Database
 
