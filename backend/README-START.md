@@ -2,6 +2,12 @@
 
 ## Quick Start
 
+0. **Create local env file**:
+   ```bash
+   copy env.template .env
+   ```
+   Then update `.env` values for local development only.
+
 1. **Prerequisites**: Make sure you have:
    - Node.js 18+ installed
    - Docker Desktop installed and running
@@ -53,3 +59,6 @@ You should see a JSON response with `{"status":"ok","timestamp":"..."}`
 
 For more detailed setup instructions, see `START-BACKEND.md`.
 
+## Production Secret Handling
+
+Never commit keys to source code or version control. In production, keep credentials in Secret Manager and inject them at runtime.
