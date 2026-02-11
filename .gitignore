@@ -8,6 +8,7 @@
 node_modules/
 .pnp/
 .pnp.js
+package-lock.json
 
 # Build outputs
 dist/
@@ -17,7 +18,7 @@ build/
 # Logs
 logs/
 *.log
-npm-debug.log*
+bun-debug.log*
 
 # Runtime data
 pids/
