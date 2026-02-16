@@ -101,8 +101,8 @@ export const ProcessingStages = {
 
 **Step 3.3: iOS/Android Share Extension**
 - [ ] Configure iOS Share Extension
-- [ ] Configure Android Intent Filter
-- [ ] Handle incoming shares in App.tsx linking
+- [x] Configure Android Intent Filter
+- [x] Handle incoming shares in App.tsx linking
 
 **Estimated Time**: 2-3 days
 
@@ -281,10 +281,10 @@ const CacheTTL = {
 ```
 
 **Step 2.2: Implement Cache Service**
-- [ ] Create cacheService.ts wrapper around Redis
-- [ ] Add cache-aside pattern for reads
+- [x] Create cacheService.ts wrapper around Redis
+- [x] Add cache-aside pattern for reads
 - [ ] Implement write-through for updates
-- [ ] Add cache invalidation on mutations
+- [x] Add cache invalidation on mutations
 
 **Step 2.3: Cache Warming**
 - [ ] Pre-load popular categories on app start
@@ -292,7 +292,7 @@ const CacheTTL = {
 - [ ] Background cache refresh before expiry
 
 **Step 2.4: Cache Monitoring**
-- [ ] Track cache hit/miss rates
+- [x] Track cache hit/miss rates
 - [ ] Add metrics endpoint
 - [ ] Alert on low hit rates
 
