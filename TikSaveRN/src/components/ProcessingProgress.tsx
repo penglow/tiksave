@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -29,6 +30,8 @@ interface ProcessingProgressProps {
   itemId: string;
   onComplete?: () => void;
   onError?: (error: string) => void;
+  onCancel?: () => Promise<void> | void;
+  isCancelling?: boolean;
   pollInterval?: number;
 }
 
@@ -38,6 +41,8 @@ export function ProcessingProgress({
   itemId,
   onComplete,
   onError,
+  onCancel,
+  isCancelling = false,
   pollInterval = 500,
 }: ProcessingProgressProps) {
   const { colors } = useTheme();
@@ -176,6 +181,22 @@ export function ProcessingProgress({
       <Text style={[styles.percentage, { color: colors.textTertiary }]}>
         {Math.round(stage.progress)}%
       </Text>
+
+      {onCancel && stage.stage !== 'ready' && (
+        <Pressable
+          onPress={() => {
+            if (!isCancelling) {
+              onCancel();
+            }
+          }}
+          style={[styles.cancelButton, { borderColor: colors.border }]}
+          disabled={isCancelling}
+        >
+          <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
+            {isCancelling ? 'Cancelling...' : 'Cancel'}
+          </Text>
+        </Pressable>
+      )}
     </Animated.View>
   );
 }
@@ -220,6 +241,16 @@ const styles = StyleSheet.create({
   percentage: {
     ...Typography.caption,
     textAlign: 'center',
+  },
+  cancelButton: {
+    alignSelf: 'flex-end',
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  cancelButtonText: {
+    ...Typography.captionStrong,
   },
 });
 

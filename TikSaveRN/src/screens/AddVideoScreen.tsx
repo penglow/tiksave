@@ -9,6 +9,7 @@ import {
   TextInput,
   Alert,
   Platform,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,6 +33,30 @@ interface ImportingItem {
   status: 'processing' | 'complete' | 'error';
 }
 
+interface URLPreview {
+  url: string;
+  title?: string;
+  thumbnailUrl?: string;
+}
+
+async function fetchTikTokPreview(url: string): Promise<URLPreview> {
+  const fallback: URLPreview = { url };
+  try {
+    const endpoint = `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`;
+    const response = await fetch(endpoint);
+    if (!response.ok) return fallback;
+
+    const data = await response.json();
+    return {
+      url,
+      title: typeof data?.title === 'string' ? data.title : undefined,
+      thumbnailUrl: typeof data?.thumbnail_url === 'string' ? data.thumbnail_url : undefined,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 export default function AddVideoScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -39,6 +64,9 @@ export default function AddVideoScreen({ navigation }: Props) {
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [manualUrl, setManualUrl] = useState('');
   const [importingItems, setImportingItems] = useState<ImportingItem[]>([]);
+  const [cancellingItemIds, setCancellingItemIds] = useState<Set<string>>(new Set());
+  const [urlPreviews, setUrlPreviews] = useState<URLPreview[]>([]);
+  const [isLoadingPreviews, setIsLoadingPreviews] = useState(false);
   const pendingShareUrl = useAppStore((state) => state.pendingShareUrl);
   const clearPendingShare = useAppStore((state) => state.clearPendingShare);
   
@@ -65,6 +93,50 @@ export default function AddVideoScreen({ navigation }: Props) {
       clearPendingShare();
     }
   }, [pendingShareUrl]);
+
+  useEffect(() => {
+    if (!isImporting) return;
+    if (importingItems.length === 0) {
+      setIsImporting(false);
+      setImportStatus('idle');
+    }
+  }, [isImporting, importingItems.length]);
+
+  useEffect(() => {
+    const urls = manualUrl
+      .split(/\n/)
+      .map((u) => u.trim())
+      .filter(Boolean);
+
+    const uniqueUrls = [...new Set(urls)]
+      .filter((u) => u.includes('tiktok.com') || u.includes('vm.tiktok'))
+      .slice(0, 8);
+
+    if (uniqueUrls.length === 0) {
+      setUrlPreviews([]);
+      setIsLoadingPreviews(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingPreviews(true);
+
+    Promise.all(uniqueUrls.map((url) => fetchTikTokPreview(url)))
+      .then((previews) => {
+        if (!cancelled) {
+          setUrlPreviews(previews);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingPreviews(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [manualUrl]);
 
   const handleImport = async (url: string) => {
     if (!url.includes('tiktok.com') && !url.includes('vm.tiktok')) {
@@ -123,6 +195,35 @@ export default function AddVideoScreen({ navigation }: Props) {
       )
     );
     console.error(`Item ${itemId} failed:`, error);
+  };
+
+  const handleCancelImport = async (itemId: string) => {
+    setCancellingItemIds((prev) => {
+      const next = new Set(prev);
+      next.add(itemId);
+      return next;
+    });
+
+    try {
+      await apiService.deleteItem(itemId);
+      setImportingItems(prev =>
+        prev.map(item =>
+          item.id === itemId ? { ...item, status: 'error' as const } : item
+        )
+      );
+
+      setTimeout(() => {
+        setImportingItems(prev => prev.filter(item => item.id !== itemId));
+      }, 300);
+    } catch (error) {
+      console.error(`Failed to cancel import for item ${itemId}:`, error);
+    } finally {
+      setCancellingItemIds((prev) => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }
   };
 
   const handleBatchImport = async () => {
@@ -277,6 +378,8 @@ export default function AddVideoScreen({ navigation }: Props) {
                     itemId={item.id}
                     onComplete={() => handleItemComplete(item.id)}
                     onError={(error) => handleItemError(item.id, error)}
+                    onCancel={() => handleCancelImport(item.id)}
+                    isCancelling={cancellingItemIds.has(item.id)}
                     pollInterval={500}
                   />
                 ) : item.status === 'complete' ? (
@@ -375,6 +478,39 @@ export default function AddVideoScreen({ navigation }: Props) {
                 <Text style={[styles.urlCount, { color: colors.textTertiary }]}>
                   {manualUrl.split(/\n/).filter(url => url.trim().length > 0).length} URL(s)
                 </Text>
+              )}
+
+              {manualUrl.length > 0 && (
+                <View style={styles.previewSection}>
+                  <Text style={[styles.previewLabel, { color: colors.textTertiary }]}>
+                    PREVIEW
+                  </Text>
+                  {isLoadingPreviews ? (
+                    <Text style={[styles.previewLoadingText, { color: colors.textTertiary }]}>
+                      Fetching previews...
+                    </Text>
+                  ) : (
+                    urlPreviews.map((preview) => (
+                      <View key={preview.url} style={[styles.previewCard, { borderColor: colors.border }]}>
+                        <View style={[styles.previewThumb, { backgroundColor: colors.accentSubtle }]}>
+                          {preview.thumbnailUrl ? (
+                            <Image source={{ uri: preview.thumbnailUrl }} style={styles.previewThumbImage} />
+                          ) : (
+                            <Ionicons name="play-circle-outline" size={22} color={colors.textTertiary} />
+                          )}
+                        </View>
+                        <View style={styles.previewTextWrap}>
+                          <Text style={[styles.previewTitle, { color: colors.text }]} numberOfLines={2}>
+                            {preview.title || 'TikTok Video'}
+                          </Text>
+                          <Text style={[styles.previewUrl, { color: colors.textTertiary }]} numberOfLines={1}>
+                            {preview.url}
+                          </Text>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </View>
               )}
 
               <AnimatedPressable
@@ -571,6 +707,52 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: Spacing.xs,
+  },
+  urlCount: {
+    ...Typography.caption,
+    marginBottom: Spacing.sm,
+  },
+  previewSection: {
+    marginBottom: Spacing.md,
+    gap: Spacing.xs,
+  },
+  previewLabel: {
+    ...Typography.label,
+  },
+  previewLoadingText: {
+    ...Typography.caption,
+    marginTop: Spacing.xs,
+  },
+  previewCard: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  previewThumb: {
+    width: 46,
+    height: 62,
+    borderRadius: BorderRadius.xs,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewThumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  previewTextWrap: {
+    flex: 1,
+  },
+  previewTitle: {
+    ...Typography.captionStrong,
+    lineHeight: 16,
+  },
+  previewUrl: {
+    ...Typography.caption,
+    marginTop: 2,
   },
   importButton: {
     flexDirection: 'row',
