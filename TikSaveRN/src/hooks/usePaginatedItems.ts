@@ -128,20 +128,30 @@ export function usePaginatedItems(options: UsePaginatedItemsOptions = {}) {
         direction: 'next',
       });
 
-      setState(prev => ({
-        ...prev,
-        items: [...prev.items, ...response.items],
-        isLoadingMore: false,
-        hasMore: response.pagination?.hasMore ?? false,
-        nextCursor: response.pagination?.nextCursor ?? null,
-        prevCursor: response.pagination?.prevCursor ?? null,
-      }));
+      let mergedItems: SaveItem[] = [];
+      let hasMore = false;
+      let nextCursor: string | null = null;
+      let prevCursor: string | null = null;
+      setState(prev => {
+        mergedItems = [...prev.items, ...response.items];
+        hasMore = response.pagination?.hasMore ?? false;
+        nextCursor = response.pagination?.nextCursor ?? null;
+        prevCursor = response.pagination?.prevCursor ?? null;
+        return {
+          ...prev,
+          items: mergedItems,
+          isLoadingMore: false,
+          hasMore,
+          nextCursor,
+          prevCursor,
+        };
+      });
 
       setPage(cacheKey, {
-        items: [...state.items, ...response.items],
-        hasMore: response.pagination?.hasMore ?? false,
-        nextCursor: response.pagination?.nextCursor ?? null,
-        prevCursor: response.pagination?.prevCursor ?? null,
+        items: mergedItems,
+        hasMore,
+        nextCursor,
+        prevCursor,
         updatedAt: Date.now(),
       });
     } catch (err) {
@@ -154,7 +164,7 @@ export function usePaginatedItems(options: UsePaginatedItemsOptions = {}) {
     } finally {
       isLoadingRef.current = false;
     }
-  }, [status, folderId, limit, state.hasMore, state.nextCursor, state.items, cacheKey, setPage]);
+  }, [status, folderId, limit, state.hasMore, state.nextCursor, cacheKey, setPage]);
 
   /**
    * Load previous page (for bi-directional pagination)
@@ -226,19 +236,25 @@ export function usePaginatedItems(options: UsePaginatedItemsOptions = {}) {
         // Filter out duplicates and prepend new items
         const existingIds = new Set(state.items.map(item => item.id));
         const newItems = response.items.filter(item => !existingIds.has(item.id));
+        let mergedItems: SaveItem[] = [];
+        let prevCursor: string | null = null;
         
-        setState(prev => ({
-          ...prev,
-          items: [...newItems, ...prev.items],
-          isLoadingMore: false,
-          prevCursor: response.pagination?.prevCursor ?? prev.prevCursor,
-        }));
+        setState(prev => {
+          mergedItems = [...newItems, ...prev.items];
+          prevCursor = response.pagination?.prevCursor ?? prev.prevCursor;
+          return {
+            ...prev,
+            items: mergedItems,
+            isLoadingMore: false,
+            prevCursor,
+          };
+        });
 
         setPage(cacheKey, {
-          items: [...newItems, ...state.items],
+          items: mergedItems,
           hasMore: state.hasMore,
           nextCursor: state.nextCursor,
-          prevCursor: response.pagination?.prevCursor ?? state.prevCursor,
+          prevCursor,
           updatedAt: Date.now(),
         });
       } else {
