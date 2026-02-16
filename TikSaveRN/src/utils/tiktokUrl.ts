@@ -26,7 +26,17 @@ export function extractTikTokUrlFromIncomingUrl(incomingUrl: string): string | n
     const textParam = parsed.searchParams.get('text');
     const shared = urlParam || textParam;
     if (!shared) return null;
-    return extractTikTokUrl(decodeURIComponent(shared));
+
+    // URLSearchParams already decodes once, so try raw first.
+    const fromRaw = extractTikTokUrl(shared);
+    if (fromRaw) return fromRaw;
+
+    // Fallback for providers that double-encode payload values.
+    try {
+      return extractTikTokUrl(decodeURIComponent(shared));
+    } catch {
+      return null;
+    }
   } catch {
     return null;
   }
