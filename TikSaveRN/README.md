@@ -51,6 +51,25 @@ Shortcuts:
 - `bun run android`
 - `bun run web`
 
+## iOS Share Extension
+
+The client is configured to use `expo-share-extension` so shared TikTok links can open TikSave with the import URL prefilled.
+
+Files involved:
+
+- `index.share.js`
+- `src/share/ShareExtension.tsx`
+- `metro.config.js` (`withShareExtension`)
+- `app.json` plugin config
+
+After dependency install, run prebuild before iOS native builds:
+
+```powershell
+cd TikSaveRN
+bun install
+npx expo prebuild --platform ios
+```
+
 Quality checks:
 
 - `bun run lint`

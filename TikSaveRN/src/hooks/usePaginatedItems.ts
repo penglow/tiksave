@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { apiService } from '../services/api';
 import { SaveItem, SaveItemStatus } from '../types';
+import { usePaginationCacheStore } from '../stores/paginationCacheStore';
 
 interface UsePaginatedItemsOptions {
   status?: SaveItemStatus;
@@ -24,6 +25,10 @@ interface PaginatedItemsState {
  */
 export function usePaginatedItems(options: UsePaginatedItemsOptions = {}) {
   const { status, folderId, limit = 20 } = options;
+  const cacheTtlMs = 60 * 1000;
+  const cacheKey = `status:${status || 'all'}:folder:${folderId || 'all'}:limit:${limit}`;
+  const getPage = usePaginationCacheStore((s) => s.getPage);
+  const setPage = usePaginationCacheStore((s) => s.setPage);
   
   const [state, setState] = useState<PaginatedItemsState>({
     items: [],
@@ -55,6 +60,20 @@ export function usePaginatedItems(options: UsePaginatedItemsOptions = {}) {
     abortControllerRef.current = new AbortController();
 
     try {
+      const cached = getPage(cacheKey);
+      if (cached && Date.now() - cached.updatedAt < cacheTtlMs) {
+        setState({
+          items: cached.items,
+          isLoading: false,
+          isLoadingMore: false,
+          hasMore: cached.hasMore,
+          nextCursor: cached.nextCursor,
+          prevCursor: cached.prevCursor,
+          error: null,
+        });
+        return;
+      }
+
       const response = await apiService.getItemsPaginated({
         status,
         folderId,
@@ -71,6 +90,14 @@ export function usePaginatedItems(options: UsePaginatedItemsOptions = {}) {
         prevCursor: response.pagination?.prevCursor ?? null,
         error: null,
       });
+
+      setPage(cacheKey, {
+        items: response.items,
+        hasMore: response.pagination?.hasMore ?? false,
+        nextCursor: response.pagination?.nextCursor ?? null,
+        prevCursor: response.pagination?.prevCursor ?? null,
+        updatedAt: Date.now(),
+      });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load items';
       setState(prev => ({
@@ -81,7 +108,7 @@ export function usePaginatedItems(options: UsePaginatedItemsOptions = {}) {
     } finally {
       isLoadingRef.current = false;
     }
-  }, [status, folderId, limit]);
+  }, [status, folderId, limit, cacheKey, cacheTtlMs, getPage, setPage]);
 
   /**
    * Load more items (next page)
@@ -109,6 +136,14 @@ export function usePaginatedItems(options: UsePaginatedItemsOptions = {}) {
         nextCursor: response.pagination?.nextCursor ?? null,
         prevCursor: response.pagination?.prevCursor ?? null,
       }));
+
+      setPage(cacheKey, {
+        items: [...state.items, ...response.items],
+        hasMore: response.pagination?.hasMore ?? false,
+        nextCursor: response.pagination?.nextCursor ?? null,
+        prevCursor: response.pagination?.prevCursor ?? null,
+        updatedAt: Date.now(),
+      });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load more items';
       setState(prev => ({
@@ -119,7 +154,7 @@ export function usePaginatedItems(options: UsePaginatedItemsOptions = {}) {
     } finally {
       isLoadingRef.current = false;
     }
-  }, [status, folderId, limit, state.hasMore, state.nextCursor]);
+  }, [status, folderId, limit, state.hasMore, state.nextCursor, state.items, cacheKey, setPage]);
 
   /**
    * Load previous page (for bi-directional pagination)
@@ -198,6 +233,14 @@ export function usePaginatedItems(options: UsePaginatedItemsOptions = {}) {
           isLoadingMore: false,
           prevCursor: response.pagination?.prevCursor ?? prev.prevCursor,
         }));
+
+        setPage(cacheKey, {
+          items: [...newItems, ...state.items],
+          hasMore: state.hasMore,
+          nextCursor: state.nextCursor,
+          prevCursor: response.pagination?.prevCursor ?? state.prevCursor,
+          updatedAt: Date.now(),
+        });
       } else {
         // No items yet, just do a fresh load
         await loadItems();
@@ -209,7 +252,7 @@ export function usePaginatedItems(options: UsePaginatedItemsOptions = {}) {
         error: err instanceof Error ? err.message : 'Failed to refresh',
       }));
     }
-  }, [status, folderId, state.items, loadItems]);
+  }, [status, folderId, state.items, state.hasMore, state.nextCursor, state.prevCursor, loadItems, cacheKey, setPage]);
 
   /**
    * Update a single item in the list (for optimistic updates)
@@ -221,7 +264,17 @@ export function usePaginatedItems(options: UsePaginatedItemsOptions = {}) {
         item.id === itemId ? { ...item, ...updates } : item
       ),
     }));
-  }, []);
+    const cached = getPage(cacheKey);
+    if (cached) {
+      setPage(cacheKey, {
+        ...cached,
+        items: cached.items.map((item) =>
+          item.id === itemId ? { ...item, ...updates } : item
+        ),
+        updatedAt: Date.now(),
+      });
+    }
+  }, [cacheKey, getPage, setPage]);
 
   /**
    * Remove an item from the list
@@ -231,7 +284,15 @@ export function usePaginatedItems(options: UsePaginatedItemsOptions = {}) {
       ...prev,
       items: prev.items.filter(item => item.id !== itemId),
     }));
-  }, []);
+    const cached = getPage(cacheKey);
+    if (cached) {
+      setPage(cacheKey, {
+        ...cached,
+        items: cached.items.filter((item) => item.id !== itemId),
+        updatedAt: Date.now(),
+      });
+    }
+  }, [cacheKey, getPage, setPage]);
 
   /**
    * Add a new item to the list
@@ -241,7 +302,15 @@ export function usePaginatedItems(options: UsePaginatedItemsOptions = {}) {
       ...prev,
       items: atBeginning ? [item, ...prev.items] : [...prev.items, item],
     }));
-  }, []);
+    const cached = getPage(cacheKey);
+    if (cached) {
+      setPage(cacheKey, {
+        ...cached,
+        items: atBeginning ? [item, ...cached.items] : [...cached.items, item],
+        updatedAt: Date.now(),
+      });
+    }
+  }, [cacheKey, getPage, setPage]);
 
   return {
     ...state,

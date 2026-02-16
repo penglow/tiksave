@@ -35,7 +35,7 @@ export const ProcessingStages = {
 - [x] Create ProcessingProgress component
 - [x] Add progress bar with stage labels
 - [x] Implement real-time status polling (every 500ms)
-- [ ] Add cancel button during processing
+- [x] Add cancel button during processing
 
 **Estimated Time**: 2-3 days
 
@@ -96,11 +96,11 @@ export const ProcessingStages = {
 
 **Step 3.2: Smart Suggestion UI**
 - [x] Show "Import from clipboard?" modal when URLs detected
-- [ ] Preview video thumbnails before importing
+- [x] Preview video thumbnails before importing
 - [ ] One-tap import from notification/quick action
 
 **Step 3.3: iOS/Android Share Extension**
-- [ ] Configure iOS Share Extension
+- [x] Configure iOS Share Extension
 - [x] Configure Android Intent Filter
 - [x] Handle incoming shares in App.tsx linking
 
@@ -135,15 +135,15 @@ export const ProcessingStages = {
 ```
 
 **Step 1.2: Category-Based Pagination**
-- [ ] Add GET /items/by-category endpoint
-- [ ] Return paginated results grouped by category
-- [ ] Support filtering by category
+- [x] Add GET /items/by-category endpoint
+- [x] Return paginated results grouped by category
+- [x] Support filtering by category
 
 **Step 1.3: Frontend Pagination State**
 - [x] Create usePaginatedItems hook
 - [x] Implement infinite scroll with FlashList
 - [x] Add pull-to-refresh support
-- [ ] Cache pages in React Query or Zustand
+- [x] Cache pages in React Query or Zustand
 
 **Step 1.4: UI Updates**
 - [x] Add loading spinner at bottom during fetch
@@ -293,7 +293,7 @@ const CacheTTL = {
 
 **Step 2.4: Cache Monitoring**
 - [x] Track cache hit/miss rates
-- [ ] Add metrics endpoint
+- [x] Add metrics endpoint
 - [ ] Alert on low hit rates
 
 **Estimated Time**: 3-4 days

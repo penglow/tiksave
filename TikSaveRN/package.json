@@ -1,7 +1,7 @@
 {
   "name": "tiksave",
   "version": "1.0.0",
-  "main": "expo/AppEntry.js",
+  "main": "index.js",
   "scripts": {
     "start": "bunx expo start",
     "android": "bunx expo start --android",
@@ -29,6 +29,7 @@
     "expo-linking": "~8.0.11",
     "expo-location": "^19.0.8",
     "expo-secure-store": "~15.0.8",
+    "expo-share-extension": "^5.0.0",
     "expo-sharing": "~14.0.8",
     "expo-status-bar": "~3.0.9",
     "leaflet": "^1.9.4",

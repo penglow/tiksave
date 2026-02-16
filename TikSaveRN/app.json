@@ -79,7 +79,18 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-share-extension",
+        {
+          "activationRules": {
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsText": true
+          },
+          "extensionName": "TikSave Share",
+          "extensionPointIdentifier": "com.apple.share-services"
+        }
+      ]
     ]
   }
 }

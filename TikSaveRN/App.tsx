@@ -13,25 +13,7 @@ import { Colors, getThemeColors } from './src/config';
 import { useAppStore } from './src/stores/appStore';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import type { AppTheme } from './src/types';
-
-// Extract TikTok URL from shared text
-function extractTikTokUrl(text: string): string | null {
-  // Match TikTok URLs
-  const patterns = [
-    /https?:\/\/(?:www\.)?tiktok\.com\/@[\w.-]+\/video\/\d+[^\s]*/i,
-    /https?:\/\/vm\.tiktok\.com\/[\w]+[^\s]*/i,
-    /https?:\/\/(?:www\.)?tiktok\.com\/t\/[\w]+[^\s]*/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match) {
-      return match[0];
-    }
-  }
-
-  return null;
-}
+import { extractTikTokUrlFromIncomingUrl } from './src/utils/tiktokUrl';
 
 export default function App() {
 
@@ -83,7 +65,7 @@ export default function App() {
     console.log('Received URL:', url);
 
     // Try to extract TikTok URL from the incoming data
-    const tiktokUrl = extractTikTokUrl(url);
+    const tiktokUrl = extractTikTokUrlFromIncomingUrl(url);
     if (tiktokUrl) {
       console.log('Extracted TikTok URL:', tiktokUrl);
       setPendingShareUrl(tiktokUrl);
