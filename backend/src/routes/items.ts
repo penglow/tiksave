@@ -548,12 +548,23 @@ itemsRouter.get('/by-category', async (req, res: Response) => {
     );
 
     const totalItemsResult = await query(
-      `SELECT COUNT(*)::int AS total
+      `SELECT COUNT(DISTINCT si.id)::int AS total
        FROM save_items si
+       LEFT JOIN LATERAL unnest(
+         CASE
+           WHEN si.detected_topics IS NULL OR array_length(si.detected_topics, 1) = 0
+             THEN ARRAY['Saved']::text[]
+           ELSE si.detected_topics
+         END
+       ) AS topic ON true
        WHERE si.user_id = $1
-         AND si.deleted_at IS NULL
-         AND si.status = 'ready'`,
-      [authReq.userId]
+          AND si.deleted_at IS NULL
+          AND si.status = 'ready'
+          AND (
+            $2::text IS NULL OR
+            COALESCE(NULLIF(TRIM(topic), ''), 'Saved') ILIKE $2
+          )`,
+      [authReq.userId, normalizedCategory]
     );
 
     res.json({
