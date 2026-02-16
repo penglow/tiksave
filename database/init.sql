@@ -88,6 +88,17 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     UNIQUE(user_id, folder_id)
 );
 
+-- Refresh token tracking table (rotation + revocation)
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash VARCHAR(128) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    revoked_at TIMESTAMP,
+    replaced_by_token_hash VARCHAR(128),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Save item locations table (supports multiple locations per item)
 CREATE TABLE IF NOT EXISTS save_item_locations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -109,6 +120,8 @@ CREATE INDEX IF NOT EXISTS idx_folders_user_id ON folders(user_id);
 CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id);
 CREATE INDEX IF NOT EXISTS idx_training_examples_user_id ON training_examples(user_id);
 CREATE INDEX IF NOT EXISTS idx_save_item_locations_item_id ON save_item_locations(item_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_folders_root_unique ON folders(user_id, name) WHERE parent_id IS NULL;
 
 -- Performance optimized composite indexes (added 2026-02-01)

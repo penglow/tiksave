@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import os from 'os';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
@@ -146,11 +145,11 @@ app.use((req, res, next) => {
 // Health check with dependency status (reuses existing Redis connection)
 app.get('/health', async (req, res) => {
   const startedAt = process.hrtime.bigint();
-  const checks: { 
-    db: boolean; 
-    redis: boolean; 
+  const checks: {
+    db: boolean;
+    redis: boolean;
     openai: boolean;
-    timestamp: string; 
+    timestamp: string;
     uptime: number;
     version: string;
   } = {
@@ -162,109 +161,35 @@ app.get('/health', async (req, res) => {
     version: process.env.APP_VERSION || '1.0.0',
   };
 
-  const detailedChecks = {
-    db: {
-      ok: false,
-      latencyMs: null as number | null,
-      pool: {
-        total: pool.totalCount,
-        idle: pool.idleCount,
-        waiting: pool.waitingCount,
-      },
-      error: null as string | null,
-    },
-    redis: {
-      ok: false,
-      latencyMs: null as number | null,
-      mode: process.env.REDIS_CLUSTER_MODE === 'true' ? 'cluster' : 'standalone',
-      error: null as string | null,
-    },
-    openai: {
-      configured: false,
-      error: null as string | null,
-    },
-  };
-
   // Check database connection
   try {
-    const dbStart = process.hrtime.bigint();
     const result = await pool.query('SELECT 1');
-    const dbLatencyMs = Number(process.hrtime.bigint() - dbStart) / 1e6;
     checks.db = result.rows.length > 0;
-    detailedChecks.db.ok = checks.db;
-    detailedChecks.db.latencyMs = Math.round(dbLatencyMs * 100) / 100;
   } catch (error) {
     logger.error('Health check - DB failed', error as Error);
-    detailedChecks.db.error = (error as Error).message;
   }
 
   // Check Redis connection (reuse existing client)
   try {
-    const redisStart = process.hrtime.bigint();
     const redisHealthy = await isRedisHealthy();
-    const redisLatencyMs = Number(process.hrtime.bigint() - redisStart) / 1e6;
     checks.redis = redisHealthy;
-    detailedChecks.redis.ok = redisHealthy;
-    detailedChecks.redis.latencyMs = Math.round(redisLatencyMs * 100) / 100;
   } catch (error) {
     logger.error('Health check - Redis failed', error as Error);
-    detailedChecks.redis.error = (error as Error).message;
   }
 
   // Check OpenAI availability (lightweight check)
-  try {
-    checks.openai = !!process.env.OPENAI_API_KEY;
-    detailedChecks.openai.configured = checks.openai;
-    // Could add actual API ping here if needed, but checking config is sufficient
-    // for health check purposes without consuming API quota
-  } catch (error) {
-    logger.error('Health check - OpenAI config check failed', error as Error);
-    detailedChecks.openai.error = (error as Error).message;
-  }
+  checks.openai = !!process.env.OPENAI_API_KEY;
 
   // Core services (DB + Redis) must be healthy
   const isHealthy = checks.db && checks.redis;
   // OpenAI being down degrades functionality but doesn't fail the app
   const status = isHealthy ? (checks.openai ? 'ok' : 'degraded') : 'unhealthy';
-  
-  const memoryUsage = process.memoryUsage();
-  const cpuUsage = process.cpuUsage();
-  const resourceUsage = process.resourceUsage();
-  const loadAverage = os.loadavg();
   const responseTimeMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
 
   res.status(isHealthy ? 200 : 503).json({
     status,
     ...checks,
     responseTimeMs: Math.round(responseTimeMs * 100) / 100,
-    checksDetailed: detailedChecks,
-    process: {
-      pid: process.pid,
-      nodeVersion: process.version,
-      env: process.env.NODE_ENV || 'development',
-      uptime: process.uptime(),
-      memory: {
-        rss: memoryUsage.rss,
-        heapTotal: memoryUsage.heapTotal,
-        heapUsed: memoryUsage.heapUsed,
-        external: memoryUsage.external,
-        arrayBuffers: memoryUsage.arrayBuffers,
-      },
-      cpuUsage,
-      resourceUsage,
-    },
-    system: {
-      platform: os.platform(),
-      arch: os.arch(),
-      release: os.release(),
-      hostname: os.hostname(),
-      cpuCount: os.cpus().length,
-      loadAverage,
-      memory: {
-        total: os.totalmem(),
-        free: os.freemem(),
-      },
-    },
   });
 });
 

@@ -1,6 +1,7 @@
 import { DefaultAzureCredential } from '@azure/identity';
 import * as cheerio from 'cheerio';
 import { getOpenAIClient, isOpenAIConfigured, withRetry } from './openai.js';
+import { sanitizeTikTokUrl, sanitizeTikTokImageUrl } from '../utils/sanitize.js';
 
 interface VideoIndexerConfig {
   subscriptionId: string;
@@ -403,28 +404,48 @@ async function fetchTikTokMetadata(url: string): Promise<{
   title?: string;
   description?: string;
 } | null> {
+  const safeInputUrl = sanitizeTikTokUrl(url);
+  if (!safeInputUrl) {
+    return null;
+  }
+
   // Resolve short links (vm.tiktok.com, vt.tiktok.com) to get canonical URL with Video ID
-  let canonicalUrl = url;
-  if (url.includes('vm.tiktok.com') || url.includes('vt.tiktok.com')) {
+  let canonicalUrl = safeInputUrl;
+  if (safeInputUrl.includes('vm.tiktok.com') || safeInputUrl.includes('vt.tiktok.com')) {
     try {
-      console.log('🔗 Resolving short URL:', url);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+      console.log('🔗 Resolving short URL:', safeInputUrl);
 
-      const response = await fetch(url, {
-        method: 'HEAD',
-        redirect: 'follow',
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      let current = safeInputUrl;
+      for (let hop = 0; hop < 5; hop++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const response = await fetch(current, {
+          method: 'HEAD',
+          redirect: 'manual',
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          }
+        });
+        clearTimeout(timeout);
+
+        const status = response.status;
+        const location = response.headers.get('location');
+        if (status >= 300 && status < 400 && location) {
+          const nextUrl = new URL(location, current).toString();
+          const safeNext = sanitizeTikTokUrl(nextUrl);
+          if (!safeNext) {
+            break;
+          }
+          current = safeNext;
+          continue;
         }
-      });
-      clearTimeout(timeout);
 
-      if (response.url && response.url !== url) {
-        canonicalUrl = response.url;
-        console.log('🔗 Resolved to:', canonicalUrl);
+        canonicalUrl = sanitizeTikTokUrl(response.url || current) || current;
+        break;
       }
+
+      console.log('🔗 Resolved to:', canonicalUrl);
     } catch (e) {
       console.warn('⚠️ Failed to resolve short URL:', e);
     }
@@ -436,7 +457,7 @@ async function fetchTikTokMetadata(url: string): Promise<{
   let description: string | undefined;
 
   // Update check to use canonical URL for oEmbed if available
-  const urlToUse = canonicalUrl || url;
+  const urlToUse = canonicalUrl || safeInputUrl;
 
   // Method 1: Try TikTok's embed/oEmbed endpoint (most reliable)
   if (videoId) {
@@ -487,7 +508,7 @@ async function fetchTikTokMetadata(url: string): Promise<{
     const timeout = setTimeout(() => controller.abort(), 12000);
 
     // Try with vm.tiktok.com (mobile version, sometimes easier to scrape)
-    const mobileUrl = url.replace('www.tiktok.com', 'vm.tiktok.com');
+    const mobileUrl = urlToUse.replace('www.tiktok.com', 'vm.tiktok.com');
 
     const response = await fetch(mobileUrl, {
       headers: {
@@ -594,7 +615,7 @@ async function fetchTikTokMetadata(url: string): Promise<{
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
 
-      const response = await fetch(url, {
+      const response = await fetch(urlToUse, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml',
@@ -626,9 +647,10 @@ async function fetchTikTokMetadata(url: string): Promise<{
       console.log('⚠️ Invalid thumbnail URL format, discarding:', thumbnailUrl);
       thumbnailUrl = undefined;
     } else {
-      // Don't remove query parameters - TikTok URLs often need them
-      // Just log what we found
-      console.log('📷 Final thumbnail URL:', thumbnailUrl.substring(0, 100) + '...');
+      thumbnailUrl = sanitizeTikTokImageUrl(thumbnailUrl) || undefined;
+      if (thumbnailUrl) {
+        console.log('📷 Final thumbnail URL:', thumbnailUrl.substring(0, 100) + '...');
+      }
     }
   }
 
@@ -946,4 +968,3 @@ function inferLabelsFromText(text: string): string[] {
 
   return labels;
 }
-

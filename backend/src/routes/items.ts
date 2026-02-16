@@ -11,7 +11,7 @@ import { analyzeUrlOnly } from '../services/videoIndexer.js';
 import { classifyItem } from '../services/classification.js';
 import { extractLocationQueries, geocodeLocation } from '../services/location.js';
 import { withLock } from '../services/redis.js';
-import { sanitizeUrl, sanitizeUserContent, sanitizeString } from '../utils/sanitize.js';
+import { sanitizeTikTokUrl, sanitizeTikTokImageUrl, sanitizeUserContent, sanitizeString } from '../utils/sanitize.js';
 import { validateParams, CommonSchemas } from '../middleware/validation.js';
 import {
   parseCursorPagination,
@@ -54,9 +54,9 @@ itemsRouter.post('/', async (req, res: Response) => {
     const parsed = createItemSchema.parse(req.body);
     
     // Sanitize user input
-    const sourceURL = sanitizeUrl(parsed.sourceURL);
+    const sourceURL = sanitizeTikTokUrl(parsed.sourceURL);
     if (!sourceURL) {
-      return res.status(400).json({ error: 'Invalid URL format' });
+      return res.status(400).json({ error: 'Invalid TikTok URL' });
     }
     
     const rawSharedText = parsed.rawSharedText 
@@ -150,14 +150,14 @@ itemsRouter.post('/batch', async (req, res: Response) => {
       const batchPromises = batch.map(async (url) => {
         try {
           // Sanitize URL
-          const sourceURL = sanitizeUrl(url);
+          const sourceURL = sanitizeTikTokUrl(url);
           if (!sourceURL) {
             results.errors++;
             return {
               id: '',
               url,
               status: 'error' as const,
-              error: 'Invalid URL format',
+              error: 'Invalid TikTok URL',
             };
           }
 
@@ -1010,7 +1010,7 @@ async function doProcessItem(
       analysis.labels,
       analysis.creator,
       title,
-      analysis.thumbnailUrl,
+      sanitizeTikTokImageUrl(analysis.thumbnailUrl),
       classification.folderId,
       confidenceValue,
       folderId,
@@ -1057,4 +1057,3 @@ async function updateProcessingStage(
     [stage, config.progress, config.message, errorMessage || null, itemId]
   );
 }
-

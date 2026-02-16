@@ -6,6 +6,7 @@ import { generateItemEmbedding } from '../services/embeddings.js';
 import { getBlobUrl, listBlobs } from '../services/storage.js';
 import { extractHashtags } from '../utils/text.js';
 import { extractLocationQueries, batchGeocodeLocations } from '../services/location.js';
+import { sanitizeTikTokImageUrl } from '../utils/sanitize.js';
 
 // Redis connection for job queue
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -278,7 +279,7 @@ export function startWorker(): void {
          WHERE id = $19`,
         [
           status,
-          thumbnailUrl,
+          sanitizeTikTokImageUrl(thumbnailUrl),
           transcript,
           topics,
           labels,

@@ -131,6 +131,19 @@ export async function initializeDatabase() {
       )
     `);
 
+    // Refresh tokens (rotation + revocation)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash VARCHAR(128) NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        revoked_at TIMESTAMP,
+        replaced_by_token_hash VARCHAR(128),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     // Indexes for performance
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_save_items_user_id ON save_items(user_id);
@@ -140,6 +153,8 @@ export async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_folders_user_id ON folders(user_id);
       CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id);
       CREATE INDEX IF NOT EXISTS idx_training_examples_user_id ON training_examples(user_id);
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
     `);
 
     await client.query(`

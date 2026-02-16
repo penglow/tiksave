@@ -131,39 +131,35 @@ export default function MapScreen({ navigation }: any) {
                         <Marker
                             key={`${item.id}-${item.locationId || ''}`}
                             position={[item.latitude!, item.longitude!]}
-                            icon={L.divIcon({
-                                className: 'custom-map-icon',
-                                html: item.thumbnailURL ? `
-                                <div style="
-                                    width: 100%; 
-                                    height: 100%; 
-                                    background-image: url('${item.thumbnailURL}');
-                                    background-size: cover;
-                                    background-position: center;
-                                    border-radius: 6px; 
-                                    border: 2px solid white; 
-                                    box-shadow: 0 3px 8px rgba(0,0,0,0.4);
-                                    background-color: #ddd;
-                                "></div>
-                                ` : `
-                                <div style="
-                                    width: 100%; 
-                                    height: 100%; 
-                                    background-color: #FF3B30;
-                                    border-radius: 50%; 
-                                    border: 2px solid white; 
-                                    box-shadow: 0 3px 8px rgba(0,0,0,0.4);
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: center;
-                                    color: white;
-                                    font-size: 20px;
-                                ">📍</div>
-                                `,
-                                iconSize: item.thumbnailURL ? [40, 56] : [40, 40], // Different aspect ratio for thumb vs pin
-                                iconAnchor: item.thumbnailURL ? [20, 56] : [20, 40],
-                                popupAnchor: item.thumbnailURL ? [0, -56] : [0, -40]
-                            })}
+                            icon={item.thumbnailURL
+                                ? L.icon({
+                                    iconUrl: item.thumbnailURL,
+                                    iconSize: [40, 56],
+                                    iconAnchor: [20, 56],
+                                    popupAnchor: [0, -56],
+                                    className: 'custom-map-icon',
+                                })
+                                : L.divIcon({
+                                    className: 'custom-map-icon',
+                                    html: `
+                                    <div style="
+                                        width: 100%; 
+                                        height: 100%; 
+                                        background-color: #FF3B30;
+                                        border-radius: 50%; 
+                                        border: 2px solid white; 
+                                        box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        color: white;
+                                        font-size: 20px;
+                                    ">📍</div>
+                                    `,
+                                    iconSize: [40, 40],
+                                    iconAnchor: [20, 40],
+                                    popupAnchor: [0, -40]
+                                })}
                         >
                             <Popup>
                                 <div style={{ display: 'flex', flexDirection: 'column', width: '200px', fontFamily: 'system-ui, -apple-system, sans-serif' }}>

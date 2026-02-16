@@ -104,6 +104,93 @@ export function sanitizeUrl(url: string | null | undefined): string | null {
   }
 }
 
+function normalizeHostname(hostname: string): string {
+  return hostname.trim().toLowerCase().replace(/\.$/, '');
+}
+
+function isPrivateIpLiteral(hostname: string): boolean {
+  const h = normalizeHostname(hostname);
+
+  // IPv4 checks
+  const ipv4Match = h.match(/^(\d{1,3})(\.\d{1,3}){3}$/);
+  if (ipv4Match) {
+    const parts = h.split('.').map((p) => Number(p));
+    if (parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true;
+
+    const [a, b] = parts;
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 0) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    return false;
+  }
+
+  // Basic IPv6 localhost/link-local/private checks
+  if (h === '::1') return true;
+  if (h.startsWith('fc') || h.startsWith('fd')) return true; // unique local
+  if (h.startsWith('fe80:')) return true; // link local
+
+  return false;
+}
+
+function isTikTokHostname(hostname: string): boolean {
+  const h = normalizeHostname(hostname);
+  return h === 'tiktok.com' || h.endsWith('.tiktok.com');
+}
+
+/**
+ * Sanitize TikTok URLs for ingestion to prevent SSRF.
+ * - Restricts protocol to http/https
+ * - Restricts host to TikTok-owned domains
+ * - Blocks localhost/private IP literals
+ */
+export function sanitizeTikTokUrl(url: string | null | undefined): string | null {
+  const safe = sanitizeUrl(url);
+  if (!safe) return null;
+
+  try {
+    const parsed = new URL(safe);
+    const hostname = normalizeHostname(parsed.hostname);
+
+    if (!isTikTokHostname(hostname)) return null;
+    if (hostname === 'localhost' || isPrivateIpLiteral(hostname)) return null;
+    if (parsed.username || parsed.password) return null;
+
+    return parsed.href;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Validate external image URLs before rendering in web clients.
+ * Restrictive on purpose: only known TikTok CDN domains are allowed.
+ */
+export function sanitizeTikTokImageUrl(url: string | null | undefined): string | null {
+  const safe = sanitizeUrl(url);
+  if (!safe) return null;
+
+  try {
+    const parsed = new URL(safe);
+    const hostname = normalizeHostname(parsed.hostname);
+
+    const isTikTokCdn =
+      hostname.endsWith('.tiktokcdn.com') ||
+      hostname.endsWith('.byteimg.com') ||
+      hostname.endsWith('.muscdn.com');
+
+    if (!isTikTokCdn) return null;
+    if (hostname === 'localhost' || isPrivateIpLiteral(hostname)) return null;
+    if (parsed.username || parsed.password) return null;
+
+    return parsed.href;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Sanitize user-generated content (e.g., from TikTok)
  * More permissive than sanitizeString but still safe

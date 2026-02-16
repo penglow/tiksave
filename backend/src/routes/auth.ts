@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt, { SignOptions } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { query } from '../database/init.js';
@@ -9,6 +9,16 @@ import { sanitizeEmail, sanitizeString } from '../utils/sanitize.js';
 import { logger } from '../utils/logger.js';
 
 export const authRouter = Router();
+
+const ACCESS_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
+const ALLOW_DEV_RESET_TOKEN_RESPONSE =
+  process.env.NODE_ENV === 'development' &&
+  process.env.ALLOW_DEV_PASSWORD_RESET_TOKEN === 'true';
+
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEV_PASSWORD_RESET_TOKEN === 'true') {
+  throw new Error('ALLOW_DEV_PASSWORD_RESET_TOKEN must never be enabled in production');
+}
 
 // Validation schemas
 const signUpSchema = z.object({
@@ -67,7 +77,7 @@ authRouter.post('/signup', async (req: Request, res: Response, next: NextFunctio
     await createDefaultFolders(user.id);
     
     // Generate tokens
-    const tokens = generateTokens(user.id);
+    const tokens = await generateTokens(user.id);
     
     res.status(201).json({
       user: formatUser(user),
@@ -112,7 +122,7 @@ authRouter.post('/signin', async (req: Request, res: Response, next: NextFunctio
     }
     
     // Generate tokens
-    const tokens = generateTokens(user.id);
+    const tokens = await generateTokens(user.id);
     
     res.json({
       user: formatUser(user),
@@ -135,7 +145,7 @@ authRouter.post('/refresh', async (req: Request, res: Response, next: NextFuncti
       throw new AppError('Refresh token required', 400);
     }
     
-    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET!) as { 
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET!) as {
       userId: string; 
       type: string;
     };
@@ -154,7 +164,36 @@ authRouter.post('/refresh', async (req: Request, res: Response, next: NextFuncti
       throw new AppError('User not found', 404);
     }
     
-    const tokens = generateTokens(decoded.userId);
+    const incomingTokenHash = hashToken(refreshToken);
+    const existingRefresh = await query(
+      `SELECT id FROM refresh_tokens
+       WHERE token_hash = $1
+         AND user_id = $2
+         AND revoked_at IS NULL
+         AND expires_at > NOW()`,
+      [incomingTokenHash, decoded.userId]
+    );
+
+    if (existingRefresh.rows.length === 0) {
+      throw new AppError('Invalid token', 401);
+    }
+
+    const tokens = await generateTokens(decoded.userId);
+    const replacementHash = hashToken(tokens.refreshToken);
+
+    const revokeResult = await query(
+      `UPDATE refresh_tokens
+       SET revoked_at = NOW(), replaced_by_token_hash = $2
+       WHERE token_hash = $1
+         AND user_id = $3
+         AND revoked_at IS NULL`,
+      [incomingTokenHash, replacementHash, decoded.userId]
+    );
+
+    if ((revokeResult.rowCount || 0) === 0) {
+      await revokeRefreshToken(replacementHash);
+      throw new AppError('Invalid token', 401);
+    }
     
     res.json({
       user: formatUser(result.rows[0]),
@@ -221,7 +260,7 @@ authRouter.post('/password-reset/request', async (req: Request, res: Response, n
     
     // In production, this would send an email with the reset link
     // For development, return the token (remove this in production!)
-    if (process.env.NODE_ENV === 'development') {
+    if (ALLOW_DEV_RESET_TOKEN_RESPONSE) {
       return res.json({ 
         message: 'If the email exists, a reset link will be sent.',
         // DEV ONLY: Include token for testing
@@ -284,7 +323,8 @@ authRouter.post('/password-reset/confirm', async (req: Request, res: Response, n
     logger.info('Password reset completed', { userId: user.id });
     
     // Generate new tokens for automatic login
-    const tokens = generateTokens(user.id);
+    await revokeAllUserRefreshTokens(user.id);
+    const tokens = await generateTokens(user.id);
     
     res.json({
       message: 'Password reset successful',
@@ -316,13 +356,45 @@ function parseExpiresIn(expiresIn: string): number {
   }
 }
 
-function generateTokens(userId: string) {
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+async function storeRefreshToken(userId: string, refreshToken: string, expiresAt: Date): Promise<void> {
+  await query(
+    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+     VALUES ($1, $2, $3)`,
+    [userId, hashToken(refreshToken), expiresAt]
+  );
+}
+
+async function revokeRefreshToken(tokenHash: string): Promise<void> {
+  await query(
+    `UPDATE refresh_tokens
+     SET revoked_at = NOW()
+     WHERE token_hash = $1
+       AND revoked_at IS NULL`,
+    [tokenHash]
+  );
+}
+
+async function revokeAllUserRefreshTokens(userId: string): Promise<void> {
+  await query(
+    `UPDATE refresh_tokens
+     SET revoked_at = NOW()
+     WHERE user_id = $1
+       AND revoked_at IS NULL`,
+    [userId]
+  );
+}
+
+async function generateTokens(userId: string) {
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
     throw new Error('JWT_SECRET is not configured');
   }
   
-  const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
+  const expiresIn = ACCESS_EXPIRES_IN;
   // @ts-expect-error - jsonwebtoken types are incorrect for expiresIn string values
   const accessToken = jwt.sign(
     { userId },
@@ -330,14 +402,17 @@ function generateTokens(userId: string) {
     { expiresIn }
   );
   
+  const refreshJti = crypto.randomUUID();
   const refreshToken = jwt.sign(
-    { userId, type: 'refresh' },
+    { userId, type: 'refresh', jti: refreshJti },
     jwtSecret,
-    { expiresIn: '30d' }
+    { expiresIn: REFRESH_EXPIRES_IN }
   );
   
   // Calculate expiresAt based on actual expiresIn value
   const expiresAt = new Date(Date.now() + parseExpiresIn(expiresIn));
+  const refreshExpiresAt = new Date(Date.now() + parseExpiresIn(REFRESH_EXPIRES_IN));
+  await storeRefreshToken(userId, refreshToken, refreshExpiresAt);
   
   return { accessToken, refreshToken, expiresAt };
 }
@@ -395,4 +470,3 @@ async function createDefaultFolders(userId: string) {
     }
   }
 }
-
