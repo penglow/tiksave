@@ -1,177 +1,81 @@
-# TikSave - React Native
+# TikSaveRN
 
-A cross-platform mobile app for organizing your saved TikTok videos with AI-powered categorization. Built with React Native and Expo.
+Expo React Native client for TikSave.
 
-## Features
+## Current App Surface
 
-- **📥 Smart Inbox** - Incoming videos categorized by status (processing, needs review, recently filed)
-- **📁 Folder Organization** - Hierarchical folder structure with custom icons
-- **🔍 Smart Search** - Semantic and keyword search powered by AI
-- **🤖 AI Categorization** - Automatic folder suggestions based on video content
-- **🎨 Dual Theme Support** - Light and dark themes with system preference option
+The app uses an auth gate plus a 5-tab main navigator:
 
-## Tech Stack
+- Library
+- Import
+- Search
+- Map
+- Settings
 
-- **React Native** with Expo SDK 51
-- **TypeScript** for type safety
-- **React Navigation** for navigation
-- **Zustand** for state management
-- **Expo Secure Store** for secure token storage
-- **Expo Linear Gradient** for beautiful gradients
+Key screens/components in active use include:
 
-## Project Structure
+- `src/screens/LibraryScreen.tsx`
+- `src/screens/AddVideoScreen.tsx`
+- `src/screens/SearchScreen.tsx`
+- `src/screens/MapScreen.native.tsx`
+- `src/screens/MapScreen.web.tsx`
+- `src/screens/SettingsScreen.tsx`
+- `src/screens/VideoDetailScreen.tsx`
+- `src/components/ProcessingProgress.tsx`
 
-```
-TikSaveRN/
-├── App.tsx                    # App entry point
-├── src/
-│   ├── components/            # Reusable components
-│   │   └── MoveFolderModal.tsx
-│   ├── config/                # App configuration & theme
-│   │   └── index.ts
-│   ├── navigation/            # Navigation setup
-│   │   ├── types.ts
-│   │   ├── RootNavigator.tsx
-│   │   └── MainNavigator.tsx
-│   ├── screens/               # App screens
-│   │   ├── AuthScreen.tsx
-│   │   ├── InboxScreen.tsx
-│   │   ├── FoldersScreen.tsx
-│   │   ├── FolderDetailScreen.tsx
-│   │   ├── SearchScreen.tsx
-│   │   ├── SettingsScreen.tsx
-│   │   └── VideoDetailScreen.tsx
-│   ├── services/              # API services
-│   │   └── api.ts
-│   ├── stores/                # State management
-│   │   ├── authStore.ts
-│   │   └── appStore.ts
-│   ├── types/                 # TypeScript types
-│   │   └── index.ts
-│   └── utils/                 # Utility functions
-│       └── date.ts
-├── assets/                    # App icons & splash
-├── app.json                   # Expo configuration
-├── package.json
-└── tsconfig.json
-```
+## Stack
 
-## Getting Started
+- Expo 54
+- React Native 0.81
+- React 19
+- TypeScript
+- React Navigation
+- Zustand
 
-### Prerequisites
+## Prerequisites
 
-- Bun 1.0+
-- Expo CLI (`bunx expo`)
-- iOS Simulator (macOS) or Android Emulator
+- Bun 1.x
+- Backend running on port `3000`
 
-### Installation
+## Install and Run
 
-1. Navigate to the React Native project:
-   ```bash
-   cd TikSaveRN
-   ```
-
-2. Install dependencies:
-   ```bash
-   bun install
-   ```
-
-3. Start the development server:
-   ```bash
-   bun start
-   ```
-
-4. Run on your preferred platform:
-   - Press `i` for iOS Simulator
-   - Press `a` for Android Emulator
-   - Scan QR code with Expo Go app on your device
-
-### Configuration
-
-Update the API base URL in `src/config/index.ts`:
-
-```typescript
-apiBaseURL: __DEV__ 
-  ? 'http://localhost:3000/api'  // Development
-  : 'https://your-production-api.com/api', // Production
-```
-
-## Backend Integration
-
-This app connects to the same Bun backend as the iOS version. Make sure the backend is running:
-
-```bash
-cd ../backend
+```powershell
+cd TikSaveRN
 bun install
-bun run dev
+bun run start
 ```
 
-## Screens
+Shortcuts:
 
-### Auth Screen
-- Email/password login and registration
-- Beautiful gradient background
-- Secure token storage
+- `bun run ios`
+- `bun run android`
+- `bun run web`
 
-### Inbox Screen
-- **Processing Section** - Videos currently being analyzed
-- **Needs Review Section** - Videos that need manual folder assignment
-- **Recently Filed Section** - Successfully categorized videos
+Quality checks:
 
-### Folders Screen
-- Hierarchical folder tree view
-- Expandable/collapsible parent folders
-- Create new folders with custom icons
-- Long-press to select parent folder
+- `bun run lint`
+- `bun run typecheck`
 
-### Search Screen
-- **Semantic Search** - Find videos by meaning
-- **Keyword Search** - Traditional text matching
-- Recent searches history
-- Suggested search queries
+## API Configuration
 
-### Settings Screen
-- Video upload toggle
-- Auto-file confidence threshold
-- Theme selection
-- Cache management
-- Account management
+API base URL is resolved in `src/config/index.ts`:
 
-## Styling
+1. `expoConfig.extra.apiHost`
+2. Expo host URI (for physical devices)
+3. `localhost`
 
-The app supports dual themes (light and dark) with a system preference option:
-- **Dark Theme**: Dark backgrounds (`#12121F`) with light text
-- **Light Theme**: Light backgrounds (`#FFFFFF`) with dark text
-- **System Theme**: Automatically follows device theme preference
-- Primary: `#06B6D4` (cyan)
-- Secondary: `#A855F7` (purple)
-- Gradients for interactive elements
+Development defaults:
 
-## Building for Production
+- Web: `http://localhost:3000/api`
+- Native: `http://<detected-host>:3000/api`
 
-### iOS
-```bash
-bunx expo build:ios
-# or with EAS
-bunx eas build --platform ios
-```
+## Backend Contract
 
-### Android
-```bash
-bunx expo build:android
-# or with EAS
-bunx eas build --platform android
-```
+Client integrates with:
 
-## Contributing
+- `/api/auth`
+- `/api/items` (including batch import, map data, progress)
+- `/api/folders`
+- `/api/search`
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License.
-
+Implementation is in `src/services/api.ts`.

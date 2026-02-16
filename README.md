@@ -1,89 +1,84 @@
-# TikSave 🚀
+# TikSave
 
-A mobile app that organizes your saved TikTok videos with AI-powered categorization and semantic search.
+TikSave is a full-stack app for saving TikTok links, classifying them into folders, and searching them later.
 
-## Features
+## Repository Layout
 
-- **Smart Inbox** - Auto-sorts videos by processing status
-- **AI Organization** - Automatic folder categorization
-- **Semantic Search** - Find videos by meaning, not keywords
-- **Batch Import** - Import up to 50 URLs at once
-- **Real-time Progress** - See what's happening during processing
+- `backend/` Bun + Express API, workers, and tests
+- `TikSaveRN/` Expo React Native app (iOS, Android, web)
+- `database/` Docker Compose for PostgreSQL (pgvector) and Redis
+- `security/gcp/` GCP security hardening scripts and guidance
 
 ## Tech Stack
 
-- **Runtime**: Bun
-- **Mobile**: React Native / Expo
-- **Database**: PostgreSQL + pgvector
-- **Cache**: Redis
-- **AI**: OpenAI + Azure Video Indexer
+- Runtime: Bun
+- Backend: Express, BullMQ, PostgreSQL, Redis
+- Mobile/Web Client: Expo React Native + TypeScript + Zustand
+- AI/Processing: OpenAI, Azure Video Indexer, embeddings, semantic search
+
+## Prerequisites
+
+- Bun 1.x
+- Docker Desktop
 
 ## Quick Start
 
-### Prerequisites
-- Bun
-- Docker Desktop
+### 1) Start infrastructure
 
-### Setup
+```powershell
+cd database
+docker-compose up -d
+```
 
-**Automatic (Windows)**
+### 2) Configure backend env
+
+```powershell
+cd ..\backend
+copy env.template .env
+```
+
+Set local values in `backend/.env` (at minimum: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`).
+
+### 3) Run backend
+
+```powershell
+cd backend
+bun install
+bun run migrate
+bun run dev
+```
+
+API health check: `http://localhost:3000/health`
+
+### 4) Run app
+
+```powershell
+cd TikSaveRN
+bun install
+bun run start
+```
+
+For web-only development:
+
+```powershell
+bun run web
+```
+
+## Windows Helper Script
+
+`start-dev.ps1` starts backend + frontend in separate PowerShell windows.
+
 ```powershell
 .\start-dev.ps1
 ```
 
-**Manual**
-```bash
-# Database
-cd database && docker-compose up -d
+Note: it does not start Docker services. Start `database/docker-compose.yml` first.
 
-# Backend
-cd backend && bun install && bun run migrate && bun run dev
+## Security
 
-# Mobile App
-cd TikSaveRN && bun install && bun start
-```
+Production secrets should come from a secret manager, not checked-in `.env` files.
 
-## Configuration
-
-Copy `backend/env.template` to `backend/.env` and fill values for local development:
-
-```env
-DATABASE_URL=postgresql://tiksave:tiksave_password@localhost:5432/tiksave
-REDIS_URL=redis://localhost:6379
-AZURE_VIDEO_INDEXER_KEY=your_key
-AZURE_VIDEO_INDEXER_ACCOUNT_ID=your_id
-AZURE_VIDEO_INDEXER_LOCATION=your_location
-OPENAI_API_KEY=your_key
-```
-
-For production, do not use plaintext `.env` files. Store these values in Secret Manager and inject at runtime.
-
-## Security Controls
-
-Mandatory key management controls are implemented in `security/gcp`.
-
-- Runtime secret handling and operational baseline: `security/gcp/README.md`
-- Dormant service account key audit/decommission script: `security/gcp/audit-keys.ps1`
-- API key restriction audit script: `security/gcp/audit-api-key-restrictions.ps1`
-- Least-privilege IAM recommender audit script: `security/gcp/recommender-least-privilege.ps1`
-- Mandatory org policy enforcement script: `security/gcp/apply-org-policies.ps1`
-
-Run these from the repo root (PowerShell):
-
-```powershell
-.\security\gcp\audit-keys.ps1 -ProjectId "my-project"
-.\security\gcp\audit-api-key-restrictions.ps1 -ProjectId "my-project"
-.\security\gcp\recommender-least-privilege.ps1 -ProjectId "my-project"
-.\security\gcp\apply-org-policies.ps1 -OrganizationId "123456789012" -KeyExpiryHours 720 -DisableKeyCreation
-```
-
-## Production Build
-
-```bash
-cd TikSaveRN
-bunx eas build --platform ios
-bunx eas build --platform android
-```
+GCP key management controls and scripts are documented in `security/gcp/README.md`.
 
 ---
 *Built with ❤️ for better video organization.*

@@ -1,64 +1,76 @@
-# Starting the Backend Server
+# Backend Quick Start
 
-## Quick Start
+This guide starts the API in development mode.
 
-0. **Create local env file**:
-   ```bash
-   copy env.template .env
-   ```
-   Then update `.env` values for local development only.
+## Prerequisites
 
-1. **Prerequisites**: Make sure you have:
-   - Bun 1.0+ installed
-   - Docker Desktop installed and running
-   - Database containers started (see `START-BACKEND.md` for details)
+- Bun 1.x
+- Docker Desktop
+- Running PostgreSQL + Redis from `database/docker-compose.yml`
 
-2. Open a terminal window (PowerShell, Command Prompt, or your preferred terminal)
+## 1) Configure environment
 
-3. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
+From `backend/`:
 
-4. Install dependencies (if you haven't already):
-   ```bash
-   bun install
-   ```
+```powershell
+copy env.template .env
+```
 
-5. Start the server:
-   ```bash
-   bun run dev
-   ```
+Minimum required local values:
 
-## Keep the Window Open!
+- `DATABASE_URL`
+- `REDIS_URL`
+- `JWT_SECRET`
 
-**IMPORTANT:** The backend server must stay running while you're using the app. Keep the terminal window open.
+Optional integrations (used by specific flows):
 
-To stop the server, press `Ctrl+C` in the terminal window.
+- `OPENAI_API_KEY`
+- `GOOGLE_MAPS_API_KEY`
+- `AZURE_STORAGE_CONNECTION_STRING`
+- `AZURE_VIDEO_INDEXER_ACCOUNT_ID`
+- Azure subscription/resource settings in `env.template`
+
+## 2) Install dependencies
+
+```powershell
+bun install
+```
+
+## 3) Run migrations
+
+```powershell
+bun run migrate
+```
+
+## 4) Start server
+
+```powershell
+bun run dev
+```
+
+Server defaults to `http://localhost:3000`.
 
 ## Verification
 
-Once started, you should see:
-```
-✅ Database initialized
-✅ Background worker started
-🚀 Server running on port 3000
-```
+Check health endpoint:
 
-You can test if it's running by visiting: http://localhost:3000/health
+- `GET http://localhost:3000/health`
 
-You should see a JSON response with `{"status":"ok","timestamp":"..."}`
+Expected result is JSON with `status` and dependency checks (`db`, `redis`, `openai`).
+
+## Useful scripts
+
+- `bun run build` - build to `dist/`
+- `bun run start` - run built server
+- `bun run seed` - seed sample data
+- `bun run test` - run backend tests
+- `bun run test:watch` - watch mode tests
+- `bun run test:coverage` - coverage report
 
 ## Troubleshooting
 
-- **Port 3000 already in use**: Change the `PORT` value in your `.env` file or stop the process using port 3000
-- **Database connection errors**: Make sure Docker is running and the database containers are started (see `START-BACKEND.md`)
-- **Missing dependencies**: Run `bun install` in the backend directory
-- **Environment variables**: Make sure you have a `.env` file configured (see `START-BACKEND.md` for details)
-- Check the terminal output for any error messages
+- Port in use: set `PORT` in `.env`.
+- DB errors: ensure containers are up (`cd ..\database && docker-compose up -d`).
+- Auth errors on startup/runtime: verify `JWT_SECRET` is set.
 
-For more detailed setup instructions, see `START-BACKEND.md`.
-
-## Production Secret Handling
-
-Never commit keys to source code or version control. In production, keep credentials in Secret Manager and inject them at runtime.
+For full setup details, see `backend/START-BACKEND.md`.
