@@ -15,6 +15,7 @@ import { authenticate, AuthenticatedRequest } from './middleware/auth.js';
 import { initializeDatabase, pool } from './database/init.js';
 import { startWorker, shutdownWorker } from './workers/videoProcessor.js';
 import { getRedisClient, isRedisHealthy, closeRedisConnections } from './services/redis.js';
+import { getCacheStats } from './services/cache.js';
 import { logger, createRequestLogger } from './utils/logger.js';
 
 dotenv.config();
@@ -200,6 +201,25 @@ app.use('/api/auth', authLimiter, authRouter);
 app.use('/api/items', authenticate, userLimiter, itemsRouter);
 app.use('/api/folders', authenticate, userLimiter, foldersRouter);
 app.use('/api/search', authenticate, userLimiter, searchRouter);
+
+// Lightweight cache metrics endpoint (disabled in production unless explicitly enabled)
+app.get('/api/metrics/cache', authenticate, userLimiter, async (req, res) => {
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_METRICS_ENDPOINT !== 'true') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
+  const stats = await getCacheStats();
+  const total = stats.hits + stats.misses;
+  const hitRate = total > 0 ? stats.hits / total : 0;
+
+  res.json({
+    cache: {
+      ...stats,
+      hitRate: Number(hitRate.toFixed(4)),
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // Error handling
 app.use(errorHandler);

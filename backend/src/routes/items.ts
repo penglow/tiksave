@@ -248,6 +248,13 @@ function parsePaginationParams(limitStr: string, offsetStr: string, maxLimit = 1
   };
 }
 
+function normalizeCategory(category: unknown): string | null {
+  if (typeof category !== 'string') return null;
+  const trimmed = category.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, 100);
+}
+
 // Get items list (excludes soft-deleted items by default)
 itemsRouter.get('/', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
@@ -416,6 +423,154 @@ itemsRouter.get('/paginated', async (req, res: Response) => {
     });
   } catch (error) {
     console.error('Error fetching paginated items:', error);
+    throw error;
+  }
+});
+
+// Get items grouped by category with pagination and optional category filter
+itemsRouter.get('/by-category', async (req, res: Response) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const { category, limit = '20', offset = '0', itemsPerCategory = '20' } = req.query;
+
+  try {
+    const normalizedCategory = normalizeCategory(category);
+    const { limit: categoryLimit, offset: categoryOffset } = parsePaginationParams(
+      limit as string,
+      offset as string,
+      100
+    );
+    const parsedItemsPerCategory = Math.max(
+      1,
+      Math.min(100, parseInt(itemsPerCategory as string, 10) || 20)
+    );
+
+    const categoryFilterSql = normalizedCategory ? 'AND c.category ILIKE $2' : '';
+    const categoryFilterParams: (string | number)[] = normalizedCategory
+      ? [authReq.userId, normalizedCategory]
+      : [authReq.userId];
+
+    const categoriesResult = await query(
+      `WITH category_counts AS (
+         SELECT
+           COALESCE(NULLIF(TRIM(topic), ''), 'Saved') AS category,
+           COUNT(*)::int AS item_count
+         FROM save_items si
+         LEFT JOIN LATERAL unnest(
+           CASE
+             WHEN si.detected_topics IS NULL OR array_length(si.detected_topics, 1) = 0
+               THEN ARRAY['Saved']::text[]
+             ELSE si.detected_topics
+           END
+         ) AS topic ON true
+         WHERE si.user_id = $1
+           AND si.deleted_at IS NULL
+           AND si.status = 'ready'
+         GROUP BY COALESCE(NULLIF(TRIM(topic), ''), 'Saved')
+       )
+       SELECT c.category, c.item_count
+       FROM category_counts c
+       WHERE 1=1
+       ${categoryFilterSql}
+       ORDER BY c.item_count DESC, c.category ASC
+       LIMIT $${categoryFilterParams.length + 1}
+       OFFSET $${categoryFilterParams.length + 2}`,
+      [...categoryFilterParams, categoryLimit, categoryOffset]
+    );
+
+    const categories = categoriesResult.rows.map((r: any) => ({
+      name: r.category as string,
+      itemCount: Number(r.item_count) || 0,
+    }));
+
+    const categoryNames = categories.map((c) => c.name);
+    const itemsByCategory = new Map<string, any[]>();
+    for (const c of categoryNames) itemsByCategory.set(c, []);
+
+    if (categoryNames.length > 0) {
+      const itemsResult = await query(
+        `WITH categorized_items AS (
+           SELECT
+             si.*,
+             f.name AS folder_name,
+             COALESCE(NULLIF(TRIM(topic), ''), 'Saved') AS category,
+             ROW_NUMBER() OVER (
+               PARTITION BY COALESCE(NULLIF(TRIM(topic), ''), 'Saved')
+               ORDER BY si.created_at DESC
+             ) AS rn
+           FROM save_items si
+           LEFT JOIN folders f ON si.folder_id = f.id
+           LEFT JOIN LATERAL unnest(
+             CASE
+               WHEN si.detected_topics IS NULL OR array_length(si.detected_topics, 1) = 0
+                 THEN ARRAY['Saved']::text[]
+               ELSE si.detected_topics
+             END
+           ) AS topic ON true
+           WHERE si.user_id = $1
+             AND si.deleted_at IS NULL
+             AND si.status = 'ready'
+             AND COALESCE(NULLIF(TRIM(topic), ''), 'Saved') = ANY($2::text[])
+         )
+         SELECT *
+         FROM categorized_items
+         WHERE rn <= $3
+         ORDER BY category ASC, created_at DESC`,
+        [authReq.userId, categoryNames, parsedItemsPerCategory]
+      );
+
+      for (const row of itemsResult.rows) {
+        const bucket = itemsByCategory.get(row.category);
+        if (bucket) bucket.push(formatSaveItem(row));
+      }
+    }
+
+    const totalCategoriesResult = await query(
+      `WITH category_counts AS (
+         SELECT
+           COALESCE(NULLIF(TRIM(topic), ''), 'Saved') AS category
+         FROM save_items si
+         LEFT JOIN LATERAL unnest(
+           CASE
+             WHEN si.detected_topics IS NULL OR array_length(si.detected_topics, 1) = 0
+               THEN ARRAY['Saved']::text[]
+             ELSE si.detected_topics
+           END
+         ) AS topic ON true
+         WHERE si.user_id = $1
+           AND si.deleted_at IS NULL
+           AND si.status = 'ready'
+         GROUP BY COALESCE(NULLIF(TRIM(topic), ''), 'Saved')
+       )
+       SELECT COUNT(*)::int AS total
+       FROM category_counts c
+       WHERE ($2::text IS NULL OR c.category ILIKE $2)`,
+      [authReq.userId, normalizedCategory]
+    );
+
+    const totalItemsResult = await query(
+      `SELECT COUNT(*)::int AS total
+       FROM save_items si
+       WHERE si.user_id = $1
+         AND si.deleted_at IS NULL
+         AND si.status = 'ready'`,
+      [authReq.userId]
+    );
+
+    res.json({
+      categories: categories.map((c) => ({
+        name: c.name,
+        itemCount: c.itemCount,
+        items: itemsByCategory.get(c.name) || [],
+      })),
+      pagination: {
+        limit: categoryLimit,
+        offset: categoryOffset,
+      },
+      totalCategories: Number(totalCategoriesResult.rows[0]?.total || 0),
+      totalItems: Number(totalItemsResult.rows[0]?.total || 0),
+    });
+  } catch (error) {
+    console.error('Error fetching category-grouped items:', error);
     throw error;
   }
 });
