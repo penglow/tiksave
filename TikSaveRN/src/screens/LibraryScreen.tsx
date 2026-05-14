@@ -14,14 +14,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 
-import { Spacing, BorderRadius, Typography, CategoryColors, Hairline } from '../config';
+import { Spacing, BorderRadius, Typography, CategoryColors, Hairline, Gradients } from '../config';
 import { SaveItem, getDisplayTitle } from '../types';
 import { APIError } from '../services/api';
 import { LibraryStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
 import { usePaginatedItems } from '../hooks/usePaginatedItems';
-import { AnimatedPressable, AnimatedListItem, Skeleton, SkeletonVideoCard, AnimatedText } from '../components';
+import { AnimatedPressable, AnimatedListItem, Skeleton, SkeletonVideoCard, AnimatedText, Badge } from '../components';
 
 type Props = LibraryStackScreenProps<'LibraryMain'>;
 
@@ -65,11 +66,10 @@ function getCategoryColor(topic: string): string {
 }
 
 export default function LibraryScreen({ navigation }: Props) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  
-  // Use paginated items hook for efficient data loading
+
   const {
     items,
     isLoading,
@@ -81,7 +81,6 @@ export default function LibraryScreen({ navigation }: Props) {
     refresh,
   } = usePaginatedItems({ status: 'ready', limit: 50 });
 
-  // Load items on mount/focus
   useFocusEffect(
     useCallback(() => {
       if (items.length === 0) {
@@ -96,14 +95,12 @@ export default function LibraryScreen({ navigation }: Props) {
     setIsRefreshing(false);
   }, [loadItems]);
 
-  // Group items by AI-detected topics
   const categories = useMemo(() => {
     const categoryMap = new Map<string, SaveItem[]>();
 
     for (const item of items) {
       let primaryTopic = item.detectedTopics?.[0] || 'Saved';
 
-      // Handle hierarchical topics (e.g., "Food > Japanese")
       if (primaryTopic.includes(' > ')) {
         primaryTopic = primaryTopic.split(' > ')[0].trim();
       }
@@ -130,7 +127,6 @@ export default function LibraryScreen({ navigation }: Props) {
     return result.sort((a, b) => b.items.length - a.items.length);
   }, [items]);
 
-  // Render category item for FlashList
   const renderCategory = useCallback(({ item: category, index }: { item: AICategory; index: number }) => (
     <CategorySection
       category={category}
@@ -139,7 +135,6 @@ export default function LibraryScreen({ navigation }: Props) {
     />
   ), [navigation]);
 
-  // Footer component for loading more
   const ListFooter = useCallback(() => {
     if (isLoadingMore) {
       return (
@@ -166,7 +161,8 @@ export default function LibraryScreen({ navigation }: Props) {
     return <View style={{ height: Spacing.xxl }} />;
   }, [isLoadingMore, hasMore, loadMore, colors]);
 
-  // Loading state
+  const heroGradient = isDark ? Gradients.heroDark : Gradients.heroLight;
+
   if (isLoading && items.length === 0) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
@@ -176,7 +172,7 @@ export default function LibraryScreen({ navigation }: Props) {
         <View style={styles.skeletonContainer}>
           {[0, 1, 2].map((i) => (
             <View key={i} style={styles.skeletonCategory}>
-              <Skeleton width={100} height={20} style={{ marginBottom: 12 }} />
+              <Skeleton width={120} height={22} style={{ marginBottom: 14 }} />
               <View style={styles.skeletonRow}>
                 <SkeletonVideoCard />
                 <SkeletonVideoCard />
@@ -189,17 +185,13 @@ export default function LibraryScreen({ navigation }: Props) {
     );
   }
 
-  // Error state
   if (error && items.length === 0) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={styles.header}>
           <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>Library</AnimatedText>
         </View>
-        <Animated.View
-          entering={FadeIn.duration(150)}
-          style={styles.emptyContainer}
-        >
+        <Animated.View entering={FadeIn.duration(200)} style={styles.emptyContainer}>
           <View style={[styles.emptyIconWrapper, { backgroundColor: colors.errorSubtle }]}>
             <Ionicons name="cloud-offline-outline" size={32} color={colors.error} />
           </View>
@@ -226,19 +218,15 @@ export default function LibraryScreen({ navigation }: Props) {
     );
   }
 
-  // Empty state
   if (items.length === 0) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={styles.header}>
           <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>Library</AnimatedText>
         </View>
-        <Animated.View
-          entering={FadeIn.duration(150)}
-          style={styles.emptyContainer}
-        >
+        <Animated.View entering={FadeIn.duration(200)} style={styles.emptyContainer}>
           <View style={[styles.emptyIconWrapper, { backgroundColor: colors.accentSubtle }]}>
-            <Ionicons name="grid-outline" size={32} color={colors.textTertiary} />
+            <Ionicons name="grid-outline" size={32} color={colors.accent} />
           </View>
           <AnimatedText delay={100} style={[styles.emptyTitle, { color: colors.text }]}>
             No videos yet
@@ -247,15 +235,15 @@ export default function LibraryScreen({ navigation }: Props) {
             Import TikToks to see them{'\n'}organized by AI
           </AnimatedText>
           <AnimatedPressable
-            style={[styles.importButton, { borderColor: colors.border }]}
+            style={[styles.importButton, { backgroundColor: colors.text }]}
             onPress={() => navigation.navigate('AddVideo')}
             haptic
             accessibilityLabel="Import videos"
             accessibilityHint="Open the add video screen to import TikTok videos"
             accessibilityRole="button"
           >
-            <Ionicons name="add" size={18} color={colors.text} />
-            <Text style={[styles.importButtonText, { color: colors.text }]}>
+            <Ionicons name="add" size={18} color={colors.background} />
+            <Text style={[styles.importButtonText, { color: colors.background }]}>
               Import videos
             </Text>
           </AnimatedPressable>
@@ -266,19 +254,30 @@ export default function LibraryScreen({ navigation }: Props) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>Library</AnimatedText>
-        <Text style={[styles.headerCount, { color: colors.textTertiary }]}>
-          {items.length} videos
-        </Text>
-      </View>
+      {/* Hero Header with gradient */}
+      <LinearGradient colors={heroGradient} style={styles.heroHeader}>
+        <View style={styles.headerContent}>
+          <View>
+            <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>Library</AnimatedText>
+            <Text style={[styles.headerCount, { color: colors.textTertiary }]}>
+              {items.length} video{items.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          <AnimatedPressable
+            style={[styles.headerAction, { backgroundColor: colors.surfaceHover }]}
+            onPress={() => navigation.navigate('AddVideo')}
+            haptic
+          >
+            <Ionicons name="add" size={20} color={colors.text} />
+          </AnimatedPressable>
+        </View>
+      </LinearGradient>
 
       {/* Virtualized Category List */}
       <FlashList
         data={categories}
         renderItem={renderCategory}
-        estimatedItemSize={250}
+        estimatedItemSize={280}
         keyExtractor={(item) => item.name}
         onEndReached={loadMore}
         onEndReachedThreshold={0.3}
@@ -297,7 +296,6 @@ export default function LibraryScreen({ navigation }: Props) {
   );
 }
 
-// Separate component for category section to optimize re-renders
 const CategorySection = React.memo(function CategorySection({
   category,
   index,
@@ -321,15 +319,13 @@ const CategorySection = React.memo(function CategorySection({
         })}
       >
         <View style={styles.categoryTitleRow}>
+          <View style={[styles.categoryDot, { backgroundColor: category.color }]} />
           <Text style={[styles.categoryName, { color: colors.text }]}>
             {category.name}
           </Text>
-          <View style={[styles.categoryDot, { backgroundColor: category.color }]} />
         </View>
         <View style={styles.categoryMeta}>
-          <Text style={[styles.categoryCount, { color: colors.textTertiary }]}>
-            {category.items.length} videos
-          </Text>
+          <Badge label={`${category.items.length}`} variant="ghost" size="sm" />
           <Ionicons name="chevron-forward" size={14} color={colors.textQuaternary} />
         </View>
       </AnimatedPressable>
@@ -353,7 +349,7 @@ const CategorySection = React.memo(function CategorySection({
         {/* See More Card */}
         {category.items.length > 6 && (
           <AnimatedPressable
-            style={[styles.seeMoreCard, { backgroundColor: colors.accentSubtle }]}
+            style={[styles.seeMoreCard, { backgroundColor: colors.surfaceHover, borderColor: colors.border }]}
             onPress={() => navigation.navigate('CategoryDetail', {
               categoryName: category.name,
               icon: '',
@@ -373,7 +369,6 @@ const CategorySection = React.memo(function CategorySection({
   );
 });
 
-// Video Card Component
 const VideoCard = React.memo(function VideoCard({
   item,
   index,
@@ -394,7 +389,7 @@ const VideoCard = React.memo(function VideoCard({
       <AnimatedPressable
         style={styles.thumbnailWrapper}
         onPress={onPlayPress}
-        scaleOnPress={0.98}
+        scaleOnPress={0.97}
         accessibilityLabel={`Play ${title} in TikTok`}
         accessibilityHint="Opens the video in the TikTok app"
         accessibilityRole="button"
@@ -407,14 +402,14 @@ const VideoCard = React.memo(function VideoCard({
             accessibilityIgnoresInvertColors
           />
         ) : (
-          <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.accentSubtle }]}>
+          <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.surfaceHover }]}>
             <Ionicons name="play" size={24} color={colors.textTertiary} />
           </View>
         )}
 
         {/* Duration Badge */}
         {item.duration && (
-          <View style={styles.durationBadge} accessibilityLabel={`Duration: ${Math.floor(item.duration / 60)} minutes ${Math.floor(item.duration % 60)} seconds`}>
+          <View style={styles.durationBadge}>
             <Text style={styles.durationText}>
               {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
             </Text>
@@ -449,18 +444,33 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.lg,
+  },
+  heroHeader: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
   },
   headerTitle: {
     ...Typography.displayMd,
   },
   headerCount: {
     ...Typography.caption,
+    marginTop: Spacing.xs,
+  },
+  headerAction: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   listContent: {
     paddingBottom: Spacing.xl,
@@ -508,9 +518,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   emptyIconWrapper: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.md,
+    width: 72,
+    height: 72,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.lg,
@@ -529,8 +539,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.xs,
     paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderWidth: 1,
+    paddingHorizontal: Spacing.lg,
     borderRadius: BorderRadius.sm,
   },
   importButtonText: {
@@ -539,14 +548,14 @@ const styles = StyleSheet.create({
 
   // Category section
   categorySection: {
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.xxl,
   },
   categoryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   categoryTitleRow: {
     flexDirection: 'row',
@@ -554,35 +563,33 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   categoryName: {
-    ...Typography.heading,
+    ...Typography.headingSm,
   },
   categoryDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   categoryMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
   },
-  categoryCount: {
-    ...Typography.caption,
-  },
 
   // Video row
   videoRow: {
     paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   videoCard: {
-    width: 140,
+    width: 152,
   },
   thumbnailWrapper: {
-    width: 140,
-    height: 186,
-    borderRadius: BorderRadius.xs,
+    width: 152,
+    height: 202,
+    borderRadius: BorderRadius.sm,
     overflow: 'hidden',
+    backgroundColor: '#000',
   },
   thumbnail: {
     width: '100%',
@@ -595,24 +602,24 @@ const styles = StyleSheet.create({
   },
   durationBadge: {
     position: 'absolute',
-    bottom: 6,
-    right: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: BorderRadius.xs,
   },
   durationText: {
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#ffffff',
   },
   videoInfo: {
-    paddingTop: Spacing.xs,
+    paddingTop: Spacing.sm,
   },
   videoTitle: {
     ...Typography.captionStrong,
-    lineHeight: 16,
+    lineHeight: 17,
   },
   creatorName: {
     fontSize: 12,
@@ -621,11 +628,12 @@ const styles = StyleSheet.create({
 
   // See more card
   seeMoreCard: {
-    width: 80,
-    height: 186,
+    width: 88,
+    height: 202,
     borderRadius: BorderRadius.sm,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
   },
   seeMoreCount: {
     ...Typography.headingSm,

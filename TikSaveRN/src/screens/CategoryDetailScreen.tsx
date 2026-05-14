@@ -19,7 +19,7 @@ import { apiService } from '../services/api';
 import { LibraryStackScreenProps } from '../navigation/types';
 import { formatTimeAgo } from '../utils/date';
 import { useTheme } from '../hooks/useTheme';
-import { AnimatedPressable, AnimatedListItem, AnimatedText } from '../components';
+import { AnimatedPressable, AnimatedListItem, AnimatedText, Badge } from '../components';
 
 type Props = LibraryStackScreenProps<'CategoryDetail'>;
 
@@ -146,6 +146,7 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
             {subcategory.items.length} videos
           </Text>
         </View>
+        <Badge label={`${subcategory.items.length}`} variant="ghost" size="sm" />
         <Ionicons name="chevron-forward" size={16} color={colors.textQuaternary} />
       </AnimatedPressable>
     </AnimatedListItem>
@@ -164,15 +165,15 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
       {/* Header */}
       <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
         <View style={styles.headerTitleRow}>
+          <View style={[styles.categoryDot, { backgroundColor: color }]} />
           <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>
             {subcategoryName || categoryName}
           </AnimatedText>
-          <View style={[styles.categoryDot, { backgroundColor: color }]} />
         </View>
         <Text style={[styles.headerSubtitle, { color: colors.textTertiary }]}>
           {subcategoryName
-            ? `${items.length} videos`
-            : `${items.length} videos · ${subcategories.length} subcategories`
+            ? `${items.length} video${items.length !== 1 ? 's' : ''}`
+            : `${items.length} video${items.length !== 1 ? 's' : ''} · ${subcategories.length} subcategories`
           }
         </Text>
       </Animated.View>
@@ -193,6 +194,9 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
+              <View style={[styles.emptyIconWrapper, { backgroundColor: colors.surfaceHover }]}>
+                <Ionicons name="grid-outline" size={28} color={colors.textTertiary} />
+              </View>
               <AnimatedText delay={100} style={[styles.emptyText, { color: colors.textTertiary }]}>
                 No videos in this category
               </AnimatedText>
@@ -240,6 +244,9 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
           ListEmptyComponent={
             items.length === 0 ? (
               <View style={styles.emptyContainer}>
+                <View style={[styles.emptyIconWrapper, { backgroundColor: colors.surfaceHover }]}>
+                  <Ionicons name="grid-outline" size={28} color={colors.textTertiary} />
+                </View>
                 <AnimatedText delay={100} style={[styles.emptyText, { color: colors.textTertiary }]}>
                   No videos in this category
                 </AnimatedText>
@@ -276,7 +283,7 @@ function VideoRow({
       <AnimatedPressable
         style={styles.thumbnail}
         onPress={openInTikTok}
-        scaleOnPress={0.98}
+        scaleOnPress={0.97}
       >
         {item.thumbnailURL ? (
           <Image
@@ -285,7 +292,7 @@ function VideoRow({
             resizeMode="cover"
           />
         ) : (
-          <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.accentSubtle }]}>
+          <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.surfaceHover }]}>
             <Ionicons name="play" size={18} color={colors.textTertiary} />
           </View>
         )}
@@ -341,9 +348,9 @@ const styles = StyleSheet.create({
     ...Typography.displayMd,
   },
   categoryDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   headerSubtitle: {
     ...Typography.caption,
@@ -369,10 +376,11 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   thumbnail: {
-    width: 70,
-    height: 93,
+    width: 76,
+    height: 102,
     borderRadius: BorderRadius.xs,
     overflow: 'hidden',
+    backgroundColor: '#000',
   },
   thumbnailImage: {
     width: '100%',
@@ -385,16 +393,16 @@ const styles = StyleSheet.create({
   },
   durationBadge: {
     position: 'absolute',
-    bottom: 4,
-    right: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
+    bottom: 6,
+    right: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
     borderRadius: BorderRadius.xs,
   },
   durationText: {
     fontSize: 10,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#ffffff',
   },
   videoInfo: {
@@ -403,7 +411,7 @@ const styles = StyleSheet.create({
   },
   videoTitle: {
     ...Typography.captionStrong,
-    lineHeight: 16,
+    lineHeight: 17,
   },
   creatorName: {
     fontSize: 12,
@@ -418,6 +426,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
     borderBottomWidth: Hairline,
+    gap: Spacing.sm,
   },
   subcategoryInfo: {
     flex: 1,
@@ -433,7 +442,16 @@ const styles = StyleSheet.create({
     padding: Spacing.xxl,
     alignItems: 'center',
   },
+  emptyIconWrapper: {
+    width: 72,
+    height: 72,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
   emptyText: {
     ...Typography.body,
+    textAlign: 'center',
   },
 });

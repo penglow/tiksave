@@ -2,12 +2,13 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, Pressable, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { useAnimatedStyle, withSpring, interpolateColor } from 'react-native-reanimated';
 
 import { MainTabParamList, LibraryStackParamList, SearchStackParamList, AddStackParamList, MapStackParamList, LibraryStackScreenProps } from './types';
-import { Spacing, BorderRadius } from '../config';
+import { Spacing, BorderRadius, Shadows } from '../config';
 import { useTheme } from '../hooks/useTheme';
 
 // Screens
@@ -26,52 +27,73 @@ const SearchStack = createStackNavigator<SearchStackParamList>();
 const AddStack = createStackNavigator<AddStackParamList>();
 const MapStack = createStackNavigator<MapStackParamList>();
 
-// Animated Tab Icon Component
+// Animated Tab Icon
 function TabIcon({
   name,
   focused,
-  color
+  color,
 }: {
   name: keyof typeof Ionicons.glyphMap;
   focused: boolean;
   color: string;
 }) {
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: withSpring(focused ? 1.1 : 1, { damping: 15, stiffness: 300 }) }],
+  }));
+
   return (
-    <Animated.View
-      style={[
-        styles.iconWrapper,
-        {
-          opacity: focused ? 1 : 0.6,
-          transform: [{ scale: focused ? 1.05 : 1 }],
-        }
-      ]}
-    >
-      <Ionicons name={name} size={22} color={color} />
-    </Animated.View>
+    <View style={styles.iconWrapper}>
+      <Animated.View style={animatedStyle}>
+        <Ionicons name={name} size={22} color={color} />
+      </Animated.View>
+      {focused && (
+        <View style={[styles.activeDot, { backgroundColor: color }]} />
+      )}
+    </View>
   );
 }
 
+// Center Add Button
+function AddTabButton({ onPress }: { onPress?: () => void }) {
+  const { isDark } = useTheme();
+  const gradientColors = isDark
+    ? ['#e8705a', '#c45a46'] as const
+    : ['#f28b78', '#d45a44'] as const;
 
-// Stack navigators for each tab
+  return (
+    <Pressable onPress={onPress} style={styles.addButtonContainer}>
+      <LinearGradient
+        colors={gradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.addButton}
+      >
+        <Ionicons name="add" size={28} color="#ffffff" />
+      </LinearGradient>
+    </Pressable>
+  );
+}
+
+// Stack navigators
 function LibraryStackNavigator() {
-  const { colors: themeColors } = useTheme();
+  const { colors } = useTheme();
   return (
     <LibraryStack.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: themeColors.background,
+          backgroundColor: colors.background,
           elevation: 0,
           shadowOpacity: 0,
           borderBottomWidth: 0,
         },
-        headerTintColor: themeColors.text,
+        headerTintColor: colors.text,
         headerTitleStyle: {
-          fontWeight: '600',
+          fontWeight: '700',
           fontSize: 17,
           letterSpacing: -0.4,
         },
         headerBackTitleVisible: false,
-        cardStyle: { backgroundColor: themeColors.background },
+        cardStyle: { backgroundColor: colors.background },
         cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
       }}
     >
@@ -96,7 +118,7 @@ function LibraryStackNavigator() {
         name="FolderDetail"
         component={FolderDetailScreen}
         options={({ route }: LibraryStackScreenProps<'FolderDetail'>) => ({
-          title: route.params.folder.name
+          title: route.params.folder.name,
         })}
       />
       <LibraryStack.Screen
@@ -109,23 +131,23 @@ function LibraryStackNavigator() {
 }
 
 function AddStackNavigator() {
-  const { colors: themeColors } = useTheme();
+  const { colors } = useTheme();
   return (
     <AddStack.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: themeColors.background,
+          backgroundColor: colors.background,
           elevation: 0,
           shadowOpacity: 0,
           borderBottomWidth: 0,
         },
-        headerTintColor: themeColors.text,
+        headerTintColor: colors.text,
         headerTitleStyle: {
-          fontWeight: '600',
+          fontWeight: '700',
           fontSize: 17,
           letterSpacing: -0.4,
         },
-        cardStyle: { backgroundColor: themeColors.background },
+        cardStyle: { backgroundColor: colors.background },
         cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
       }}
     >
@@ -139,24 +161,24 @@ function AddStackNavigator() {
 }
 
 function SearchStackNavigator() {
-  const { colors: themeColors } = useTheme();
+  const { colors } = useTheme();
   return (
     <SearchStack.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: themeColors.background,
+          backgroundColor: colors.background,
           elevation: 0,
           shadowOpacity: 0,
           borderBottomWidth: 0,
         },
-        headerTintColor: themeColors.text,
+        headerTintColor: colors.text,
         headerTitleStyle: {
-          fontWeight: '600',
+          fontWeight: '700',
           fontSize: 17,
           letterSpacing: -0.4,
         },
         headerBackTitleVisible: false,
-        cardStyle: { backgroundColor: themeColors.background },
+        cardStyle: { backgroundColor: colors.background },
         cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
       }}
     >
@@ -175,24 +197,24 @@ function SearchStackNavigator() {
 }
 
 function MapStackNavigator() {
-  const { colors: themeColors } = useTheme();
+  const { colors } = useTheme();
   return (
     <MapStack.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: themeColors.background,
+          backgroundColor: colors.background,
           elevation: 0,
           shadowOpacity: 0,
           borderBottomWidth: 0,
         },
-        headerTintColor: themeColors.text,
+        headerTintColor: colors.text,
         headerTitleStyle: {
-          fontWeight: '600',
+          fontWeight: '700',
           fontSize: 17,
           letterSpacing: -0.4,
         },
         headerBackTitleVisible: false,
-        cardStyle: { backgroundColor: themeColors.background },
+        cardStyle: { backgroundColor: colors.background },
         cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
       }}
     >
@@ -210,9 +232,8 @@ function MapStackNavigator() {
   );
 }
 
-
 export default function MainNavigator() {
-  const { colors: themeColors } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
   return (
@@ -220,54 +241,28 @@ export default function MainNavigator() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: themeColors.background,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: themeColors.border,
-          paddingTop: 12,
-          paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 12) : 12,
-          height: Platform.OS === 'ios' ? (insets.bottom > 0 ? 90 : 70) : 70,
+          position: 'absolute',
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
           elevation: 0,
           shadowOpacity: 0,
-        },
-        tabBarActiveTintColor: themeColors.text,
-        tabBarInactiveTintColor: themeColors.textTertiary,
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '500',
-          letterSpacing: 0.2,
-          marginTop: 4,
-        },
-        tabBarItemStyle: {
           paddingTop: 0,
+          paddingBottom: 0,
+          height: 0,
         },
+        tabBarActiveTintColor: colors.text,
+        tabBarInactiveTintColor: colors.textTertiary,
       }}
+      tabBar={(props) => <CustomTabBar {...props} colors={colors} insets={insets} />}
     >
       <Tab.Screen
         name="Library"
         component={LibraryStackNavigator}
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <TabIcon
-              name={focused ? 'grid' : 'grid-outline'}
-              focused={focused}
-              color={color}
-            />
+            <TabIcon name={focused ? 'grid' : 'grid-outline'} focused={focused} color={color} />
           ),
           tabBarLabel: 'Library',
-        }}
-      />
-      <Tab.Screen
-        name="Add"
-        component={AddStackNavigator}
-        options={{
-          tabBarIcon: ({ focused, color }) => (
-            <TabIcon
-              name={focused ? 'add-circle' : 'add-circle-outline'}
-              focused={focused}
-              color={color}
-            />
-          ),
-          tabBarLabel: 'Import',
         }}
       />
       <Tab.Screen
@@ -275,13 +270,17 @@ export default function MainNavigator() {
         component={SearchStackNavigator}
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <TabIcon
-              name={focused ? 'search' : 'search-outline'}
-              focused={focused}
-              color={color}
-            />
+            <TabIcon name={focused ? 'search' : 'search-outline'} focused={focused} color={color} />
           ),
           tabBarLabel: 'Search',
+        }}
+      />
+      <Tab.Screen
+        name="Add"
+        component={AddStackNavigator}
+        options={{
+          tabBarButton: (props: any) => <AddTabButton onPress={props.onPress} />,
+          tabBarLabel: '',
         }}
       />
       <Tab.Screen
@@ -289,11 +288,7 @@ export default function MainNavigator() {
         component={MapStackNavigator}
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <TabIcon
-              name={focused ? 'map' : 'map-outline'}
-              focused={focused}
-              color={color}
-            />
+            <TabIcon name={focused ? 'map' : 'map-outline'} focused={focused} color={color} />
           ),
           tabBarLabel: 'Map',
         }}
@@ -303,11 +298,7 @@ export default function MainNavigator() {
         component={SettingsScreen}
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <TabIcon
-              name={focused ? 'settings' : 'settings-outline'}
-              focused={focused}
-              color={color}
-            />
+            <TabIcon name={focused ? 'settings' : 'settings-outline'} focused={focused} color={color} />
           ),
           tabBarLabel: 'Settings',
           headerShown: false,
@@ -317,9 +308,150 @@ export default function MainNavigator() {
   );
 }
 
+function CustomTabBar({
+  state,
+  descriptors,
+  navigation,
+  colors,
+  insets,
+}: any) {
+  return (
+    <View
+      style={[
+        styles.tabBarContainer,
+        {
+          paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 12) : 12,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.tabBar,
+          {
+            backgroundColor: colors.glass,
+            borderColor: colors.glassBorder,
+          },
+        ]}
+      >
+        {state.routes.map((route: any, index: number) => {
+          const { options } = descriptors[route.key];
+          const isFocused = state.index === index;
+          const label = options.tabBarLabel ?? options.title ?? route.name;
+
+          const onPress = () => {
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
+            if (!isFocused && !event.defaultPrevented) {
+              navigation.navigate(route.name);
+            }
+          };
+
+          if (options.tabBarButton) {
+            return (
+              <View key={route.key} style={styles.centerTab}>
+                {options.tabBarButton({ onPress })}
+              </View>
+            );
+          }
+
+          const icon = options.tabBarIcon?.({
+            focused: isFocused,
+            color: isFocused ? colors.text : colors.textTertiary,
+            size: 22,
+          });
+
+          return (
+            <Pressable
+              key={route.key}
+              onPress={onPress}
+              style={styles.tabItem}
+            >
+              <View style={styles.tabContent}>
+                {icon}
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    {
+                      color: isFocused ? colors.text : colors.textTertiary,
+                      fontWeight: isFocused ? '700' : '500',
+                    },
+                  ]}
+                >
+                  {label}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  tabBarContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: Spacing.md,
+    paddingTop: 8,
+    backgroundColor: 'transparent',
+  },
+  tabBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    borderRadius: BorderRadius.xl,
+    paddingVertical: 6,
+    height: 68,
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  tabLabel: {
+    fontSize: 10,
+    letterSpacing: 0.3,
+  },
   iconWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
+    height: 26,
+  },
+  activeDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 3,
+  },
+  centerTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -28,
+  },
+  addButtonContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.glow,
   },
 });

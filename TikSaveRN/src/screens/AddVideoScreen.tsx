@@ -14,14 +14,15 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 
-import { Spacing, BorderRadius, Typography, Hairline } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline, Gradients } from '../config';
 import { apiService } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import { LibraryStackScreenProps, AddStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
 import { useClipboard } from '../hooks/useClipboard';
-import { AnimatedPressable, AnimatedListItem, AnimatedText, ProcessingProgress } from '../components';
+import { AnimatedPressable, AnimatedListItem, AnimatedText, ProcessingProgress, Card, Badge } from '../components';
 
 type Props =
   | LibraryStackScreenProps<'AddVideo'>
@@ -58,7 +59,7 @@ async function fetchTikTokPreview(url: string): Promise<URLPreview> {
 }
 
 export default function AddVideoScreen({ navigation }: Props) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [isImporting, setIsImporting] = useState(false);
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -69,8 +70,7 @@ export default function AddVideoScreen({ navigation }: Props) {
   const [isLoadingPreviews, setIsLoadingPreviews] = useState(false);
   const pendingShareUrl = useAppStore((state) => state.pendingShareUrl);
   const clearPendingShare = useAppStore((state) => state.clearPendingShare);
-  
-  // Clipboard detection
+
   const { urls: clipboardUrls, hasUrls: hasClipboardUrls, dismissUrls, clearUrls } = useClipboard({
     autoCheck: true,
     onlyNew: true,
@@ -153,12 +153,9 @@ export default function AddVideoScreen({ navigation }: Props) {
 
     try {
       const item = await apiService.createSaveItem(url);
-      
-      // Track this item for progress display
+
       setImportingItems([{ id: item.id, url, status: 'processing' }]);
       setManualUrl('');
-
-      // Don't auto-navigate - let ProcessingProgress handle completion
     } catch (error) {
       console.error('Failed to import:', error);
       setImportStatus('error');
@@ -167,17 +164,16 @@ export default function AddVideoScreen({ navigation }: Props) {
   };
 
   const handleItemComplete = (itemId: string) => {
-    setImportingItems(prev => 
-      prev.map(item => 
+    setImportingItems(prev =>
+      prev.map(item =>
         item.id === itemId ? { ...item, status: 'complete' as const } : item
       )
     );
-    
-    // Check if all items are complete
+
     setTimeout(() => {
       setImportStatus('success');
       setIsImporting(false);
-      
+
       setTimeout(() => {
         try {
           (navigation as any).navigate('LibraryMain');
@@ -189,8 +185,8 @@ export default function AddVideoScreen({ navigation }: Props) {
   };
 
   const handleItemError = (itemId: string, error: string) => {
-    setImportingItems(prev => 
-      prev.map(item => 
+    setImportingItems(prev =>
+      prev.map(item =>
         item.id === itemId ? { ...item, status: 'error' as const } : item
       )
     );
@@ -241,7 +237,6 @@ export default function AddVideoScreen({ navigation }: Props) {
       return;
     }
 
-    // Validate all URLs
     const invalidUrls = urls.filter(
       url => !url.includes('tiktok.com') && !url.includes('vm.tiktok')
     );
@@ -264,15 +259,13 @@ export default function AddVideoScreen({ navigation }: Props) {
         autoOrganize: true,
       });
 
-      // Track all queued items for progress display
       const queuedItems: ImportingItem[] = result.items
         .filter(item => item.status === 'queued')
         .map(item => ({ id: item.id, url: item.url, status: 'processing' as const }));
-      
+
       setImportingItems(queuedItems);
       setManualUrl('');
 
-      // Show summary for duplicates/errors
       if (result.duplicates > 0 || result.errors > 0) {
         const message = `${result.queued} queued, ${result.duplicates} duplicates, ${result.errors} errors`;
         if (Platform.OS === 'web') {
@@ -282,7 +275,6 @@ export default function AddVideoScreen({ navigation }: Props) {
         }
       }
 
-      // If no items to process, navigate back
       if (queuedItems.length === 0) {
         setIsImporting(false);
         setTimeout(() => {
@@ -302,7 +294,6 @@ export default function AddVideoScreen({ navigation }: Props) {
 
   const handleManualImport = () => {
     if (manualUrl.trim()) {
-      // Check if multiple URLs (contains newlines)
       if (manualUrl.includes('\n')) {
         handleBatchImport();
       } else {
@@ -311,6 +302,8 @@ export default function AddVideoScreen({ navigation }: Props) {
     }
   };
 
+  const heroGradient = isDark ? Gradients.heroDark : Gradients.heroLight;
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -318,21 +311,24 @@ export default function AddVideoScreen({ navigation }: Props) {
       keyboardShouldPersistTaps="handled"
     >
       {/* Header */}
-      <Animated.View entering={FadeIn.duration(150)} style={styles.header}>
+      <Animated.View entering={FadeIn.duration(200)} style={styles.header}>
         <AnimatedText style={[styles.title, { color: colors.text }]}>
           Import Video
         </AnimatedText>
+        <Text style={[styles.subtitle, { color: colors.textTertiary }]}>
+          Paste TikTok URLs to save and organize
+        </Text>
       </Animated.View>
 
       {/* Clipboard Detection Banner */}
       {hasClipboardUrls && !isImporting && importStatus === 'idle' && (
         <Animated.View
           entering={FadeInDown.duration(200)}
-          style={[styles.clipboardBanner, { backgroundColor: colors.accentSubtle, borderColor: colors.border }]}
+          style={[styles.clipboardBanner, { backgroundColor: colors.surface, borderColor: colors.border }]}
         >
           <View style={styles.clipboardHeader}>
             <View style={styles.clipboardTitleRow}>
-              <Ionicons name="clipboard-outline" size={18} color={colors.text} />
+              <Ionicons name="clipboard-outline" size={18} color={colors.accent} />
               <Text style={[styles.clipboardTitle, { color: colors.text }]}>
                 {clipboardUrls.length === 1 ? 'TikTok URL detected' : `${clipboardUrls.length} TikTok URLs detected`}
               </Text>
@@ -341,16 +337,15 @@ export default function AddVideoScreen({ navigation }: Props) {
               <Ionicons name="close" size={18} color={colors.textTertiary} />
             </AnimatedPressable>
           </View>
-          
+
           <Text style={[styles.clipboardPreview, { color: colors.textSecondary }]} numberOfLines={2}>
             {clipboardUrls.slice(0, 2).join('\n')}
             {clipboardUrls.length > 2 && `\n...and ${clipboardUrls.length - 2} more`}
           </Text>
-          
+
           <AnimatedPressable
             style={[styles.clipboardImportButton, { backgroundColor: colors.text }]}
             onPress={() => {
-              // Set the URLs in the input and clear clipboard state
               setManualUrl(clipboardUrls.join('\n'));
               clearUrls();
             }}
@@ -366,10 +361,17 @@ export default function AddVideoScreen({ navigation }: Props) {
 
       {/* Processing Progress Display */}
       {isImporting && importingItems.length > 0 && (
-        <Animated.View entering={FadeInDown.duration(150)} style={styles.progressSection}>
-          <Text style={[styles.progressHeader, { color: colors.text }]}>
-            Processing {importingItems.filter(i => i.status === 'processing').length} of {importingItems.length} video{importingItems.length > 1 ? 's' : ''}
-          </Text>
+        <Animated.View entering={FadeInDown.duration(200)} style={styles.progressSection}>
+          <View style={styles.progressHeaderRow}>
+            <Text style={[styles.progressHeader, { color: colors.text }]}>
+              Processing
+            </Text>
+            <Badge
+              label={`${importingItems.filter(i => i.status === 'processing').length} of ${importingItems.length}`}
+              variant="accent"
+              size="sm"
+            />
+          </View>
           <ScrollView style={styles.progressList} nestedScrollEnabled>
             {importingItems.map((item) => (
               <View key={item.id} style={styles.progressItem}>
@@ -383,14 +385,14 @@ export default function AddVideoScreen({ navigation }: Props) {
                     pollInterval={500}
                   />
                 ) : item.status === 'complete' ? (
-                  <View style={[styles.statusCard, { backgroundColor: colors.successSubtle }]}>
+                  <View style={[styles.statusCard, { backgroundColor: colors.successSubtle, borderColor: colors.successSubtle }]}>
                     <Ionicons name="checkmark-circle" size={18} color={colors.success} />
                     <Text style={[styles.statusText, { color: colors.success }]} numberOfLines={1}>
                       Complete
                     </Text>
                   </View>
                 ) : (
-                  <View style={[styles.statusCard, { backgroundColor: colors.errorSubtle }]}>
+                  <View style={[styles.statusCard, { backgroundColor: colors.errorSubtle, borderColor: colors.errorSubtle }]}>
                     <Ionicons name="close-circle" size={18} color={colors.error} />
                     <Text style={[styles.statusText, { color: colors.error }]} numberOfLines={1}>
                       Failed
@@ -403,11 +405,11 @@ export default function AddVideoScreen({ navigation }: Props) {
         </Animated.View>
       )}
 
-      {/* Fallback loading state (before item ID is available) */}
+      {/* Fallback loading state */}
       {isImporting && importingItems.length === 0 && (
         <Animated.View
-          entering={FadeInDown.duration(150)}
-          style={[styles.statusCard, { backgroundColor: colors.accentSubtle }]}
+          entering={FadeInDown.duration(200)}
+          style={[styles.statusCard, { backgroundColor: colors.accentSubtle, borderColor: colors.accentSubtle }]}
         >
           <ActivityIndicator size="small" color={colors.text} />
           <Text style={[styles.statusText, { color: colors.text }]}>
@@ -418,8 +420,8 @@ export default function AddVideoScreen({ navigation }: Props) {
 
       {importStatus === 'success' && !isImporting && (
         <Animated.View
-          entering={FadeInDown.duration(150)}
-          style={[styles.statusCard, { backgroundColor: colors.successSubtle }]}
+          entering={FadeInDown.duration(200)}
+          style={[styles.statusCard, { backgroundColor: colors.successSubtle, borderColor: colors.successSubtle }]}
         >
           <Ionicons name="checkmark" size={18} color={colors.success} />
           <Text style={[styles.statusText, { color: colors.success }]}>
@@ -430,8 +432,8 @@ export default function AddVideoScreen({ navigation }: Props) {
 
       {importStatus === 'error' && !isImporting && (
         <Animated.View
-          entering={FadeInDown.duration(150)}
-          style={[styles.statusCard, { backgroundColor: colors.errorSubtle }]}
+          entering={FadeInDown.duration(200)}
+          style={[styles.statusCard, { backgroundColor: colors.errorSubtle, borderColor: colors.errorSubtle }]}
         >
           <Ionicons name="close" size={18} color={colors.error} />
           <Text style={[styles.statusText, { color: colors.error }]}>
@@ -447,12 +449,12 @@ export default function AddVideoScreen({ navigation }: Props) {
           <AnimatedListItem index={0} direction="fade">
             <View style={styles.inputSection}>
               <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>
-                PASTE TIKTOK URLS (ONE PER LINE)
+                PASTE TIKTOK URLS
               </Text>
-              <View style={[styles.inputWrapper, { borderColor: colors.border, minHeight: 100 }]}>
+              <View style={[styles.inputWrapper, { borderColor: colors.border, backgroundColor: colors.surface }]}>
                 <TextInput
                   style={[styles.input, styles.multilineInput, { color: colors.text }]}
-                  placeholder="https://tiktok.com/...&#10;https://tiktok.com/...&#10;https://tiktok.com/..."
+                  placeholder="https://tiktok.com/...&#10;https://tiktok.com/..."
                   placeholderTextColor={colors.textQuaternary}
                   value={manualUrl}
                   onChangeText={setManualUrl}
@@ -472,7 +474,7 @@ export default function AddVideoScreen({ navigation }: Props) {
                   </AnimatedPressable>
                 )}
               </View>
-              
+
               {/* URL Count Indicator */}
               {manualUrl.length > 0 && (
                 <Text style={[styles.urlCount, { color: colors.textTertiary }]}>
@@ -491,8 +493,8 @@ export default function AddVideoScreen({ navigation }: Props) {
                     </Text>
                   ) : (
                     urlPreviews.map((preview) => (
-                      <View key={preview.url} style={[styles.previewCard, { borderColor: colors.border }]}>
-                        <View style={[styles.previewThumb, { backgroundColor: colors.accentSubtle }]}>
+                      <View key={preview.url} style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                        <View style={[styles.previewThumb, { backgroundColor: colors.surfaceHover }]}>
                           {preview.thumbnailUrl ? (
                             <Image source={{ uri: preview.thumbnailUrl }} style={styles.previewThumbImage} />
                           ) : (
@@ -567,9 +569,9 @@ export default function AddVideoScreen({ navigation }: Props) {
 
           {/* Info */}
           <AnimatedListItem index={3} direction="fade">
-            <View style={[styles.infoCard, { borderColor: colors.border }]}>
+            <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.infoRow}>
-                <Ionicons name="sparkles" size={14} color={colors.textSecondary} />
+                <Ionicons name="sparkles" size={16} color={colors.accent} />
                 <Text style={[styles.infoText, { color: colors.textSecondary }]}>
                   Videos are analyzed and sorted into categories automatically
                 </Text>
@@ -587,9 +589,11 @@ function StepItem({ number, text }: { number: number; text: string }) {
 
   return (
     <View style={styles.stepItem}>
-      <Text style={[styles.stepNumber, { color: colors.textQuaternary }]}>
-        {number}.
-      </Text>
+      <View style={[styles.stepNumberWrapper, { backgroundColor: colors.surfaceHover }]}>
+        <Text style={[styles.stepNumber, { color: colors.textSecondary }]}>
+          {number}
+        </Text>
+      </View>
       <Text style={[styles.stepText, { color: colors.text }]}>
         {text}
       </Text>
@@ -607,15 +611,19 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: Spacing.xl,
+    gap: Spacing.xs,
   },
   title: {
     ...Typography.displayMd,
+  },
+  subtitle: {
+    ...Typography.body,
   },
 
   // Clipboard banner
   clipboardBanner: {
     padding: Spacing.md,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     marginBottom: Spacing.lg,
     gap: Spacing.sm,
@@ -646,6 +654,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.sm,
+    marginTop: Spacing.xs,
   },
   clipboardImportText: {
     ...Typography.bodyStrong,
@@ -655,9 +664,14 @@ const styles = StyleSheet.create({
   progressSection: {
     marginBottom: Spacing.lg,
   },
+  progressHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+  },
   progressHeader: {
     ...Typography.bodyStrong,
-    marginBottom: Spacing.sm,
   },
   progressList: {
     maxHeight: 300,
@@ -674,6 +688,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.sm,
     marginBottom: Spacing.lg,
+    borderWidth: 1,
   },
   statusText: {
     ...Typography.bodyStrong,
@@ -690,16 +705,18 @@ const styles = StyleSheet.create({
   },
   inputWrapper: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     borderWidth: 1,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
     marginBottom: Spacing.md,
+    minHeight: 100,
   },
   input: {
     flex: 1,
-    paddingVertical: Spacing.md,
     ...Typography.body,
+    paddingVertical: 0,
   },
   multilineInput: {
     minHeight: 80,
@@ -800,9 +817,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
   },
+  stepNumberWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   stepNumber: {
-    ...Typography.body,
-    width: 20,
+    ...Typography.captionStrong,
+    fontSize: 13,
   },
   stepText: {
     ...Typography.body,
@@ -811,12 +835,13 @@ const styles = StyleSheet.create({
   // Info card
   infoCard: {
     borderWidth: 1,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.md,
   },
   infoRow: {
     flexDirection: 'row',
     gap: Spacing.sm,
+    alignItems: 'center',
   },
   infoText: {
     ...Typography.bodySm,

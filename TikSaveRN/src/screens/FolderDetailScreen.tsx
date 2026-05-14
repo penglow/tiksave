@@ -26,7 +26,7 @@ import MoveFolderModal from '../components/MoveFolderModal';
 import { formatDuration } from '../utils/date';
 
 const { width } = Dimensions.get('window');
-const COLUMN_GAP = 8;
+const COLUMN_GAP = 12;
 const PADDING = 16;
 const CARD_WIDTH = (width - PADDING * 2 - COLUMN_GAP) / 2;
 
@@ -142,7 +142,7 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
     return (
       <View style={[styles.emptyContainer, { backgroundColor: colors.background }]}>
         <View style={[styles.emptyIconWrapper, { backgroundColor: colors.accentSubtle }]}>
-          <Ionicons name="folder-open-outline" size={32} color={colors.textTertiary} />
+          <Ionicons name="folder-open-outline" size={32} color={colors.accent} />
         </View>
         <AnimatedText delay={100} style={[styles.emptyTitle, { color: colors.text }]}>
           No videos in {folder.name}
@@ -178,7 +178,7 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
                   setSelectedItem(item);
                   setShowMoveModal(true);
                 }}
-                scaleOnPress={0.98}
+                scaleOnPress={0.97}
               >
                 <VideoThumbnailCard
                   item={item}
@@ -224,7 +224,7 @@ function VideoThumbnailCard({
             resizeMode="cover"
           />
         ) : (
-          <View style={[styles.thumbnail, styles.thumbnailPlaceholder, { backgroundColor: colors.accentSubtle }]}>
+          <View style={[styles.thumbnail, styles.thumbnailPlaceholder, { backgroundColor: colors.surfaceHover }]}>
             <Ionicons name="play" size={24} color={colors.textTertiary} />
           </View>
         )}
@@ -284,9 +284,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   emptyIconWrapper: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.md,
+    width: 72,
+    height: 72,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.lg,
@@ -313,12 +313,13 @@ const styles = StyleSheet.create({
   },
   thumbnailContainer: {
     position: 'relative',
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.sm,
   },
   thumbnail: {
     aspectRatio: 9 / 16,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.sm,
     width: '100%',
+    backgroundColor: '#000',
   },
   thumbnailPlaceholder: {
     justifyContent: 'center',
@@ -326,31 +327,31 @@ const styles = StyleSheet.create({
   },
   durationBadge: {
     position: 'absolute',
-    bottom: 6,
-    right: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingHorizontal: 5,
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: BorderRadius.xs,
   },
   durationText: {
     color: '#ffffff',
     fontSize: 10,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   reviewBadge: {
     position: 'absolute',
-    top: 6,
-    left: 6,
+    top: 8,
+    left: 8,
     padding: 4,
     borderRadius: 10,
   },
   cardTitle: {
     ...Typography.captionStrong,
-    lineHeight: 16,
+    lineHeight: 17,
   },
   creatorName: {
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
   },
 });

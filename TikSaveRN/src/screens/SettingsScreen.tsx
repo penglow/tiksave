@@ -22,7 +22,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
 import { apiService } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
-import { AnimatedPressable, AnimatedListItem, AnimatedSection, AnimatedText } from '../components';
+import { AnimatedPressable, AnimatedListItem, AnimatedText, Card, Badge } from '../components';
 
 const APP_VERSION = '1.0.0';
 
@@ -175,7 +175,10 @@ export default function SettingsScreen() {
                   key={theme}
                   style={[
                     styles.themeOption,
-                    { borderColor: userSettings.theme === theme ? colors.text : colors.border },
+                    {
+                      borderColor: userSettings.theme === theme ? colors.text : colors.border,
+                      backgroundColor: userSettings.theme === theme ? colors.surfaceHover : 'transparent',
+                    },
                   ]}
                   onPress={() => updateUserSettings({ theme })}
                   haptic
@@ -196,7 +199,7 @@ export default function SettingsScreen() {
             <Switch
               value={userSettings.notificationsEnabled}
               onValueChange={(value) => updateUserSettings({ notificationsEnabled: value })}
-              trackColor={{ false: colors.accentSubtle, true: colors.text }}
+              trackColor={{ false: colors.surfaceHover, true: colors.accent }}
               thumbColor={colors.background}
               style={styles.switch}
             />
@@ -254,9 +257,7 @@ export default function SettingsScreen() {
       {/* Version */}
       <AnimatedListItem index={5} direction="fade">
         <View style={styles.versionContainer}>
-          <Text style={[styles.versionText, { color: colors.textQuaternary }]}>
-            Version {APP_VERSION}
-          </Text>
+          <Badge label={`v${APP_VERSION}`} variant="ghost" size="sm" />
         </View>
       </AnimatedListItem>
 
@@ -288,7 +289,6 @@ export default function SettingsScreen() {
   );
 }
 
-// Setting Section wrapper
 function SettingSection({
   label,
   labelColor,
@@ -305,14 +305,13 @@ function SettingSection({
       <Text style={[styles.sectionLabel, { color: labelColor || colors.textTertiary }]}>
         {label}
       </Text>
-      <View style={[styles.sectionContent, { borderColor: colors.border }]}>
+      <View style={[styles.sectionContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         {children}
       </View>
     </View>
   );
 }
 
-// Setting Row
 function SettingRow({
   icon,
   title,
@@ -335,9 +334,12 @@ function SettingRow({
       style={[styles.row, { borderBottomColor: colors.border }]}
       onPress={onPress}
       disabled={!onPress}
+      opacityOnPress={0.6}
     >
       {icon && (
-        <Ionicons name={icon} size={18} color={colors.textSecondary} style={styles.rowIcon} />
+        <View style={[styles.rowIconWrapper, { backgroundColor: colors.surfaceHover }]}>
+          <Ionicons name={icon} size={16} color={colors.textSecondary} />
+        </View>
       )}
       <View style={styles.rowContent}>
         <Text style={[styles.rowTitle, { color: titleColor || colors.text }]}>{title}</Text>
@@ -352,7 +354,6 @@ function SettingRow({
   );
 }
 
-// Folders Modal
 function FoldersModal({
   visible,
   folders,
@@ -391,7 +392,9 @@ function FoldersModal({
             </View>
           ) : folders.length === 0 ? (
             <View style={styles.modalEmpty}>
-              <Ionicons name="folder-open-outline" size={32} color={colors.textQuaternary} />
+              <View style={[styles.emptyIconWrapper, { backgroundColor: colors.surfaceHover }]}>
+                <Ionicons name="folder-open-outline" size={28} color={colors.textTertiary} />
+              </View>
               <Text style={[styles.modalEmptyTitle, { color: colors.text }]}>
                 No collections
               </Text>
@@ -429,12 +432,12 @@ function FoldersModal({
           )}
 
           <AnimatedPressable
-            style={[styles.createButton, { borderColor: colors.border }]}
+            style={[styles.createButton, { backgroundColor: colors.text }]}
             onPress={onCreatePress}
             haptic
           >
-            <Ionicons name="add" size={18} color={colors.text} />
-            <Text style={[styles.createButtonText, { color: colors.text }]}>
+            <Ionicons name="add" size={18} color={colors.background} />
+            <Text style={[styles.createButtonText, { color: colors.background }]}>
               Create Collection
             </Text>
           </AnimatedPressable>
@@ -444,7 +447,6 @@ function FoldersModal({
   );
 }
 
-// Create Folder Modal
 function CreateFolderModal({
   visible,
   folders,
@@ -490,7 +492,7 @@ function CreateFolderModal({
                   styles.iconOption,
                   {
                     backgroundColor: selectedIcon === icon ? colors.accentSubtle : 'transparent',
-                    borderColor: selectedIcon === icon ? colors.text : colors.border,
+                    borderColor: selectedIcon === icon ? colors.accent : colors.border,
                   },
                 ]}
                 onPress={() => setSelectedIcon(icon)}
@@ -502,7 +504,7 @@ function CreateFolderModal({
 
           <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>NAME</Text>
           <TextInput
-            style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+            style={[styles.textInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
             placeholder="Collection name"
             placeholderTextColor={colors.textQuaternary}
             value={name}
@@ -565,8 +567,9 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.xs,
   },
   sectionContent: {
-    borderTopWidth: Hairline,
-    borderBottomWidth: Hairline,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
 
   // Row
@@ -574,10 +577,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
     borderBottomWidth: Hairline,
+    gap: Spacing.sm,
   },
-  rowIcon: {
-    marginRight: Spacing.sm,
+  rowIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.xs,
   },
   rowContent: {
     flex: 1,
@@ -616,21 +626,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.xl,
   },
-  versionText: {
-    ...Typography.caption,
-  },
 
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    borderTopLeftRadius: BorderRadius.lg,
-    borderTopRightRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    paddingBottom: Spacing.xl,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xxl,
     maxHeight: '80%',
   },
   modalHeader: {
@@ -653,6 +660,14 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     alignItems: 'center',
   },
+  emptyIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
   modalEmptyTitle: {
     ...Typography.headingSm,
     marginTop: Spacing.sm,
@@ -672,10 +687,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.md,
     borderBottomWidth: Hairline,
+    gap: Spacing.sm,
   },
   folderIcon: {
     fontSize: 20,
-    marginRight: Spacing.sm,
+    marginRight: Spacing.xs,
   },
   folderInfo: {
     flex: 1,
@@ -697,7 +713,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.xs,
     paddingVertical: Spacing.md,
-    borderWidth: 1,
     borderRadius: BorderRadius.sm,
     marginTop: Spacing.md,
   },
@@ -715,8 +730,8 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   iconOption: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -724,7 +739,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing.xs,
   },
   iconText: {
-    fontSize: 20,
+    fontSize: 22,
   },
   textInput: {
     borderWidth: 1,
