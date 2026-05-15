@@ -24,3 +24,4 @@ export { NumberTicker } from './NumberTicker';
 export { RotatingLogo } from './RotatingLogo';
 export { Pulse } from './Pulse';
 export { MorphButton, type MorphState } from './MorphButton';
+export { UrlPreviewChip } from './UrlPreviewChip';
