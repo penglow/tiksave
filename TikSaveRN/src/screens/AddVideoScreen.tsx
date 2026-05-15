@@ -6,6 +6,7 @@ import {
   TextInput,
   Platform,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -404,13 +405,26 @@ export default function AddVideoScreen({ navigation }: Props) {
   };
 
   const handleProgressPress = () => {
+    const cancelAll = () => {
+      importingItems
+        .filter((i) => i.status === 'processing')
+        .forEach((i) => void handleCancelImport(i.id));
+    };
+
     if (Platform.OS === 'web') {
       const ok = window.confirm('Cancel all in-progress imports?');
-      if (!ok) return;
+      if (ok) cancelAll();
+      return;
     }
-    importingItems
-      .filter((i) => i.status === 'processing')
-      .forEach((i) => void handleCancelImport(i.id));
+
+    Alert.alert(
+      'Cancel imports?',
+      'This will stop all imports currently in progress.',
+      [
+        { text: 'Keep importing', style: 'cancel' },
+        { text: 'Cancel imports', style: 'destructive', onPress: cancelAll },
+      ],
+    );
   };
 
   const handleRemoveUrl = (url: string) => {
