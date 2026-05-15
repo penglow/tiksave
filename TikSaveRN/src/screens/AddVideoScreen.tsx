@@ -1,28 +1,55 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
-  ActivityIndicator,
   TextInput,
-  Alert,
   Platform,
-  Image,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  Layout,
+  useSharedValue,
+  useAnimatedStyle,
+  withSequence,
+  withTiming,
+  Easing,
+  cancelAnimation,
+} from 'react-native-reanimated';
 
-import { Spacing, BorderRadius, Typography, Hairline, Gradients } from '../config';
+import {
+  Spacing,
+  BorderRadius,
+  Typography,
+  Hairline,
+  Shadows,
+  TAB_BAR_OVERLAP,
+  Animation,
+} from '../config';
 import { apiService } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import { LibraryStackScreenProps, AddStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
 import { useClipboard } from '../hooks/useClipboard';
-import { AnimatedPressable, AnimatedListItem, AnimatedText, ProcessingProgress, Card, Badge } from '../components';
+import {
+  AnimatedPressable,
+  LogoMark,
+  WordReveal,
+  MorphButton,
+  type MorphState,
+  UrlPreviewChip,
+  ProcessingProgress,
+} from '../components';
+import {
+  fetchTikTokOEmbedPreview,
+  type TikTokOEmbedPreview,
+} from '../utils/tiktokOEmbed';
+import { usePaginationCacheStore } from '../stores/paginationCacheStore';
 
 type Props =
   | LibraryStackScreenProps<'AddVideo'>
@@ -32,42 +59,49 @@ interface ImportingItem {
   id: string;
   url: string;
   status: 'processing' | 'complete' | 'error';
+  generation: number;
 }
 
-interface URLPreview {
-  url: string;
-  title?: string;
-  thumbnailUrl?: string;
+const URL_SPLIT = /[\s,]+/;
+const TIKTOK_HOSTS = ['tiktok.com', 'vm.tiktok'];
+
+function isTikTokUrl(s: string): boolean {
+  return TIKTOK_HOSTS.some((h) => s.includes(h));
 }
 
-async function fetchTikTokPreview(url: string): Promise<URLPreview> {
-  const fallback: URLPreview = { url };
-  try {
-    const endpoint = `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`;
-    const response = await fetch(endpoint);
-    if (!response.ok) return fallback;
-
-    const data = await response.json();
-    return {
-      url,
-      title: typeof data?.title === 'string' ? data.title : undefined,
-      thumbnailUrl: typeof data?.thumbnail_url === 'string' ? data.thumbnail_url : undefined,
-    };
-  } catch {
-    return fallback;
+function parseUrls(input: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of input.split(URL_SPLIT)) {
+    const u = raw.trim();
+    if (!u || seen.has(u)) continue;
+    seen.add(u);
+    out.push(u);
   }
+  return out;
 }
 
 export default function AddVideoScreen({ navigation }: Props) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const [isImporting, setIsImporting] = useState(false);
-  const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
   const [manualUrl, setManualUrl] = useState('');
   const [importingItems, setImportingItems] = useState<ImportingItem[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState(false);
+  const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [previews, setPreviews] = useState<Record<string, { loading: boolean; data?: TikTokOEmbedPreview }>>({});
+  const [howToOpen, setHowToOpen] = useState(false);
   const [cancellingItemIds, setCancellingItemIds] = useState<Set<string>>(new Set());
-  const [urlPreviews, setUrlPreviews] = useState<URLPreview[]>([]);
-  const [isLoadingPreviews, setIsLoadingPreviews] = useState(false);
+
+  const importGenerationRef = useRef(0);
+  const finalizedForGenerationRef = useRef<number | null>(null);
+  const finalizeInflightRef = useRef(false);
+  const errorTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const inputShake = useSharedValue(0);
+
   const pendingShareUrl = useAppStore((state) => state.pendingShareUrl);
   const clearPendingShare = useAppStore((state) => state.clearPendingShare);
 
@@ -76,121 +110,250 @@ export default function AddVideoScreen({ navigation }: Props) {
     onlyNew: true,
   });
 
-  useFocusEffect(
-    useCallback(() => {
-      return () => {
-        setImportStatus('idle');
-        setManualUrl('');
-        setIsImporting(false);
-        setImportingItems([]);
-      };
-    }, [])
-  );
+  const parsedUrls = useMemo(() => parseUrls(manualUrl), [manualUrl]);
+  const validUrls = useMemo(() => parsedUrls.filter(isTikTokUrl), [parsedUrls]);
 
+  const showHowTo = manualUrl.length === 0 && !isImporting && importStatus === 'idle';
+
+  // Auto-collapse "how to" when input gets content
   useEffect(() => {
-    if (pendingShareUrl) {
-      handleImport(pendingShareUrl);
-      clearPendingShare();
+    if (manualUrl.length > 0) setHowToOpen(false);
+  }, [manualUrl.length]);
+
+  // Inline-error auto-dismiss
+  useEffect(() => {
+    if (errorTimerRef.current) {
+      clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = null;
     }
-  }, [pendingShareUrl]);
-
-  useEffect(() => {
-    if (!isImporting) return;
-    if (importingItems.length === 0) {
-      setIsImporting(false);
-      setImportStatus('idle');
+    if (errorMessage) {
+      errorTimerRef.current = setTimeout(() => setErrorMessage(null), 4000);
     }
-  }, [isImporting, importingItems.length]);
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    };
+  }, [errorMessage]);
 
+  // Clear error when user edits the input
   useEffect(() => {
-    const urls = manualUrl
-      .split(/\n/)
-      .map((u) => u.trim())
-      .filter(Boolean);
+    if (manualUrl.length > 0) setErrorMessage(null);
+  }, [manualUrl]);
 
-    const uniqueUrls = [...new Set(urls)]
-      .filter((u) => u.includes('tiktok.com') || u.includes('vm.tiktok'))
-      .slice(0, 8);
-
-    if (uniqueUrls.length === 0) {
-      setUrlPreviews([]);
-      setIsLoadingPreviews(false);
+  // Debounced oEmbed previews per URL
+  useEffect(() => {
+    const targets = validUrls.slice(0, 8);
+    if (targets.length === 0) {
+      setPreviews({});
       return;
     }
 
     let cancelled = false;
-    setIsLoadingPreviews(true);
-
-    Promise.all(uniqueUrls.map((url) => fetchTikTokPreview(url)))
-      .then((previews) => {
-        if (!cancelled) {
-          setUrlPreviews(previews);
+    const handle = setTimeout(() => {
+      setPreviews((prev) => {
+        const next: typeof prev = {};
+        for (const u of targets) {
+          next[u] = prev[u] ?? { loading: true };
         }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoadingPreviews(false);
-        }
+        return next;
       });
+
+      targets.forEach((url) => {
+        // Skip if we already have data
+        const existing = previews[url];
+        if (existing && existing.data) return;
+        void fetchTikTokOEmbedPreview(url).then((data) => {
+          if (cancelled) return;
+          setPreviews((prev) => ({ ...prev, [url]: { loading: false, data } }));
+        });
+      });
+    }, 250);
 
     return () => {
       cancelled = true;
+      clearTimeout(handle);
     };
+    // intentional: deps tracked via [manualUrl] only
   }, [manualUrl]);
 
-  const handleImport = async (url: string) => {
-    if (!url.includes('tiktok.com') && !url.includes('vm.tiktok')) {
-      if (Platform.OS === 'web') {
-        window.alert('Please enter a valid TikTok URL');
-      } else {
-        Alert.alert('Invalid URL', 'Please enter a valid TikTok URL');
+  const nextImportGeneration = () => {
+    importGenerationRef.current += 1;
+    finalizedForGenerationRef.current = null;
+    return importGenerationRef.current;
+  };
+
+  const triggerInputShake = () => {
+    inputShake.value = withSequence(
+      withTiming(-Animation.shake.amplitude, { duration: 60, easing: Easing.out(Easing.quad) }),
+      withTiming(Animation.shake.amplitude, { duration: 60, easing: Easing.inOut(Easing.quad) }),
+      withTiming(-Animation.shake.amplitude * 0.6, { duration: 60, easing: Easing.inOut(Easing.quad) }),
+      withTiming(Animation.shake.amplitude * 0.4, { duration: 60, easing: Easing.inOut(Easing.quad) }),
+      withTiming(0, { duration: 80, easing: Easing.in(Easing.quad) }),
+    );
+  };
+
+  const inputShakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: inputShake.value }],
+  }));
+
+  useEffect(() => () => cancelAnimation(inputShake), [inputShake]);
+
+  const finalizeImportSession = useCallback(
+    async (items: ImportingItem[], generation: number) => {
+      if (finalizeInflightRef.current) return;
+      finalizeInflightRef.current = true;
+      try {
+        if (
+          generation !== importGenerationRef.current ||
+          finalizedForGenerationRef.current === generation
+        ) {
+          return;
+        }
+        finalizedForGenerationRef.current = generation;
+
+        usePaginationCacheStore.getState().clearAll();
+
+        const successes = items.filter((i) => i.status === 'complete');
+        const failures = items.filter((i) => i.status === 'error');
+
+        setImportStatus(successes.length === 0 && failures.length > 0 ? 'error' : 'success');
+
+        await new Promise((r) => setTimeout(r, 750));
+
+        if (generation !== importGenerationRef.current) return;
+
+        const nav = navigation as unknown as {
+          navigate: (name: string, params?: Record<string, unknown>) => void;
+        };
+
+        if (successes.length === 1 && failures.length === 0) {
+          try {
+            const saved = await apiService.getItem(successes[0].id);
+            nav.navigate('Library', { screen: 'VideoDetail', params: { item: saved } });
+          } catch {
+            nav.navigate('Library', { screen: 'LibraryMain' });
+          }
+        } else if (successes.length > 0) {
+          nav.navigate('Library', { screen: 'LibraryMain' });
+        }
+
+        // Reset local UI back to idle
+        setIsImporting(false);
+        setImportingItems([]);
+        setManualUrl('');
+        setPreviews({});
+        setPendingSubmit(false);
+        setImportStatus('idle');
+      } finally {
+        finalizeInflightRef.current = false;
       }
+    },
+    [navigation],
+  );
+
+  const updateItemStatus = useCallback(
+    (itemId: string, status: 'complete' | 'error') => {
+      setImportingItems((prev) => {
+        const next = prev.map((i) =>
+          i.id === itemId ? { ...i, status } : i,
+        );
+        const stillWorking = next.some((i) => i.status === 'processing');
+        if (!stillWorking && next.length > 0) {
+          const gen = next[0].generation;
+          setTimeout(() => void finalizeImportSession(next, gen), 0);
+        }
+        return next;
+      });
+    },
+    [finalizeImportSession],
+  );
+
+  const handleSingleImport = async (url: string) => {
+    if (!isTikTokUrl(url)) {
+      setErrorMessage("That doesn't look like a TikTok URL.");
+      triggerInputShake();
       return;
     }
-
+    const generation = nextImportGeneration();
+    setPendingSubmit(true);
     setIsImporting(true);
     setImportStatus('idle');
+    setErrorMessage(null);
 
     try {
       const item = await apiService.createSaveItem(url);
-
-      setImportingItems([{ id: item.id, url, status: 'processing' }]);
-      setManualUrl('');
-    } catch (error) {
-      console.error('Failed to import:', error);
+      const queued: ImportingItem = {
+        id: item.id,
+        url,
+        status: 'processing',
+        generation,
+      };
+      setImportingItems([queued]);
+      if (item.status === 'ready' || item.status === 'needs_review') {
+        setTimeout(() => updateItemStatus(item.id, 'complete'), 0);
+      }
+    } catch (err) {
+      console.error('Failed to import:', err);
       setImportStatus('error');
       setIsImporting(false);
+      setErrorMessage('Import failed. Please try again.');
+    } finally {
+      setPendingSubmit(false);
     }
   };
 
-  const handleItemComplete = (itemId: string) => {
-    setImportingItems(prev =>
-      prev.map(item =>
-        item.id === itemId ? { ...item, status: 'complete' as const } : item
-      )
-    );
+  const handleBatchImport = async (urls: string[]) => {
+    const invalid = urls.filter((u) => !isTikTokUrl(u));
+    if (invalid.length > 0) {
+      setErrorMessage(`${invalid.length} URL(s) are not TikTok links.`);
+      triggerInputShake();
+      return;
+    }
 
-    setTimeout(() => {
-      setImportStatus('success');
+    const generation = nextImportGeneration();
+    setPendingSubmit(true);
+    setIsImporting(true);
+    setImportStatus('idle');
+    setErrorMessage(null);
+
+    try {
+      const result = await apiService.batchCreateSaveItems(urls, {
+        skipDuplicates: true,
+        autoOrganize: true,
+      });
+
+      const queued: ImportingItem[] = result.items
+        .filter((i) => i.status === 'queued')
+        .map((i) => ({
+          id: i.id,
+          url: i.url,
+          status: 'processing',
+          generation,
+        }));
+
+      setImportingItems(queued);
+
+      if (result.duplicates > 0 || result.errors > 0) {
+        setErrorMessage(
+          `${result.queued} queued · ${result.duplicates} duplicates · ${result.errors} errors`,
+        );
+      }
+
+      if (queued.length === 0) {
+        setIsImporting(false);
+        setPendingSubmit(false);
+        const nav = navigation as unknown as {
+          navigate: (name: string, params?: Record<string, unknown>) => void;
+        };
+        nav.navigate('Library', { screen: 'LibraryMain' });
+      }
+    } catch (err) {
+      console.error('Failed to batch import:', err);
+      setImportStatus('error');
       setIsImporting(false);
-
-      setTimeout(() => {
-        try {
-          (navigation as any).navigate('LibraryMain');
-        } catch {
-          navigation.goBack();
-        }
-      }, 1000);
-    }, 500);
-  };
-
-  const handleItemError = (itemId: string, error: string) => {
-    setImportingItems(prev =>
-      prev.map(item =>
-        item.id === itemId ? { ...item, status: 'error' as const } : item
-      )
-    );
-    console.error(`Item ${itemId} failed:`, error);
+      setErrorMessage('Batch import failed. Please try again.');
+    } finally {
+      setPendingSubmit(false);
+    }
   };
 
   const handleCancelImport = async (itemId: string) => {
@@ -199,20 +362,25 @@ export default function AddVideoScreen({ navigation }: Props) {
       next.add(itemId);
       return next;
     });
-
     try {
       await apiService.deleteItem(itemId);
-      setImportingItems(prev =>
-        prev.map(item =>
-          item.id === itemId ? { ...item, status: 'error' as const } : item
-        )
-      );
-
-      setTimeout(() => {
-        setImportingItems(prev => prev.filter(item => item.id !== itemId));
-      }, 300);
-    } catch (error) {
-      console.error(`Failed to cancel import for item ${itemId}:`, error);
+      setImportingItems((prev) => {
+        const removed = prev.find((i) => i.id === itemId);
+        const gen = removed?.generation ?? importGenerationRef.current;
+        const next = prev.filter((i) => i.id !== itemId);
+        if (next.length === 0) {
+          setIsImporting(false);
+          setImportStatus('idle');
+        } else {
+          const stillWorking = next.some((i) => i.status === 'processing');
+          if (!stillWorking) {
+            setTimeout(() => void finalizeImportSession(next, gen), 0);
+          }
+        }
+        return next;
+      });
+    } catch (err) {
+      console.error(`Failed to cancel ${itemId}:`, err);
     } finally {
       setCancellingItemIds((prev) => {
         const next = new Set(prev);
@@ -222,87 +390,62 @@ export default function AddVideoScreen({ navigation }: Props) {
     }
   };
 
-  const handleBatchImport = async () => {
-    const urls = manualUrl
-      .split(/\n/)
-      .map(url => url.trim())
-      .filter(url => url.length > 0);
-
-    if (urls.length === 0) {
-      if (Platform.OS === 'web') {
-        window.alert('Please enter at least one URL');
-      } else {
-        Alert.alert('No URLs', 'Please enter at least one URL');
-      }
-      return;
-    }
-
-    const invalidUrls = urls.filter(
-      url => !url.includes('tiktok.com') && !url.includes('vm.tiktok')
-    );
-
-    if (invalidUrls.length > 0) {
-      if (Platform.OS === 'web') {
-        window.alert(`Invalid URLs found: ${invalidUrls.join(', ')}`);
-      } else {
-        Alert.alert('Invalid URLs', `Found ${invalidUrls.length} invalid URL(s)`);
-      }
-      return;
-    }
-
-    setIsImporting(true);
-    setImportStatus('idle');
-
-    try {
-      const result = await apiService.batchCreateSaveItems(urls, {
-        skipDuplicates: true,
-        autoOrganize: true,
-      });
-
-      const queuedItems: ImportingItem[] = result.items
-        .filter(item => item.status === 'queued')
-        .map(item => ({ id: item.id, url: item.url, status: 'processing' as const }));
-
-      setImportingItems(queuedItems);
-      setManualUrl('');
-
-      if (result.duplicates > 0 || result.errors > 0) {
-        const message = `${result.queued} queued, ${result.duplicates} duplicates, ${result.errors} errors`;
-        if (Platform.OS === 'web') {
-          window.alert(message);
-        } else {
-          Alert.alert('Import Status', message);
-        }
-      }
-
-      if (queuedItems.length === 0) {
-        setIsImporting(false);
-        setTimeout(() => {
-          try {
-            (navigation as any).navigate('LibraryMain');
-          } catch {
-            navigation.goBack();
-          }
-        }, 1500);
-      }
-    } catch (error) {
-      console.error('Failed to batch import:', error);
-      setImportStatus('error');
-      setIsImporting(false);
+  const handlePrimaryPress = () => {
+    if (validUrls.length === 0) return;
+    if (validUrls.length === 1) {
+      void handleSingleImport(validUrls[0]);
+    } else {
+      void handleBatchImport(validUrls);
     }
   };
 
-  const handleManualImport = () => {
-    if (manualUrl.trim()) {
-      if (manualUrl.includes('\n')) {
-        handleBatchImport();
-      } else {
-        handleImport(manualUrl.trim());
-      }
-    }
+  const handleEmptyPress = () => {
+    triggerInputShake();
   };
 
-  const heroGradient = isDark ? Gradients.heroDark : Gradients.heroLight;
+  const handleProgressPress = () => {
+    if (Platform.OS === 'web') {
+      const ok = window.confirm('Cancel all in-progress imports?');
+      if (!ok) return;
+    }
+    importingItems
+      .filter((i) => i.status === 'processing')
+      .forEach((i) => void handleCancelImport(i.id));
+  };
+
+  const handleRemoveUrl = (url: string) => {
+    const remaining = parsedUrls.filter((u) => u !== url);
+    setManualUrl(remaining.join('\n'));
+  };
+
+  // Share-extension hand-off
+  useEffect(() => {
+    if (pendingShareUrl) {
+      void handleSingleImport(pendingShareUrl);
+      clearPendingShare();
+    }
+    // intentional: deps tracked via [pendingShareUrl] only
+  }, [pendingShareUrl]);
+
+  // Map UI status → MorphState
+  const morphState: MorphState = useMemo(() => {
+    if (importStatus === 'success') return { kind: 'done' };
+    if (importStatus === 'error' && !isImporting) return { kind: 'error' };
+    if (pendingSubmit) return { kind: 'submitting' };
+    if (isImporting && importingItems.length > 0) {
+      const total = importingItems.length;
+      const completed = importingItems.filter((i) => i.status !== 'processing').length;
+      return { kind: 'progress', completed, total };
+    }
+    return { kind: 'idle' };
+  }, [importStatus, isImporting, importingItems, pendingSubmit]);
+
+  const morphLabel =
+    validUrls.length === 0
+      ? 'Paste a link to start'
+      : `Import ${validUrls.length} →`;
+
+  const morphVariant = validUrls.length === 0 && morphState.kind === 'idle' ? 'ghost' : 'solid';
 
   return (
     <ScrollView
@@ -311,274 +454,205 @@ export default function AddVideoScreen({ navigation }: Props) {
       keyboardShouldPersistTaps="handled"
     >
       {/* Header */}
-      <Animated.View entering={FadeIn.duration(200)} style={styles.header}>
-        <AnimatedText style={[styles.title, { color: colors.text }]}>
-          Import Video
-        </AnimatedText>
-        <Text style={[styles.subtitle, { color: colors.textTertiary }]}>
-          Paste TikTok URLs to save and organize
+      <Animated.View entering={FadeIn.duration(180)} style={styles.header}>
+        <View style={styles.brandRow}>
+          <LogoMark size={16} color={colors.accent} />
+          <Text style={[styles.brandLabel, { color: colors.textTertiary }]}>TIKSAVE · IMPORT</Text>
+        </View>
+        <WordReveal
+          segments={[
+            { text: 'Save it for' },
+            { text: 'later.', style: { color: colors.accent, fontStyle: 'italic' } },
+          ]}
+          style={{ ...(styles.title as any), color: colors.text }}
+          stagger={45}
+        />
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Paste a TikTok link — or eight. We'll transcribe, tag and file each one.
         </Text>
       </Animated.View>
 
-      {/* Clipboard Detection Banner */}
-      {hasClipboardUrls && !isImporting && importStatus === 'idle' && (
+      {/* Clipboard chip */}
+      {hasClipboardUrls && manualUrl.length === 0 && !isImporting && importStatus === 'idle' && (
         <Animated.View
-          entering={FadeInDown.duration(200)}
-          style={[styles.clipboardBanner, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          entering={FadeInDown.duration(180)}
+          exiting={FadeOut.duration(120)}
+          style={[styles.clipboardChip, { backgroundColor: colors.surface, borderColor: colors.border }]}
         >
-          <View style={styles.clipboardHeader}>
-            <View style={styles.clipboardTitleRow}>
-              <Ionicons name="clipboard-outline" size={18} color={colors.accent} />
-              <Text style={[styles.clipboardTitle, { color: colors.text }]}>
-                {clipboardUrls.length === 1 ? 'TikTok URL detected' : `${clipboardUrls.length} TikTok URLs detected`}
-              </Text>
-            </View>
-            <AnimatedPressable onPress={dismissUrls} style={styles.clipboardDismiss}>
-              <Ionicons name="close" size={18} color={colors.textTertiary} />
-            </AnimatedPressable>
-          </View>
-
-          <Text style={[styles.clipboardPreview, { color: colors.textSecondary }]} numberOfLines={2}>
-            {clipboardUrls.slice(0, 2).join('\n')}
-            {clipboardUrls.length > 2 && `\n...and ${clipboardUrls.length - 2} more`}
-          </Text>
-
+          <Ionicons name="clipboard-outline" size={16} color={colors.accent} />
           <AnimatedPressable
-            style={[styles.clipboardImportButton, { backgroundColor: colors.text }]}
             onPress={() => {
               setManualUrl(clipboardUrls.join('\n'));
               clearUrls();
             }}
-            haptic
+            style={styles.clipboardChipMain}
+            accessibilityLabel={`Use ${clipboardUrls.length} clipboard link${clipboardUrls.length > 1 ? 's' : ''}`}
           >
-            <Ionicons name="download-outline" size={16} color={colors.background} />
-            <Text style={[styles.clipboardImportText, { color: colors.background }]}>
-              Import from clipboard
+            <Text style={[styles.clipboardChipText, { color: colors.text }]} numberOfLines={1}>
+              {clipboardUrls.length === 1
+                ? 'Use clipboard link'
+                : `Use ${clipboardUrls.length} clipboard links`}
             </Text>
+            <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} />
+          </AnimatedPressable>
+          <AnimatedPressable
+            onPress={dismissUrls}
+            style={styles.clipboardChipDismiss}
+            accessibilityLabel="Dismiss clipboard suggestion"
+          >
+            <Ionicons name="close" size={14} color={colors.textTertiary} />
           </AnimatedPressable>
         </Animated.View>
       )}
 
-      {/* Processing Progress Display */}
-      {isImporting && importingItems.length > 0 && (
-        <Animated.View entering={FadeInDown.duration(200)} style={styles.progressSection}>
-          <View style={styles.progressHeaderRow}>
-            <Text style={[styles.progressHeader, { color: colors.text }]}>
-              Processing
-            </Text>
-            <Badge
-              label={`${importingItems.filter(i => i.status === 'processing').length} of ${importingItems.length}`}
-              variant="accent"
-              size="sm"
+      {/* Input */}
+      {!isImporting && (
+        <View style={styles.inputBlock}>
+          <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>
+            PASTE TIKTOK URLS
+          </Text>
+          <Animated.View
+            style={[
+              styles.inputWrapper,
+              { borderColor: colors.border, backgroundColor: colors.surface },
+              inputShakeStyle,
+            ]}
+          >
+            <TextInput
+              style={[styles.input, { color: colors.text }]}
+              placeholder={'https://tiktok.com/...\nhttps://tiktok.com/...'}
+              placeholderTextColor={colors.textQuaternary}
+              value={manualUrl}
+              onChangeText={setManualUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              accessibilityLabel="TikTok URLs"
             />
-          </View>
-          <ScrollView style={styles.progressList} nestedScrollEnabled>
-            {importingItems.map((item) => (
-              <View key={item.id} style={styles.progressItem}>
-                {item.status === 'processing' ? (
-                  <ProcessingProgress
-                    itemId={item.id}
-                    onComplete={() => handleItemComplete(item.id)}
-                    onError={(error) => handleItemError(item.id, error)}
-                    onCancel={() => handleCancelImport(item.id)}
-                    isCancelling={cancellingItemIds.has(item.id)}
-                    pollInterval={500}
-                  />
-                ) : item.status === 'complete' ? (
-                  <View style={[styles.statusCard, { backgroundColor: colors.successSubtle, borderColor: colors.successSubtle }]}>
-                    <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-                    <Text style={[styles.statusText, { color: colors.success }]} numberOfLines={1}>
-                      Complete
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={[styles.statusCard, { backgroundColor: colors.errorSubtle, borderColor: colors.errorSubtle }]}>
-                    <Ionicons name="close-circle" size={18} color={colors.error} />
-                    <Text style={[styles.statusText, { color: colors.error }]} numberOfLines={1}>
-                      Failed
-                    </Text>
-                  </View>
-                )}
-              </View>
-            ))}
-          </ScrollView>
-        </Animated.View>
-      )}
-
-      {/* Fallback loading state */}
-      {isImporting && importingItems.length === 0 && (
-        <Animated.View
-          entering={FadeInDown.duration(200)}
-          style={[styles.statusCard, { backgroundColor: colors.accentSubtle, borderColor: colors.accentSubtle }]}
-        >
-          <ActivityIndicator size="small" color={colors.text} />
-          <Text style={[styles.statusText, { color: colors.text }]}>
-            Starting import...
-          </Text>
-        </Animated.View>
-      )}
-
-      {importStatus === 'success' && !isImporting && (
-        <Animated.View
-          entering={FadeInDown.duration(200)}
-          style={[styles.statusCard, { backgroundColor: colors.successSubtle, borderColor: colors.successSubtle }]}
-        >
-          <Ionicons name="checkmark" size={18} color={colors.success} />
-          <Text style={[styles.statusText, { color: colors.success }]}>
-            Video{importingItems.length > 1 ? 's' : ''} imported successfully
-          </Text>
-        </Animated.View>
-      )}
-
-      {importStatus === 'error' && !isImporting && (
-        <Animated.View
-          entering={FadeInDown.duration(200)}
-          style={[styles.statusCard, { backgroundColor: colors.errorSubtle, borderColor: colors.errorSubtle }]}
-        >
-          <Ionicons name="close" size={18} color={colors.error} />
-          <Text style={[styles.statusText, { color: colors.error }]}>
-            Import failed
-          </Text>
-        </Animated.View>
-      )}
-
-      {/* Main Content */}
-      {!isImporting && importStatus === 'idle' && (
-        <>
-          {/* URL Input */}
-          <AnimatedListItem index={0} direction="fade">
-            <View style={styles.inputSection}>
-              <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>
-                PASTE TIKTOK URLS
-              </Text>
-              <View style={[styles.inputWrapper, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-                <TextInput
-                  style={[styles.input, styles.multilineInput, { color: colors.text }]}
-                  placeholder="https://tiktok.com/...&#10;https://tiktok.com/..."
-                  placeholderTextColor={colors.textQuaternary}
-                  value={manualUrl}
-                  onChangeText={setManualUrl}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                />
-                {manualUrl.length > 0 && (
-                  <AnimatedPressable
-                    onPress={() => setManualUrl('')}
-                    style={styles.clearButton}
-                  >
-                    <Ionicons name="close-circle" size={18} color={colors.textQuaternary} />
-                  </AnimatedPressable>
-                )}
-              </View>
-
-              {/* URL Count Indicator */}
-              {manualUrl.length > 0 && (
-                <Text style={[styles.urlCount, { color: colors.textTertiary }]}>
-                  {manualUrl.split(/\n/).filter(url => url.trim().length > 0).length} URL(s)
-                </Text>
-              )}
-
-              {manualUrl.length > 0 && (
-                <View style={styles.previewSection}>
-                  <Text style={[styles.previewLabel, { color: colors.textTertiary }]}>
-                    PREVIEW
-                  </Text>
-                  {isLoadingPreviews ? (
-                    <Text style={[styles.previewLoadingText, { color: colors.textTertiary }]}>
-                      Fetching previews...
-                    </Text>
-                  ) : (
-                    urlPreviews.map((preview) => (
-                      <View key={preview.url} style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                        <View style={[styles.previewThumb, { backgroundColor: colors.surfaceHover }]}>
-                          {preview.thumbnailUrl ? (
-                            <Image source={{ uri: preview.thumbnailUrl }} style={styles.previewThumbImage} />
-                          ) : (
-                            <Ionicons name="play-circle-outline" size={22} color={colors.textTertiary} />
-                          )}
-                        </View>
-                        <View style={styles.previewTextWrap}>
-                          <Text style={[styles.previewTitle, { color: colors.text }]} numberOfLines={2}>
-                            {preview.title || 'TikTok Video'}
-                          </Text>
-                          <Text style={[styles.previewUrl, { color: colors.textTertiary }]} numberOfLines={1}>
-                            {preview.url}
-                          </Text>
-                        </View>
-                      </View>
-                    ))
-                  )}
-                </View>
-              )}
-
+            {manualUrl.length > 0 && (
               <AnimatedPressable
-                style={[
-                  styles.importButton,
-                  { backgroundColor: colors.text },
-                  !manualUrl.trim() && styles.importButtonDisabled,
-                ]}
-                onPress={handleManualImport}
-                disabled={!manualUrl.trim()}
-                haptic
+                onPress={() => setManualUrl('')}
+                style={styles.clearButton}
+                accessibilityLabel="Clear input"
               >
-                <Text style={[
-                  styles.importButtonText,
-                  { color: colors.background }
-                ]}>
-                  Import
-                </Text>
-                <Ionicons
-                  name="arrow-forward"
-                  size={16}
-                  color={colors.background}
-                />
+                <Ionicons name="close-circle" size={18} color={colors.textQuaternary} />
               </AnimatedPressable>
-            </View>
-          </AnimatedListItem>
+            )}
+          </Animated.View>
 
-          {/* Divider */}
-          <AnimatedListItem index={1} direction="fade">
-            <View style={styles.divider}>
-              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-              <Text style={[styles.dividerText, { color: colors.textQuaternary }]}>
-                or on mobile
-              </Text>
-              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-            </View>
-          </AnimatedListItem>
+          {parsedUrls.length > 0 && (
+            <Text style={[styles.urlCount, { color: colors.textTertiary }]}>
+              {parsedUrls.length} URL{parsedUrls.length === 1 ? '' : 's'} detected
+              {parsedUrls.length !== validUrls.length
+                ? ` · ${parsedUrls.length - validUrls.length} not TikTok`
+                : ''}
+            </Text>
+          )}
 
-          {/* Instructions */}
-          <AnimatedListItem index={2} direction="fade">
-            <View style={styles.instructionsSection}>
-              <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
-                HOW TO IMPORT
-              </Text>
+          {validUrls.slice(0, 8).map((url) => (
+            <Animated.View
+              key={url}
+              entering={FadeInDown.duration(160)}
+              exiting={FadeOut.duration(120)}
+              layout={Layout.springify().damping(20).stiffness(220)}
+              style={styles.previewRow}
+            >
+              <UrlPreviewChip
+                url={url}
+                preview={previews[url]?.data}
+                loading={previews[url]?.loading ?? true}
+                onRemove={() => handleRemoveUrl(url)}
+              />
+            </Animated.View>
+          ))}
+        </View>
+      )}
 
-              <View style={styles.stepsList}>
-                <StepItem number={1} text="Open TikTok app" />
-                <StepItem number={2} text="Tap share on a video" />
-                <StepItem number={3} text="Select TikSave" />
-                <StepItem number={4} text="Automatically organized" />
-              </View>
-            </View>
-          </AnimatedListItem>
+      {/* In-progress list (replaces input area while importing) */}
+      {isImporting && importingItems.length > 0 && (
+        <View style={styles.inputBlock}>
+          <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>
+            IMPORTING {importingItems.length} VIDEO{importingItems.length === 1 ? '' : 'S'}
+          </Text>
+          {importingItems.map((item) => (
+            <Animated.View
+              key={item.id}
+              entering={FadeIn.duration(180)}
+              style={styles.importingRow}
+            >
+              <ImportingItemRow
+                item={item}
+                isCancelling={cancellingItemIds.has(item.id)}
+                onComplete={() => updateItemStatus(item.id, 'complete')}
+                onError={(msg) => {
+                  console.error(`Import ${item.id}:`, msg);
+                  updateItemStatus(item.id, 'error');
+                }}
+                onCancel={() => handleCancelImport(item.id)}
+              />
+            </Animated.View>
+          ))}
+        </View>
+      )}
 
-          {/* Info */}
-          <AnimatedListItem index={3} direction="fade">
-            <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View style={styles.infoRow}>
-                <Ionicons name="sparkles" size={16} color={colors.accent} />
-                <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                  Videos are analyzed and sorted into categories automatically
-                </Text>
-              </View>
-            </View>
-          </AnimatedListItem>
-        </>
+      {/* Inline error chip */}
+      {errorMessage && (
+        <Animated.View
+          entering={FadeInDown.duration(160)}
+          exiting={FadeOut.duration(120)}
+          style={[styles.errorChip, { backgroundColor: colors.errorSubtle, borderColor: colors.error }]}
+        >
+          <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
+          <Text style={[styles.errorText, { color: colors.error }]} numberOfLines={2}>
+            {errorMessage}
+          </Text>
+        </Animated.View>
+      )}
+
+      {/* Primary CTA */}
+      <View style={styles.ctaRow}>
+        <MorphButton
+          label={morphLabel}
+          state={morphState}
+          variant={morphVariant}
+          onPress={handlePrimaryPress}
+          onPressGhost={handleEmptyPress}
+          onPressProgress={handleProgressPress}
+          onPressRetry={handlePrimaryPress}
+          haptic
+        />
+      </View>
+
+      {/* Collapsed "How to share" accordion */}
+      {showHowTo && (
+        <Animated.View entering={FadeIn.duration(160)} style={styles.howTo}>
+          <AnimatedPressable
+            onPress={() => setHowToOpen((v) => !v)}
+            style={[styles.howToHeader, { borderColor: colors.border }]}
+            accessibilityRole="button"
+            accessibilityLabel={howToOpen ? 'Hide how-to' : 'Show how to share from TikTok'}
+          >
+            <Ionicons
+              name={howToOpen ? 'chevron-down' : 'chevron-forward'}
+              size={14}
+              color={colors.textTertiary}
+            />
+            <Text style={[styles.howToHeaderText, { color: colors.textSecondary }]}>
+              How to share from TikTok
+            </Text>
+          </AnimatedPressable>
+          {howToOpen && (
+            <Animated.View entering={FadeInDown.duration(160)} style={styles.howToBody}>
+              <StepItem number={1} text="Open TikTok app" />
+              <StepItem number={2} text="Tap share on a video" />
+              <StepItem number={3} text="Select TikSave" />
+              <StepItem number={4} text="Automatically organized" />
+            </Animated.View>
+          )}
+        </Animated.View>
       )}
     </ScrollView>
   );
@@ -586,16 +660,57 @@ export default function AddVideoScreen({ navigation }: Props) {
 
 function StepItem({ number, text }: { number: number; text: string }) {
   const { colors } = useTheme();
-
   return (
     <View style={styles.stepItem}>
       <View style={[styles.stepNumberWrapper, { backgroundColor: colors.surfaceHover }]}>
-        <Text style={[styles.stepNumber, { color: colors.textSecondary }]}>
-          {number}
+        <Text style={[styles.stepNumber, { color: colors.textSecondary }]}>{number}</Text>
+      </View>
+      <Text style={[styles.stepText, { color: colors.text }]}>{text}</Text>
+    </View>
+  );
+}
+
+function ImportingItemRow({
+  item,
+  isCancelling,
+  onComplete,
+  onError,
+  onCancel,
+}: {
+  item: ImportingItem;
+  isCancelling: boolean;
+  onComplete: () => void;
+  onError: (msg: string) => void;
+  onCancel: () => void;
+}) {
+  const { colors } = useTheme();
+  if (item.status === 'processing') {
+    return (
+      <ProcessingProgress
+        itemId={item.id}
+        onComplete={onComplete}
+        onError={onError}
+        onCancel={onCancel}
+        isCancelling={isCancelling}
+        pollInterval={500}
+      />
+    );
+  }
+  if (item.status === 'complete') {
+    return (
+      <View style={[styles.statusCard, { backgroundColor: colors.successSubtle, borderColor: colors.successSubtle }]}>
+        <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+        <Text style={[styles.statusText, { color: colors.success }]} numberOfLines={1}>
+          Complete
         </Text>
       </View>
-      <Text style={[styles.stepText, { color: colors.text }]}>
-        {text}
+    );
+  }
+  return (
+    <View style={[styles.statusCard, { backgroundColor: colors.errorSubtle, borderColor: colors.errorSubtle }]}>
+      <Ionicons name="close-circle" size={18} color={colors.error} />
+      <Text style={[styles.statusText, { color: colors.error }]} numberOfLines={1}>
+        Failed
       </Text>
     </View>
   );
@@ -604,104 +719,74 @@ function StepItem({ number, text }: { number: number; text: string }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 0,
   },
   content: {
     padding: Spacing.md,
-    paddingBottom: Spacing.xxl,
+    paddingBottom: Spacing.xxl + TAB_BAR_OVERLAP,
+    gap: Spacing.md,
   },
+
+  // Header
   header: {
-    marginBottom: Spacing.xl,
     gap: Spacing.xs,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  brandLabel: {
+    ...Typography.label,
+    fontSize: 10,
+    letterSpacing: 1.6,
   },
   title: {
     ...Typography.displayMd,
+    fontSize: 32,
+    lineHeight: 36,
   },
   subtitle: {
     ...Typography.body,
-  },
-
-  // Clipboard banner
-  clipboardBanner: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    marginBottom: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  clipboardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  clipboardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  clipboardTitle: {
-    ...Typography.bodyStrong,
-  },
-  clipboardDismiss: {
-    padding: Spacing.xs,
-  },
-  clipboardPreview: {
-    ...Typography.bodySm,
-  },
-  clipboardImportButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.sm,
     marginTop: Spacing.xs,
-  },
-  clipboardImportText: {
-    ...Typography.bodyStrong,
+    maxWidth: 360,
   },
 
-  // Progress section
-  progressSection: {
-    marginBottom: Spacing.lg,
+  // Clipboard chip
+  clipboardChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: Spacing.md,
+    paddingRight: Spacing.xs,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    gap: Spacing.sm,
+    ...Shadows.xs,
   },
-  progressHeaderRow: {
+  clipboardChipMain: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
-  progressHeader: {
-    ...Typography.bodyStrong,
-  },
-  progressList: {
-    maxHeight: 300,
-  },
-  progressItem: {
-    marginBottom: Spacing.sm,
-  },
-
-  // Status cards
-  statusCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-  },
-  statusText: {
-    ...Typography.bodyStrong,
+  clipboardChipText: {
+    ...Typography.bodySm,
+    fontWeight: '600',
     flex: 1,
   },
+  clipboardChipDismiss: {
+    padding: Spacing.xs,
+  },
 
-  // Input section
-  inputSection: {
-    marginBottom: Spacing.lg,
+  // Input block
+  inputBlock: {
+    gap: Spacing.sm,
   },
   inputLabel: {
     ...Typography.label,
-    marginBottom: Spacing.sm,
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -710,15 +795,14 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
-    marginBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
     minHeight: 100,
+    ...Shadows.xs,
   },
   input: {
     flex: 1,
     ...Typography.body,
     paddingVertical: 0,
-  },
-  multilineInput: {
     minHeight: 80,
     textAlignVertical: 'top',
   },
@@ -727,90 +811,68 @@ const styles = StyleSheet.create({
   },
   urlCount: {
     ...Typography.caption,
-    marginBottom: Spacing.sm,
   },
-  previewSection: {
-    marginBottom: Spacing.md,
-    gap: Spacing.xs,
+  previewRow: {
+    // wrapper for layout animation
   },
-  previewLabel: {
-    ...Typography.label,
+
+  importingRow: {
+    // wrapper for layout animation
   },
-  previewLoadingText: {
-    ...Typography.caption,
+
+  // Status sub-cards
+  statusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+  },
+  statusText: {
+    ...Typography.bodyStrong,
+    flex: 1,
+  },
+
+  // Inline error
+  errorChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  errorText: {
+    ...Typography.bodySm,
+    flex: 1,
+  },
+
+  // CTA
+  ctaRow: {
     marginTop: Spacing.xs,
   },
-  previewCard: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.sm,
-    padding: Spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
+
+  // How-to accordion
+  howTo: {
+    marginTop: Spacing.lg,
     gap: Spacing.sm,
   },
-  previewThumb: {
-    width: 46,
-    height: 62,
-    borderRadius: BorderRadius.xs,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewThumbImage: {
-    width: '100%',
-    height: '100%',
-  },
-  previewTextWrap: {
-    flex: 1,
-  },
-  previewTitle: {
-    ...Typography.captionStrong,
-    lineHeight: 16,
-  },
-  previewUrl: {
-    ...Typography.caption,
-    marginTop: 2,
-  },
-  importButton: {
+  howToHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: Spacing.xs,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.sm,
+    paddingTop: Spacing.md,
+    borderTopWidth: Hairline,
   },
-  importButtonDisabled: {
-    opacity: 0.3,
+  howToHeaderText: {
+    ...Typography.bodySm,
+    fontWeight: '600',
   },
-  importButtonText: {
-    ...Typography.bodyStrong,
-  },
-
-  // Divider
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: Spacing.lg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: Hairline,
-  },
-  dividerText: {
-    ...Typography.caption,
-    paddingHorizontal: Spacing.md,
-  },
-
-  // Instructions
-  instructionsSection: {
-    marginBottom: Spacing.lg,
-  },
-  sectionLabel: {
-    ...Typography.label,
-    marginBottom: Spacing.md,
-  },
-  stepsList: {
+  howToBody: {
     gap: Spacing.sm,
+    paddingLeft: Spacing.md,
   },
   stepItem: {
     flexDirection: 'row',
@@ -818,34 +880,17 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   stepNumberWrapper: {
-    width: 28,
-    height: 28,
+    width: 24,
+    height: 24,
     borderRadius: BorderRadius.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepNumber: {
     ...Typography.captionStrong,
-    fontSize: 13,
+    fontSize: 12,
   },
   stepText: {
-    ...Typography.body,
-  },
-
-  // Info card
-  infoCard: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    alignItems: 'center',
-  },
-  infoText: {
     ...Typography.bodySm,
-    flex: 1,
-    lineHeight: 20,
   },
 });
