@@ -10,15 +10,31 @@ const getLocalIp = (): string => {
   return 'localhost';
 };
 
+const getConfiguredApiUrl = (): string | null => {
+  const envApiUrl = process.env.EXPO_PUBLIC_API_URL || Constants.expoConfig?.extra?.apiBaseURL;
+  if (typeof envApiUrl !== 'string') return null;
+
+  const trimmed = envApiUrl.trim();
+  return trimmed ? trimmed.replace(/\/+$/, '') : null;
+};
+
 const getApiUrl = () => {
+  const configuredApiUrl = getConfiguredApiUrl();
+  if (configuredApiUrl) return configuredApiUrl;
   if (!__DEV__) return 'https://your-production-api.com/api';
   if (Platform.OS === 'web') return 'http://localhost:3000/api';
   const localIp = getLocalIp();
   return `http://${localIp}:3000/api`;
 };
 
+const getGoogleMapsApiKey = (): string => {
+  const envKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || Constants.expoConfig?.extra?.googleMapsApiKey;
+  return typeof envKey === 'string' ? envKey.trim() : '';
+};
+
 export const Config = {
   apiBaseURL: getApiUrl(),
+  googleMapsApiKey: getGoogleMapsApiKey(),
   enableSemanticSearch: true,
   enableVideoUpload: true,
   autoFileHighConfidence: true,
@@ -182,36 +198,73 @@ export const CategoryColors = {
 // ---------------------------------------------------------------------------
 // TYPOGRAPHY — Editorial refined scale
 // ---------------------------------------------------------------------------
+// Display: Fraunces — a variable-axis editorial serif with soft optical sizing.
+//          Falls back to Georgia/serif on platforms where Fraunces isn't loaded.
+// Body:    DM Sans — clean geometric humanist sans, friendly + characterful.
+//          Falls back to the platform UI sans-serif.
+// ---------------------------------------------------------------------------
+
+const displayFontFamily = Platform.select({
+  web: '"Fraunces", "Times New Roman", Georgia, serif',
+  ios: 'Georgia',
+  android: 'serif',
+  default: 'serif',
+});
+
+const bodyFontFamily = Platform.select({
+  web: '"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  ios: 'System',
+  android: 'sans-serif',
+  default: 'sans-serif',
+});
+
+const monoFontFamily = Platform.select({
+  web: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
+  ios: 'Menlo',
+  android: 'monospace',
+  default: 'monospace',
+});
+
+export const FontFamily = {
+  display: displayFontFamily,
+  body: bodyFontFamily,
+  mono: monoFontFamily,
+};
 
 export const Typography = {
-  // Display
+  // Display — editorial serif with tight tracking, italic optical settings on web
   displayLg: {
-    fontSize: 40,
-    fontWeight: '800' as const,
-    letterSpacing: -1.4,
-    lineHeight: 44,
+    fontFamily: displayFontFamily,
+    fontSize: 44,
+    fontWeight: '700' as const,
+    letterSpacing: -1.6,
+    lineHeight: 48,
   },
   displayMd: {
-    fontSize: 30,
+    fontFamily: displayFontFamily,
+    fontSize: 32,
     fontWeight: '700' as const,
-    letterSpacing: -1.0,
-    lineHeight: 34,
+    letterSpacing: -1.1,
+    lineHeight: 36,
   },
   displaySm: {
+    fontFamily: displayFontFamily,
     fontSize: 24,
     fontWeight: '700' as const,
     letterSpacing: -0.6,
     lineHeight: 30,
   },
 
-  // Headings
+  // Headings — sans for UI labels and section headers
   heading: {
+    fontFamily: bodyFontFamily,
     fontSize: 20,
     fontWeight: '700' as const,
     letterSpacing: -0.5,
     lineHeight: 26,
   },
   headingSm: {
+    fontFamily: bodyFontFamily,
     fontSize: 17,
     fontWeight: '600' as const,
     letterSpacing: -0.3,
@@ -220,52 +273,69 @@ export const Typography = {
 
   // Body
   body: {
+    fontFamily: bodyFontFamily,
     fontSize: 16,
     fontWeight: '400' as const,
     letterSpacing: -0.2,
     lineHeight: 24,
   },
   bodyStrong: {
+    fontFamily: bodyFontFamily,
     fontSize: 16,
     fontWeight: '600' as const,
     letterSpacing: -0.2,
     lineHeight: 24,
   },
   bodySm: {
+    fontFamily: bodyFontFamily,
     fontSize: 14,
     fontWeight: '400' as const,
     letterSpacing: -0.1,
     lineHeight: 20,
   },
 
-  // Labels
+  // Labels — micro caps with extra tracking, the editorial supporting cast
   label: {
+    fontFamily: bodyFontFamily,
     fontSize: 11,
     fontWeight: '700' as const,
-    letterSpacing: 0.8,
+    letterSpacing: 1.2,
     lineHeight: 13,
     textTransform: 'uppercase' as const,
   },
   labelSm: {
+    fontFamily: bodyFontFamily,
     fontSize: 10,
     fontWeight: '700' as const,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
     lineHeight: 12,
     textTransform: 'uppercase' as const,
   },
 
   // Captions
   caption: {
+    fontFamily: bodyFontFamily,
     fontSize: 13,
     fontWeight: '400' as const,
     letterSpacing: 0,
     lineHeight: 18,
   },
   captionStrong: {
+    fontFamily: bodyFontFamily,
     fontSize: 13,
     fontWeight: '500' as const,
     letterSpacing: 0,
     lineHeight: 18,
+  },
+
+  // Quote — italic display for editorial accents
+  quote: {
+    fontFamily: displayFontFamily,
+    fontSize: 18,
+    fontStyle: 'italic' as const,
+    fontWeight: '400' as const,
+    letterSpacing: -0.3,
+    lineHeight: 28,
   },
 };
 
@@ -300,29 +370,70 @@ export const BorderRadius = {
 };
 
 // ---------------------------------------------------------------------------
-// ANIMATION — Smooth, cinematic
+// ANIMATION — Snappy, mechanical, cinematic
+// ---------------------------------------------------------------------------
+// Durations trimmed for a tighter, more reactive feel. Springs lean into
+// higher stiffness with proportional damping so motion arrives crisply
+// without ringing. Standard easing curve: emphasized-decelerate (Material 3)
+// — fast onset, gentle settle.
 // ---------------------------------------------------------------------------
 
 export const Animation = {
   duration: {
-    instant: 50,
-    fast: 120,
-    normal: 200,
-    slow: 350,
-    entrance: 400,
-    exit: 250,
+    instant: 40,
+    fast: 90,
+    normal: 160,
+    slow: 260,
+    entrance: 300,
+    exit: 180,
   },
   spring: {
-    snappy: { damping: 22, stiffness: 500, mass: 1 },
-    gentle: { damping: 28, stiffness: 350, mass: 1 },
-    bouncy: { damping: 14, stiffness: 400, mass: 1 },
-    soft: { damping: 30, stiffness: 200, mass: 1 },
-    luxe: { damping: 24, stiffness: 280, mass: 1.2 },
+    /** Crisp UI gestures — taps, toggles, focus rings. */
+    snappy: { damping: 24, stiffness: 620, mass: 0.9 },
+    /** Default for entrance reveals — quick onset, controlled settle. */
+    gentle: { damping: 22, stiffness: 380, mass: 1 },
+    /** Playful overshoot — stamp logos, success states. */
+    bouncy: { damping: 12, stiffness: 520, mass: 0.9 },
+    /** Slow drift — splash motion, background blob movement. */
+    soft: { damping: 32, stiffness: 220, mass: 1.1 },
+    /** Editorial luxe — used for hero reveals where weight matters. */
+    luxe: { damping: 26, stiffness: 360, mass: 1.05 },
+    /** Ultra-snap — the FAB, switches, tab pill morph. */
+    crisp: { damping: 28, stiffness: 800, mass: 0.7 },
   },
-  stagger: 60,
+  /** Per-item delay for staggered list entrances. */
+  stagger: 32,
+  /** Per-word delay for headline reveals. */
+  staggerWord: 50,
+  /** Per-character delay for kinetic type. */
+  staggerChar: 22,
   press: {
-    scale: 0.96,
-    opacity: 0.85,
+    scale: 0.965,
+    opacity: 0.88,
+    /** Press-fill sweep across primary CTAs (e.g. MorphButton). */
+    fillDuration: 180,
+    fillEasing: [0.2, 0.8, 0.4, 1] as [number, number, number, number],
+  },
+  /** Morph-button transitions: text → spinner → ring → check. */
+  morph: {
+    textFadeDuration: 120,
+    morphDuration: 180,
+    ringFillSpring: { damping: 18, stiffness: 220, mass: 0.9 },
+    doneScaleSpring: { damping: 14, stiffness: 280, mass: 0.6 },
+  },
+  /** Horizontal shake used to indicate "you tapped a no-op CTA". */
+  shake: {
+    amplitude: 6,
+    duration: 320,
+  },
+  /** Standard cubic-bezier curves — kept short and intentional. */
+  ease: {
+    /** Emphasized decelerate — ideal for entrances. */
+    out: [0.16, 1, 0.3, 1] as [number, number, number, number],
+    /** Standard symmetric — generic transitions. */
+    inOut: [0.45, 0, 0.55, 1] as [number, number, number, number],
+    /** Sharp accelerate — exits. */
+    in: [0.7, 0, 0.84, 0] as [number, number, number, number],
   },
 };
 
@@ -368,3 +479,6 @@ export const Shadows = {
 // ---------------------------------------------------------------------------
 
 export const Hairline = StyleSheet.hairlineWidth || 1;
+
+// Extra bottom padding for screens with floating tab bar
+export const TAB_BAR_OVERLAP = 100;
