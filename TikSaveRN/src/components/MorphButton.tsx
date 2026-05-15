@@ -77,7 +77,8 @@ export function MorphButton({
     if (w > 0 && Math.abs(w - parentWidth) > 0.5) setParentWidth(w);
   };
 
-  // Drive morph based on state
+  // Effect A — fires on kind transitions; handles all morph/doneScale/errorFlash/pressFill.
+  // ring is intentionally NOT cancelled here so Effect B's smooth spring isn't interrupted.
   useEffect(() => {
     if (state.kind === 'idle') {
       morph.value = withTiming(0, { duration: Animation.morph.morphDuration });
@@ -90,8 +91,7 @@ export function MorphButton({
       ring.value = withTiming(0, { duration: Animation.duration.fast });
     } else if (state.kind === 'progress') {
       morph.value = withTiming(1, { duration: Animation.morph.morphDuration });
-      const target = state.total > 0 ? state.completed / state.total : 0;
-      ring.value = withSpring(target, Animation.morph.ringFillSpring);
+      // Initial ring value handled by Effect B below.
     } else if (state.kind === 'done') {
       morph.value = withTiming(1, { duration: Animation.morph.morphDuration });
       ring.value = withSpring(1, Animation.morph.ringFillSpring);
@@ -108,11 +108,25 @@ export function MorphButton({
     }
     return () => {
       cancelAnimation(morph);
-      cancelAnimation(ring);
       cancelAnimation(doneScale);
       cancelAnimation(errorFlash);
+      cancelAnimation(pressFill);
+      // Note: ring is NOT cancelled here — its progress is owned by Effect B
+      // so its smooth spring isn't interrupted on every progress tick.
     };
-  }, [state, morph, ring, doneScale, errorFlash, pressFill]);
+  }, [state.kind]); // intentional: only re-run on kind changes; shared values are stable refs
+
+  // Effect B — drives the ring spring smoothly as progress numbers change.
+  // Only `progressCompleted` and `progressTotal` are deps so the spring is never
+  // restarted except when the fraction actually changes.
+  const progressCompleted = state.kind === 'progress' ? state.completed : 0;
+  const progressTotal = state.kind === 'progress' ? state.total : 0;
+
+  useEffect(() => {
+    if (state.kind !== 'progress') return;
+    const target = progressTotal > 0 ? progressCompleted / progressTotal : 0;
+    ring.value = withSpring(target, Animation.morph.ringFillSpring);
+  }, [progressCompleted, progressTotal]); // intentional: state.kind/ring/Animation are stable
 
   const handlePressIn = () => {
     if (state.kind !== 'idle' && state.kind !== 'error') return;
@@ -202,6 +216,10 @@ export function MorphButton({
   const baseBg = variant === 'solid' ? solidBg : ghostBg;
   const fgColor = variant === 'solid' ? colors.background : colors.textSecondary;
 
+  const a11yState = {
+    busy: state.kind === 'submitting' || state.kind === 'progress',
+  };
+
   const a11yLabel = useMemo(() => {
     if (accessibilityLabel) return accessibilityLabel;
     switch (state.kind) {
@@ -227,6 +245,7 @@ export function MorphButton({
         onPressOut={handlePressOut}
         accessibilityRole="button"
         accessibilityLabel={a11yLabel}
+        accessibilityState={a11yState}
         style={[
           styles.button,
           {
