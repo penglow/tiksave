@@ -289,16 +289,16 @@ export default function AddVideoScreen({ navigation }: Props) {
         generation,
       };
       setImportingItems([queued]);
+      setPendingSubmit(false);
       if (item.status === 'ready' || item.status === 'needs_review') {
         setTimeout(() => updateItemStatus(item.id, 'complete'), 0);
       }
     } catch (err) {
+      setPendingSubmit(false);
       console.error('Failed to import:', err);
       setImportStatus('error');
       setIsImporting(false);
       setErrorMessage('Import failed. Please try again.');
-    } finally {
-      setPendingSubmit(false);
     }
   };
 
@@ -332,6 +332,7 @@ export default function AddVideoScreen({ navigation }: Props) {
         }));
 
       setImportingItems(queued);
+      setPendingSubmit(false);
 
       if (result.duplicates > 0 || result.errors > 0) {
         setErrorMessage(
@@ -341,19 +342,17 @@ export default function AddVideoScreen({ navigation }: Props) {
 
       if (queued.length === 0) {
         setIsImporting(false);
-        setPendingSubmit(false);
         const nav = navigation as unknown as {
           navigate: (name: string, params?: Record<string, unknown>) => void;
         };
         nav.navigate('Library', { screen: 'LibraryMain' });
       }
     } catch (err) {
+      setPendingSubmit(false);
       console.error('Failed to batch import:', err);
       setImportStatus('error');
       setIsImporting(false);
       setErrorMessage('Batch import failed. Please try again.');
-    } finally {
-      setPendingSubmit(false);
     }
   };
 
@@ -407,7 +406,7 @@ export default function AddVideoScreen({ navigation }: Props) {
   const handleProgressPress = () => {
     const cancelAll = () => {
       importingItems
-        .filter((i) => i.status === 'processing')
+        .filter((i) => i.status === 'processing' && !cancellingItemIds.has(i.id))
         .forEach((i) => void handleCancelImport(i.id));
     };
 
