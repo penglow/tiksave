@@ -334,7 +334,8 @@ export default function AddVideoScreen({ navigation }: Props) {
       setImportingItems(queued);
       setPendingSubmit(false);
 
-      if (result.duplicates > 0 || result.errors > 0) {
+      const hasFeedback = result.duplicates > 0 || result.errors > 0;
+      if (hasFeedback) {
         setErrorMessage(
           `${result.queued} queued · ${result.duplicates} duplicates · ${result.errors} errors`,
         );
@@ -342,6 +343,10 @@ export default function AddVideoScreen({ navigation }: Props) {
 
       if (queued.length === 0) {
         setIsImporting(false);
+        // If there's a duplicate/error message, hold briefly so the user sees it before navigating.
+        if (hasFeedback) {
+          await new Promise((r) => setTimeout(r, 1800));
+        }
         const nav = navigation as unknown as {
           navigate: (name: string, params?: Record<string, unknown>) => void;
         };
