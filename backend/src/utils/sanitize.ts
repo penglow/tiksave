@@ -4,6 +4,9 @@
 
 // --- constants ---
 
+/** Object keys that must never be copied during recursive sanitization. */
+const DANGEROUS_OBJECT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 /** HTML entities to escape. */
 const HTML_ENTITIES: Record<string, string> = {
   '&': '&amp;',
@@ -49,7 +52,7 @@ export function sanitizeString(
   
   const { maxLength, allowNewlines = true, escapeHtml: shouldEscape = false } = options;
   
-  let result = str;
+  let result = removeNullBytes(str);
   
   // Strip HTML tags
   result = stripHtml(result);
@@ -97,6 +100,13 @@ export function sanitizeUrl(url: string | null | undefined): string | null {
     if (!['http:', 'https:'].includes(parsed.protocol)) {
       return null;
     }
+
+    if (isBlockedHostname(parsed.hostname)) {
+      return null;
+    }
+    if (parsed.username || parsed.password) {
+      return null;
+    }
     
     // Return the normalized URL
     return parsed.href;
@@ -107,6 +117,28 @@ export function sanitizeUrl(url: string | null | undefined): string | null {
 
 function normalizeHostname(hostname: string): string {
   return hostname.trim().toLowerCase().replace(/\.$/, '');
+}
+
+function isBlockedHostname(hostname: string): boolean {
+  let h = normalizeHostname(hostname);
+  if (h.startsWith('[') && h.endsWith(']')) {
+    h = h.slice(1, -1);
+  }
+
+  if (h === 'localhost' || isPrivateIpLiteral(h)) {
+    return true;
+  }
+
+  if (h === 'metadata.google.internal' || h.endsWith('.metadata.google.internal')) {
+    return true;
+  }
+
+  // DNS rebinding helpers that often point at link-local / metadata IPs
+  if (/^169\.254\.169\.254(\.|$)/.test(h) || h.includes('169-254-169-254')) {
+    return true;
+  }
+
+  return false;
 }
 
 function isPrivateIpLiteral(hostname: string): boolean {
@@ -136,9 +168,30 @@ function isPrivateIpLiteral(hostname: string): boolean {
   return false;
 }
 
+const TIKTOK_HOST_LABEL_ALLOWLIST = new Set([
+  'www',
+  'm',
+  'vm',
+  'v',
+  't',
+  'us',
+  'api',
+  'lf',
+  'www2',
+]);
+
 function isTikTokHostname(hostname: string): boolean {
   const h = normalizeHostname(hostname);
-  return h === 'tiktok.com' || h.endsWith('.tiktok.com');
+  const labels = h.split('.');
+  if (labels.length < 2) return false;
+  if (labels[labels.length - 1] !== 'com' || labels[labels.length - 2] !== 'tiktok') {
+    return false;
+  }
+  if (labels.length === 2) {
+    return labels[0] === 'tiktok';
+  }
+  const prefix = labels.slice(0, -2);
+  return prefix.length > 0 && prefix.every((label) => TIKTOK_HOST_LABEL_ALLOWLIST.has(label));
 }
 
 /**
@@ -156,7 +209,7 @@ export function sanitizeTikTokUrl(url: string | null | undefined): string | null
     const hostname = normalizeHostname(parsed.hostname);
 
     if (!isTikTokHostname(hostname)) return null;
-    if (hostname === 'localhost' || isPrivateIpLiteral(hostname)) return null;
+    if (isBlockedHostname(hostname)) return null;
     if (parsed.username || parsed.password) return null;
 
     return parsed.href;
@@ -196,7 +249,7 @@ export function sanitizeTikTokImageUrl(url: string | null | undefined): string |
       /\/(obj|tos|pic|mf|video|imagex)\//i.test(parsed.pathname);
 
     if (!isTikTokCdn && !isTikTokStaticAsset) return null;
-    if (hostname === 'localhost' || isPrivateIpLiteral(hostname)) return null;
+    if (isBlockedHostname(hostname)) return null;
     if (parsed.username || parsed.password) return null;
 
     return parsed.href;
@@ -237,6 +290,37 @@ export function sanitizeUserContent(
   return result;
 }
 
+/** Settings keys that must never be returned to API clients. */
+const INTERNAL_USER_SETTINGS_KEYS = new Set([
+  'passwordResetToken',
+  'passwordResetExpiry',
+  'password_hash',
+  'passwordHash',
+  'refreshToken',
+  'apiKey',
+  'secret',
+  'accessToken',
+]);
+
+/**
+ * Remove server-only fields from user settings before sending to clients.
+ */
+export function sanitizeUserSettingsForClient(
+  settings: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    return {};
+  }
+
+  const safe: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(settings)) {
+    if (!INTERNAL_USER_SETTINGS_KEYS.has(key)) {
+      safe[key] = value;
+    }
+  }
+  return safe;
+}
+
 /**
  * Sanitize an email address
  */
@@ -245,10 +329,23 @@ export function sanitizeEmail(email: string | null | undefined): string | null {
   
   // Basic cleanup
   const cleaned = email.toLowerCase().trim();
+
+  // Reject header injection, null bytes, and markup in mailbox strings
+  if (/[\r\n\0]/.test(cleaned)) return null;
+  if (/[<>"']/.test(cleaned)) return null;
   
   // Basic email format validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(cleaned)) {
+    return null;
+  }
+
+  const [localPart, domainPart] = cleaned.split('@');
+  if (!localPart || !domainPart) return null;
+  if (localPart.startsWith('.') || localPart.endsWith('.') || domainPart.startsWith('.')) {
+    return null;
+  }
+  if (!/[a-z0-9]/.test(localPart) || !/[a-z0-9]/.test(domainPart)) {
     return null;
   }
   
@@ -300,7 +397,13 @@ export function sanitizeObject<T extends Record<string, unknown>>(
     if (value !== null && typeof value === 'object') {
       const result: Record<string, unknown> = {};
       for (const [key, val] of Object.entries(value)) {
+        if (DANGEROUS_OBJECT_KEYS.has(key)) {
+          continue;
+        }
         const sanitizedKey = sanitizeString(key, { maxLength: 100, allowNewlines: false });
+        if (DANGEROUS_OBJECT_KEYS.has(sanitizedKey)) {
+          continue;
+        }
         result[sanitizedKey] = sanitizeValue(val, depth + 1);
       }
       return result;

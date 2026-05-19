@@ -19,7 +19,9 @@
     "test:auth": "bun test src/tests/auth.test.ts",
     "test:items": "bun test src/tests/items.test.ts",
     "test:folders": "bun test src/tests/folders.test.ts",
-    "test:search": "bun test src/tests/search.test.ts"
+    "test:search": "bun test src/tests/search.test.ts",
+    "test:security": "bun test src/tests/security/**/*.test.ts",
+    "test:security:fast": "bun test src/tests/security/01-ssrf.spoof.matrix.test.ts src/tests/security/02-xss.injection.matrix.test.ts src/tests/security/04-secrets.settings.matrix.test.ts src/tests/security/07-mega.security.suite.test.ts"
   },
   "dependencies": {
     "@azure/identity": "^4.0.0",

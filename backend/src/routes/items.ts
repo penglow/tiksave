@@ -19,6 +19,7 @@ import { extractLocationQueries, geocodeLocation } from '../services/location.js
 import { withLock } from '../services/redis.js';
 import { sanitizeTikTokUrl, sanitizeTikTokImageUrl, sanitizeUserContent, sanitizeString } from '../utils/sanitize.js';
 import { validateParams, CommonSchemas } from '../middleware/validation.js';
+import { importLimiter, uploadLimiter } from '../middleware/rateLimiter.js';
 import {
   parseCursorPagination,
   decodeCursor,
@@ -79,7 +80,7 @@ const moveToFolderSchema = z.object({
 // --- handlers ---
 
 /** POST / — create a save item from a TikTok URL and process asynchronously. */
-itemsRouter.post('/', async (req, res: Response) => {
+itemsRouter.post('/', importLimiter, async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
 
   try {
@@ -105,7 +106,7 @@ itemsRouter.post('/', async (req, res: Response) => {
 
     if (duplicate.rows.length > 0) {
       // Return existing item if just added
-      const existing = await getItemById(duplicate.rows[0].id);
+      const existing = await getItemById(duplicate.rows[0].id, authReq.userId);
       return res.json(existing);
     }
 
@@ -151,7 +152,7 @@ itemsRouter.post('/', async (req, res: Response) => {
 });
 
 /** POST /batch — queue multiple TikTok URLs for import. */
-itemsRouter.post('/batch', async (req, res: Response) => {
+itemsRouter.post('/batch', importLimiter, async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
 
   try {
@@ -816,7 +817,7 @@ itemsRouter.get('/:id', validateParams(CommonSchemas.idParam), async (req, res: 
 });
 
 /** POST /:id/uploadUrl — generate a signed URL for video upload. */
-itemsRouter.post('/:id/uploadUrl', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
+itemsRouter.post('/:id/uploadUrl', uploadLimiter, validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
 
@@ -833,8 +834,8 @@ itemsRouter.post('/:id/uploadUrl', validateParams(CommonSchemas.idParam), async 
   await query(
     `UPDATE save_items 
      SET status = 'upload_requested', video_blob_name = $2, updated_at = NOW()
-     WHERE id = $1`,
-    [id, blobName]
+     WHERE id = $1 AND user_id = $3`,
+    [id, blobName, authReq.userId]
   );
 
   // Return blobName too (helpful for debugging/clients), but server also persists it.
@@ -842,7 +843,7 @@ itemsRouter.post('/:id/uploadUrl', validateParams(CommonSchemas.idParam), async 
 });
 
 /** POST /:id/completeUpload — mark upload complete and queue video processing. */
-itemsRouter.post('/:id/completeUpload', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
+itemsRouter.post('/:id/completeUpload', uploadLimiter, validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
 
@@ -854,8 +855,8 @@ itemsRouter.post('/:id/completeUpload', validateParams(CommonSchemas.idParam), a
   // Update status and re-queue for video processing
   await query(
     `UPDATE save_items SET status = 'uploading', updated_at = NOW()
-     WHERE id = $1`,
-    [id]
+     WHERE id = $1 AND user_id = $2`,
+    [id, authReq.userId]
   );
 
   await addToProcessingQueue({
@@ -901,8 +902,8 @@ itemsRouter.post('/:id/moveFolder', validateParams(CommonSchemas.idParam), async
     await query(
       `UPDATE save_items 
        SET folder_id = $1, status = 'ready', updated_at = NOW()
-       WHERE id = $2`,
-      [folderId, id]
+       WHERE id = $2 AND user_id = $3`,
+      [folderId, id, authReq.userId]
     );
 
     // Record training example if this was a correction (only if moving to a folder, not to library)
@@ -1065,9 +1066,9 @@ async function processItemNow(
       const lockResult = await query(
         `UPDATE save_items 
          SET status = 'processing', updated_at = NOW() 
-         WHERE id = $1 AND status NOT IN ('processing', 'ready')
+         WHERE id = $1 AND user_id = $2 AND status NOT IN ('processing', 'ready')
          RETURNING id`,
-        [itemId]
+        [itemId, userId]
       );
       
       if (lockResult.rows.length === 0) {

@@ -8,7 +8,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -17,12 +16,19 @@ import { itemsRouter } from './routes/items.js';
 import { foldersRouter } from './routes/folders.js';
 import { searchRouter } from './routes/search.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import { authenticate, AuthenticatedRequest } from './middleware/auth.js';
+import { authenticate } from './middleware/auth.js';
 import { initializeDatabase, pool } from './database/init.js';
 import { startWorker, shutdownWorker } from './workers/videoProcessor.js';
 import { getRedisClient, isRedisHealthy, closeRedisConnections } from './services/redis.js';
 import { getCacheStats } from './services/cache.js';
 import { logger, createRequestLogger } from './utils/logger.js';
+import {
+  globalIpLimiter,
+  userLimiter,
+  authLimiter,
+  healthLimiter,
+  publicConfigLimiter,
+} from './middleware/rateLimiter.js';
 
 dotenv.config();
 
@@ -59,38 +65,6 @@ const getCorsOrigins = (): string[] | boolean => {
   return corsOrigins.split(',').map((origin) => origin.trim()).filter(Boolean);
 };
 
-/** Create an express-rate-limit instance with optional user-based keying. */
-const createRateLimiter = (options: { windowMs: number; max: number; keyGenerator?: (req: express.Request) => string }) => {
-  return rateLimit({
-    windowMs: options.windowMs,
-    max: options.max,
-    message: { error: 'Too many requests, please try again later.' },
-    standardHeaders: true,
-    legacyHeaders: false,
-    keyGenerator: options.keyGenerator || ((req) => req.ip || 'unknown'),
-  });
-};
-
-const ipLimiter = createRateLimiter({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
-});
-
-const userLimiter = createRateLimiter({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS_USER || '500'), // Higher limit for authenticated users
-  keyGenerator: (req) => {
-    // Use userId if available, otherwise fall back to IP
-    const authReq = req as AuthenticatedRequest;
-    return authReq.userId || req.ip || 'unknown';
-  },
-});
-
-const authLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // 20 attempts per 15 minutes
-});
-
 // --- middleware ---
 
 app.use(helmet({
@@ -116,7 +90,7 @@ app.use(compression({
   threshold: 1024,
 }));
 
-app.use('/api', ipLimiter);
+app.use('/api', globalIpLimiter);
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -157,7 +131,7 @@ app.use((req, res, next) => {
 // --- handlers ---
 
 /** GET /health — dependency health check for DB, Redis, and OpenAI. */
-app.get('/health', async (req, res) => {
+app.get('/health', healthLimiter, async (req, res) => {
   const startedAt = process.hrtime.bigint();
   const checks: {
     db: boolean;
@@ -207,10 +181,10 @@ app.get('/health', async (req, res) => {
   });
 });
 
-/** GET /api/config/public — expose browser-safe runtime config. */
-app.get('/api/config/public', (req, res) => {
+/** GET /api/config/public — expose browser-safe runtime config (client-restricted keys only). */
+app.get('/api/config/public', publicConfigLimiter, (req, res) => {
   res.json({
-    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '',
   });
 });
 

@@ -85,9 +85,14 @@ describe('sanitize.matrix — sanitizeUrl', () => {
     u.startsWith('javascript:') ||
     u.startsWith('file:') ||
     u.startsWith('ftp:') ||
+    u.includes('127.0.0.1') ||
+    u.includes('localhost') ||
+    u.includes('10.0.0.1') ||
+    u.includes('192.168.') ||
+    u.includes('169.254.') ||
     u.trim() === '' ||
     u === 'not-a-url' ||
-  u === '   ';
+    u === '   ';
   for (let i = 0; i < INVALID_URLS.length; i++) {
     it(`sanitizeUrl policy ${i}`, () => {
       const url = INVALID_URLS[i];

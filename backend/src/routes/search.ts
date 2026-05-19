@@ -7,6 +7,7 @@
 import { Router, Response } from 'express';
 import { query } from '../database/init.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
+import { searchLimiter } from '../middleware/rateLimiter.js';
 import { generateEmbedding } from '../services/embeddings.js';
 import { getOpenAIClient, isOpenAIConfigured, withRetry } from '../services/openai.js';
 
@@ -172,7 +173,7 @@ export const searchRouter = Router();
 // --- handlers ---
 
 /** GET / — search saved items by semantic or keyword query. */
-searchRouter.get('/', async (req, res: Response) => {
+searchRouter.get('/', searchLimiter, async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { q, semantic = 'true', limit = '20' } = req.query;
 

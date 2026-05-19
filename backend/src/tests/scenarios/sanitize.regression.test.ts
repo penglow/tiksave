@@ -12,10 +12,21 @@ import {
   sanitizeUserContent,
   sanitizeEmail,
   sanitizeObject,
+  sanitizeUserSettingsForClient,
   removeNullBytes,
 } from '../../utils/sanitize';
 
 describe('sanitize regression catalog', () => {
+  it('strips password reset secrets from user settings sent to clients', () => {
+    const out = sanitizeUserSettingsForClient({
+      theme: 'dark',
+      passwordResetToken: 'hashed-secret',
+      passwordResetExpiry: '2099-01-01T00:00:00.000Z',
+    });
+    expect(out).toEqual({ theme: 'dark' });
+    expect(JSON.stringify(out)).not.toContain('passwordReset');
+  });
+
   it('blocks SSRF via metadata service IP literal', () => {
     expect(sanitizeTikTokUrl('https://169.254.169.254/latest/meta-data/')).toBeNull();
   });
@@ -51,6 +62,11 @@ describe('sanitize regression catalog', () => {
 
   it('allows vm.tiktok short link host', () => {
     expect(sanitizeTikTokUrl('https://vm.tiktok.com/ZMabcdef/')).not.toBeNull();
+  });
+
+  it('blocks attacker-owned evil.tiktok.com subdomain labels', () => {
+    expect(sanitizeTikTokUrl('https://evil.tiktok.com/@u/video/1')).toBeNull();
+    expect(sanitizeTikTokUrl('https://tiktok.com.evil.com/@u/video/1')).toBeNull();
   });
 
   it('rejects image from random CDN domain', () => {

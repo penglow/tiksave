@@ -12,8 +12,15 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { query } from '../database/init.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { sanitizeEmail, sanitizeString } from '../utils/sanitize.js';
+import { sanitizeEmail, sanitizeString, sanitizeUserSettingsForClient } from '../utils/sanitize.js';
 import { logger } from '../utils/logger.js';
+import {
+  signInLimiter,
+  signUpLimiter,
+  refreshLimiter,
+  passwordResetRequestLimiter,
+  passwordResetConfirmLimiter,
+} from '../middleware/rateLimiter.js';
 
 // --- constants ---
 
@@ -67,7 +74,7 @@ const signInSchema = z.object({
 // --- handlers ---
 
 /** POST /signup — register a new user and return tokens. */
-authRouter.post('/signup', async (req: Request, res: Response, next: NextFunction) => {
+authRouter.post('/signup', signUpLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = signUpSchema.parse(req.body);
     
@@ -126,7 +133,7 @@ authRouter.post('/signup', async (req: Request, res: Response, next: NextFunctio
 });
 
 /** POST /signin — authenticate with email and password. */
-authRouter.post('/signin', async (req: Request, res: Response, next: NextFunction) => {
+authRouter.post('/signin', signInLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = signInSchema.parse(req.body);
     
@@ -139,7 +146,8 @@ authRouter.post('/signin', async (req: Request, res: Response, next: NextFunctio
     
     // Find user
     const result = await query(
-      'SELECT * FROM users WHERE email = $1',
+      `SELECT id, email, display_name, avatar_url, settings, created_at
+       FROM users WHERE email = $1`,
       [email]
     );
     
@@ -171,7 +179,7 @@ authRouter.post('/signin', async (req: Request, res: Response, next: NextFunctio
 });
 
 /** POST /refresh — rotate refresh token and issue new access token. */
-authRouter.post('/refresh', async (req: Request, res: Response, next: NextFunction) => {
+authRouter.post('/refresh', refreshLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { refreshToken } = req.body;
     
@@ -187,7 +195,8 @@ authRouter.post('/refresh', async (req: Request, res: Response, next: NextFuncti
     
     // Get user
     const result = await query(
-      'SELECT * FROM users WHERE id = $1',
+      `SELECT id, email, display_name, avatar_url, settings, created_at
+       FROM users WHERE id = $1`,
       [decoded.userId]
     );
     
@@ -249,7 +258,7 @@ const resetPasswordSchema = z.object({
 });
 
 /** POST /password-reset/request — initiate password reset flow. */
-authRouter.post('/password-reset/request', async (req: Request, res: Response, next: NextFunction) => {
+authRouter.post('/password-reset/request', passwordResetRequestLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = requestPasswordResetSchema.parse(req.body);
     const email = sanitizeEmail(parsed.email);
@@ -313,7 +322,7 @@ authRouter.post('/password-reset/request', async (req: Request, res: Response, n
 });
 
 /** POST /password-reset/confirm — reset password with a valid token. */
-authRouter.post('/password-reset/confirm', async (req: Request, res: Response, next: NextFunction) => {
+authRouter.post('/password-reset/confirm', passwordResetConfirmLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = resetPasswordSchema.parse(req.body);
     
@@ -456,7 +465,7 @@ function formatUser(row: any) {
     displayName: row.display_name,
     avatarURL: row.avatar_url,
     createdAt: row.created_at,
-    settings: row.settings,
+    settings: sanitizeUserSettingsForClient(row.settings),
   };
 }
 
