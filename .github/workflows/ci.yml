@@ -11,42 +11,29 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   changes:
     name: Detect changed areas
     runs-on: ubuntu-latest
     outputs:
-      mobile: ${{ steps.set.outputs.mobile }}
-      backend: ${{ steps.set.outputs.backend }}
+      mobile: ${{ steps.detect.outputs.mobile }}
+      backend: ${{ steps.detect.outputs.backend }}
     steps:
       - uses: actions/checkout@v4
-
-      - uses: dorny/paths-filter@v3
-        id: filter
-        if: github.event_name != 'workflow_dispatch'
         with:
-          filters: |
-            mobile:
-              - 'TikSaveRN/**'
-              - '.bun-version'
-              - '.github/workflows/ci.yml'
-              - '.github/actions/**'
-            backend:
-              - 'backend/**'
-              - '.bun-version'
-              - '.github/workflows/ci.yml'
-              - '.github/actions/**'
+          fetch-depth: 0
 
-      - name: Set job outputs
-        id: set
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "mobile=true" >> "$GITHUB_OUTPUT"
-            echo "backend=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "mobile=${{ steps.filter.outputs.mobile }}" >> "$GITHUB_OUTPUT"
-            echo "backend=${{ steps.filter.outputs.backend }}" >> "$GITHUB_OUTPUT"
-          fi
+      - name: Detect changed paths
+        id: detect
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: bash .github/scripts/detect-changes.sh
 
   mobile:
     name: Mobile app
