@@ -4,13 +4,13 @@
 
 import { describe, it, expect, beforeAll } from 'bun:test';
 import jwt from 'jsonwebtoken';
-import { generateJwtAttackCases } from '../fixtures/securityPayloads';
-import { mockRequest, mockResponse } from '../setup';
+import { authenticate } from '../../middleware/auth.js';
+import { generateJwtAttackCases } from '../fixtures/securityPayloads.js';
+import { mockRequest, mockResponse } from '../setup.js';
 
 const SECRET = 'security-jwt-test-secret-key-min-32-chars!!';
 process.env.JWT_SECRET = SECRET;
 
-const { authenticate } = await import('../../middleware/auth');
 const jwtCases = generateJwtAttackCases(jwt, SECRET);
 
 function runAuthenticate(token: string): { statusCode: number; data: any; nextCalled: boolean; userId?: string } {

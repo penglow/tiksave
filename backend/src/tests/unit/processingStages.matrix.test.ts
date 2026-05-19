@@ -50,8 +50,7 @@ describe('processingStages.matrix — pipeline order', () => {
   }
   for (let i = 0; i < 30; i++) {
     it(`unknown falls back ${i}`, () => {
-      // @ts-expect-error intentional bad stage
-      expect(getStageConfig('bogus' as ProcessingStage).id).toBe('queued');
+      expect(getStageConfig('bogus' as unknown as ProcessingStage).id).toBe('queued');
     });
   }
 });

@@ -3,12 +3,16 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { sanitizeObject } from '../../utils/sanitize';
-import * as rateLimiters from '../../middleware/rateLimiter';
+import fs from 'fs';
+import path from 'path';
+import { sanitizeObject } from '../../utils/sanitize.js';
+import * as rateLimiters from '../../middleware/rateLimiter.js';
 import {
   buildSecurityCatalog,
   generatePrototypePollutionPayloads,
-} from '../fixtures/securityPayloads';
+} from '../fixtures/securityPayloads.js';
+
+const backendRoot = process.cwd();
 
 const catalog = buildSecurityCatalog();
 
@@ -76,10 +80,8 @@ describe('security.rate-limit — limiters are configured middleware', () => {
 });
 
 describe('security.rate-limit — env keys documented in template', () => {
-  it('env.template lists rate limit variables', async () => {
-    const fs = await import('fs');
-    const path = await import('path');
-    const template = fs.readFileSync(path.join(import.meta.dir, '../../../env.template'), 'utf8');
+  it('env.template lists rate limit variables', () => {
+    const template = fs.readFileSync(path.join(backendRoot, 'env.template'), 'utf8');
     expect(template).toContain('RATE_LIMIT_SIGNIN_MAX');
     expect(template).toContain('RATE_LIMIT_IMPORT_MAX');
     expect(template).toContain('RATE_LIMIT_SEARCH_MAX');
@@ -93,13 +95,8 @@ describe('security.rate-limit — sign-in limiter is exported', () => {
 });
 
 describe('security.env — dev password reset flag blocked in production', () => {
-  it('documents production guard exists in auth route source', async () => {
-    const fs = await import('fs');
-    const path = await import('path');
-    const authSrc = fs.readFileSync(
-      path.join(import.meta.dir, '../../routes/auth.ts'),
-      'utf8',
-    );
+  it('documents production guard exists in auth route source', () => {
+    const authSrc = fs.readFileSync(path.join(backendRoot, 'src/routes/auth.ts'), 'utf8');
     expect(authSrc).toContain("process.env.NODE_ENV === 'production'");
     expect(authSrc).toContain('ALLOW_DEV_PASSWORD_RESET_TOKEN');
     expect(authSrc).toContain('sanitizeUserSettingsForClient');
@@ -107,10 +104,8 @@ describe('security.env — dev password reset flag blocked in production', () =>
 });
 
 describe('security.public — config route must not expose server maps key', () => {
-  it('index public config uses EXPO_PUBLIC only', async () => {
-    const fs = await import('fs');
-    const path = await import('path');
-    const indexSrc = fs.readFileSync(path.join(import.meta.dir, '../../index.ts'), 'utf8');
+  it('index public config uses EXPO_PUBLIC only', () => {
+    const indexSrc = fs.readFileSync(path.join(backendRoot, 'src/index.ts'), 'utf8');
     expect(indexSrc).toContain('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY');
     expect(indexSrc).not.toMatch(/GOOGLE_MAPS_API_KEY \|\| process\.env\.EXPO/);
   });

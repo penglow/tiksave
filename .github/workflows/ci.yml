@@ -119,7 +119,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: TypeScript
-        run: bunx tsc --noEmit
+        run: bun run typecheck
 
       - name: Database migrations
         run: bun run migrate

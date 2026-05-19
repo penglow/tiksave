@@ -377,7 +377,7 @@ itemsRouter.get('/paginated', async (req, res: Response) => {
 
     // Build base WHERE clause (use si. prefix to avoid ambiguity with joined tables)
     let baseWhere = 'si.user_id = $1';
-    const baseParams: (string | number | boolean)[] = [authReq.userId];
+    const baseParams: (string | number | boolean | string[])[] = [authReq.userId];
     let paramIndex = 2;
     
     // Exclude soft-deleted items unless explicitly requested

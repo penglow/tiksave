@@ -120,7 +120,7 @@ describe('mega.security — pagination + password policy (400 cases)', () => {
 
 describe('mega.security — catalog smoke count', () => {
   it('reports minimum generated attack catalog size', async () => {
-    const { buildSecurityCatalog } = await import('../fixtures/securityPayloads');
+    const { buildSecurityCatalog } = await import('../fixtures/securityPayloads.js');
     const cat = buildSecurityCatalog();
     const total =
       cat.ssrf.length +

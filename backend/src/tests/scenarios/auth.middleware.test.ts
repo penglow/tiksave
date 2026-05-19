@@ -4,11 +4,10 @@
 
 import { describe, it, expect, beforeAll } from 'bun:test';
 import jwt from 'jsonwebtoken';
-import { mockRequest, mockResponse } from '../setup';
+import { authenticate } from '../../middleware/auth.js';
+import { mockRequest, mockResponse } from '../setup.js';
 
 process.env.JWT_SECRET = 'middleware-test-secret-key';
-
-const { authenticate } = await import('../../middleware/auth');
 
 describe('authenticate middleware scenarios', () => {
   let validToken: string;

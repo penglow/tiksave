@@ -24,7 +24,12 @@ export async function isDatabaseAvailable(): Promise<boolean> {
   }
 }
 
-export const dbAvailable = await isDatabaseAvailable();
+export let dbAvailable = false;
+
+/** Populated by test preload before suites are collected. */
+export async function initDbAvailability(): Promise<void> {
+  dbAvailable = await isDatabaseAvailable();
+}
 
 // Test database connection
 let testPool: Pool | null = null;
