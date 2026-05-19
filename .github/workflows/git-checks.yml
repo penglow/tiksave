@@ -102,7 +102,6 @@ jobs:
     name: Full history secret scan
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
