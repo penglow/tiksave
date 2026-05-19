@@ -1,9 +1,18 @@
+/**
+ * Clipboard monitoring and TikTok URL detection for share-to-import flows.
+ * Persists last-seen content to avoid duplicate prompts.
+ */
+
 import { AppState, AppStateStatus } from 'react-native';
 import * as ExpoClipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LAST_CLIPBOARD_KEY = 'lastClipboardContent';
 const CLIPBOARD_URLS_KEY = 'detectedClipboardUrls';
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
 // TikTok URL patterns
 const TIKTOK_PATTERNS = [
@@ -13,14 +22,24 @@ const TIKTOK_PATTERNS = [
   /https?:\/\/(?:www\.)?tiktok\.com\/[\w@]+\/[\w]+/gi,
 ];
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 export interface ClipboardDetectionResult {
   hasUrls: boolean;
   urls: string[];
   isNew: boolean; // Whether this is new content we haven't seen before
 }
 
+// ---------------------------------------------------------------------------
+// URL extraction
+// ---------------------------------------------------------------------------
+
 /**
- * Extract TikTok URLs from text
+ * Extract all TikTok URLs from text.
+ *
+ * @param text - Clipboard or shared text content.
  */
 export function extractTikTokUrls(text: string): string[] {
   if (!text || typeof text !== 'string') return [];
@@ -41,16 +60,20 @@ export function extractTikTokUrls(text: string): string[] {
 }
 
 /**
- * Check if a single string is a valid TikTok URL
+ * Check if a single string is a valid TikTok URL.
+ *
+ * @param url - Candidate URL string.
  */
 export function isTikTokUrl(url: string): boolean {
   if (!url || typeof url !== 'string') return false;
   return url.includes('tiktok.com') || url.includes('vm.tiktok');
 }
 
-/**
- * Get the last checked clipboard content
- */
+// ---------------------------------------------------------------------------
+// Storage helpers
+// ---------------------------------------------------------------------------
+
+/** Get the last checked clipboard content from AsyncStorage. */
 async function getLastClipboardContent(): Promise<string | null> {
   try {
     return await AsyncStorage.getItem(LAST_CLIPBOARD_KEY);
@@ -59,9 +82,7 @@ async function getLastClipboardContent(): Promise<string | null> {
   }
 }
 
-/**
- * Save the current clipboard content as "seen"
- */
+/** Save the current clipboard content as "seen". */
 async function setLastClipboardContent(content: string): Promise<void> {
   try {
     await AsyncStorage.setItem(LAST_CLIPBOARD_KEY, content);
@@ -70,9 +91,13 @@ async function setLastClipboardContent(content: string): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Clipboard checks
+// ---------------------------------------------------------------------------
+
 /**
- * Check clipboard for TikTok URLs
- * Returns detected URLs and whether this is new content
+ * Check clipboard for TikTok URLs.
+ * Returns detected URLs and whether this is new content.
  */
 export async function checkClipboardForUrls(): Promise<ClipboardDetectionResult> {
   try {
@@ -107,8 +132,8 @@ export async function checkClipboardForUrls(): Promise<ClipboardDetectionResult>
 }
 
 /**
- * Mark the current clipboard content as processed
- * Call this after the user has seen/acted on the detected URLs
+ * Mark the current clipboard content as processed.
+ * Call after the user has seen or acted on the detected URLs.
  */
 export async function markClipboardProcessed(): Promise<void> {
   try {
@@ -125,8 +150,8 @@ export async function markClipboardProcessed(): Promise<void> {
 }
 
 /**
- * Clear the stored clipboard state
- * Useful for testing or when user wants to re-check the same URLs
+ * Clear stored clipboard state.
+ * Useful for testing or when the user wants to re-check the same URLs.
  */
 export async function clearClipboardState(): Promise<void> {
   try {
@@ -137,9 +162,13 @@ export async function clearClipboardState(): Promise<void> {
   }
 }
 
-// Clipboard service with app state monitoring
+// ---------------------------------------------------------------------------
+// ClipboardService
+// ---------------------------------------------------------------------------
+
 type ClipboardCallback = (result: ClipboardDetectionResult) => void;
 
+/** Singleton that monitors app foreground and notifies listeners of new TikTok URLs. */
 class ClipboardService {
   private listeners: Set<ClipboardCallback> = new Set();
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
@@ -228,7 +257,11 @@ class ClipboardService {
   }
 }
 
-// Export singleton instance
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+
+/** Shared clipboard monitoring service instance. */
 export const clipboardService = new ClipboardService();
 
 export default clipboardService;

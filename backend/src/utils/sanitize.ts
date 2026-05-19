@@ -1,9 +1,10 @@
 /**
- * Input sanitization utilities
- * Helps prevent XSS and other injection attacks
+ * Input sanitization utilities to prevent XSS, SSRF, and injection attacks.
  */
 
-// HTML entities to escape
+// --- constants ---
+
+/** HTML entities to escape. */
 const HTML_ENTITIES: Record<string, string> = {
   '&': '&amp;',
   '<': '&lt;',
@@ -15,9 +16,9 @@ const HTML_ENTITIES: Record<string, string> = {
   '=': '&#x3D;',
 };
 
-/**
- * Escape HTML special characters to prevent XSS
- */
+// --- helpers ---
+
+/** Escape HTML special characters to prevent XSS. */
 export function escapeHtml(str: string): string {
   return str.replace(/[&<>"'`=/]/g, (char) => HTML_ENTITIES[char] || char);
 }
@@ -166,7 +167,7 @@ export function sanitizeTikTokUrl(url: string | null | undefined): string | null
 
 /**
  * Validate external image URLs before rendering in web clients.
- * Restrictive on purpose: only known TikTok CDN domains are allowed.
+ * Allow TikTok CDN and known static/asset hostnames used in og:image and oEmbed.
  */
 export function sanitizeTikTokImageUrl(url: string | null | undefined): string | null {
   const safe = sanitizeUrl(url);
@@ -178,10 +179,23 @@ export function sanitizeTikTokImageUrl(url: string | null | undefined): string |
 
     const isTikTokCdn =
       hostname.endsWith('.tiktokcdn.com') ||
+      hostname.endsWith('.tiktokcdn-us.com') ||
+      hostname.endsWith('.tiktokcdn-eu.com') ||
+      hostname.endsWith('.tiktokcdn.net') ||
+      hostname.endsWith('.tiktokcdn.cn') ||
       hostname.endsWith('.byteimg.com') ||
-      hostname.endsWith('.muscdn.com');
+      hostname.endsWith('.muscdn.com') ||
+      hostname.endsWith('.ttwstatic.com') ||
+      hostname.endsWith('.tiktokv.com') ||
+      hostname.endsWith('.ibyteimg.com') ||
+      hostname.endsWith('.ibytecdn.com');
 
-    if (!isTikTokCdn) return null;
+    /** Rare: og:image on *.tiktok.com static paths */
+    const isTikTokStaticAsset =
+      (hostname === 'tiktok.com' || hostname.endsWith('.tiktok.com')) &&
+      /\/(obj|tos|pic|mf|video|imagex)\//i.test(parsed.pathname);
+
+    if (!isTikTokCdn && !isTikTokStaticAsset) return null;
     if (hostname === 'localhost' || isPrivateIpLiteral(hostname)) return null;
     if (parsed.username || parsed.password) return null;
 

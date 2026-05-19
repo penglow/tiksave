@@ -1,3 +1,8 @@
+/**
+ * Live processing status card for a single saved item (polls /items/:id/progress).
+ * Shows stage message, animated bar, pipeline dots, and optional cancel control.
+ */
+
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -19,6 +24,7 @@ import { Spacing, BorderRadius, Typography } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { apiService } from '../services/api';
 
+// --- Types / props ---
 interface ProcessingStage {
   stage: string;
   progress: number;
@@ -56,19 +62,30 @@ export function ProcessingProgress({
       try {
         const response = await apiService.getItemProgress(itemId);
         
-        if (response.status === 'error') {
+        const isTerminal =
+          response.status === 'ready' ||
+          response.status === 'needs_review' ||
+          response.status === 'failed';
+        const isFailed =
+          response.status === 'failed' || response.processing?.stage === 'error';
+
+        if (isFailed) {
           setError(response.processing?.message || 'Processing failed');
           onError?.(response.processing?.message || 'Processing failed');
+          if (pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
           return;
         }
-        
+
         setStage(response.processing);
         progressWidth.value = withSpring(response.processing?.progress || 0, {
           damping: 15,
           stiffness: 100,
         });
-        
-        if (response.status === 'ready') {
+
+        if (response.status === 'ready' || response.status === 'needs_review') {
           onComplete?.();
           if (pollRef.current) {
             clearInterval(pollRef.current);
@@ -92,7 +109,7 @@ export function ProcessingProgress({
         pollRef.current = null;
       }
     };
-  }, [itemId, pollInterval, onComplete, onError]);
+  }, [itemId, pollInterval]);
 
   const progressBarStyle = useAnimatedStyle(() => ({
     width: `${progressWidth.value}%`,
@@ -201,6 +218,7 @@ export function ProcessingProgress({
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   container: {
     padding: Spacing.md,

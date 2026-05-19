@@ -1,9 +1,11 @@
 /**
- * Optimistic Update Utilities
- * 
- * Provides utilities for updating UI immediately before API confirmation,
- * with automatic rollback on failure.
+ * Optimistic update utilities for immediate UI feedback with rollback on failure.
+ * Includes a generic `optimisticUpdate` helper and an `UndoManager` for delayed confirms.
  */
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 export interface OptimisticUpdateOptions<T, R = T> {
   /** The async operation to perform (usually an API call) */
@@ -18,22 +20,35 @@ export interface OptimisticUpdateOptions<T, R = T> {
   errorDelay?: number;
 }
 
+export interface UndoableOperation<T> {
+  /** The data that was removed/changed */
+  data: T;
+  /** Timestamp when the operation was performed */
+  timestamp: number;
+  /** Function to undo the operation */
+  undo: () => void;
+  /** Timeout ID for auto-confirm */
+  timeoutId: ReturnType<typeof setTimeout>;
+}
+
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+
 /**
- * Execute an operation with optimistic updates
- * 
+ * Execute an operation with optimistic updates.
+ *
  * @example
  * ```typescript
  * const originalItem = items.find(i => i.id === itemId);
- * 
+ *
  * await optimisticUpdate({
  *   mutate: () => apiService.deleteItem(itemId),
  *   onOptimistic: () => {
- *     // Immediately remove from UI
  *     removeItem(itemId);
- *     return originalItem; // Return state to rollback to
+ *     return originalItem;
  *   },
  *   onError: (error, originalItem) => {
- *     // Restore item on failure
  *     addItem(originalItem);
  *     showToast('Failed to delete item');
  *   },
@@ -53,49 +68,42 @@ export async function optimisticUpdate<T, R = T>({
   try {
     // Execute the actual mutation
     const result = await mutate();
-    
+
     // Call success handler with real data
     onSuccess?.(result);
-    
+
     return result;
   } catch (error) {
     // Wait a bit before showing error (prevents flash on quick retries)
     if (errorDelay > 0) {
       await new Promise(resolve => setTimeout(resolve, errorDelay));
     }
-    
+
     // Rollback on error
     const err = error instanceof Error ? error : new Error(String(error));
     onError?.(err, rollbackState);
-    
+
     return null;
   }
 }
 
 /**
- * Create an optimistic update handler for a specific operation type
+ * Create an optimistic update handler with shared default options.
+ *
+ * @param defaultOptions - Partial options merged into each invocation.
  */
 export function createOptimisticHandler<T, R = T>(
   defaultOptions: Partial<OptimisticUpdateOptions<T, R>>
 ) {
-  return (options: OptimisticUpdateOptions<T, R>) => 
+  return (options: OptimisticUpdateOptions<T, R>) =>
     optimisticUpdate({ ...defaultOptions, ...options });
 }
 
-/**
- * Hook-like utility for managing optimistic state with undo capability
- */
-export interface UndoableOperation<T> {
-  /** The data that was removed/changed */
-  data: T;
-  /** Timestamp when the operation was performed */
-  timestamp: number;
-  /** Function to undo the operation */
-  undo: () => void;
-  /** Timeout ID for auto-confirm */
-  timeoutId: ReturnType<typeof setTimeout>;
-}
+// ---------------------------------------------------------------------------
+// UndoManager
+// ---------------------------------------------------------------------------
 
+/** Manages delayed-confirm operations with undo support. */
 export class UndoManager<T> {
   private operations: Map<string, UndoableOperation<T>> = new Map();
   private confirmDelay: number;
@@ -109,9 +117,7 @@ export class UndoManager<T> {
     this.onUndo = options.onUndo;
   }
 
-  /**
-   * Add an operation that can be undone
-   */
+  /** Add an operation that can be undone before auto-confirm. */
   add(
     operationId: string,
     data: T,
@@ -141,9 +147,7 @@ export class UndoManager<T> {
     return operation.undo;
   }
 
-  /**
-   * Cancel a pending operation (called when undoing)
-   */
+  /** Cancel a pending operation (called when undoing). */
   cancel(operationId: string): boolean {
     const operation = this.operations.get(operationId);
     if (operation) {
@@ -154,27 +158,21 @@ export class UndoManager<T> {
     return false;
   }
 
-  /**
-   * Get remaining time for an operation
-   */
+  /** Get remaining time for an operation in milliseconds. */
   getTimeRemaining(operationId: string): number | null {
     const operation = this.operations.get(operationId);
     if (!operation) return null;
-    
+
     const elapsed = Date.now() - operation.timestamp;
     return Math.max(0, this.confirmDelay - elapsed);
   }
 
-  /**
-   * Check if an operation is pending
-   */
+  /** Check if an operation is pending confirmation. */
   isPending(operationId: string): boolean {
     return this.operations.has(operationId);
   }
 
-  /**
-   * Clear all pending operations
-   */
+  /** Clear all pending operations and cancel their timeouts. */
   clearAll(): void {
     for (const operation of this.operations.values()) {
       clearTimeout(operation.timeoutId);

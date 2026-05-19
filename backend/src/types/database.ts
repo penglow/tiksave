@@ -1,9 +1,10 @@
 /**
- * Database row types for type-safe query results
- * These match the PostgreSQL table schemas defined in database/init.sql
+ * Database row and API response types aligned with PostgreSQL schemas.
  */
 
-// Users table row
+// --- types ---
+
+/** Users table row. */
 export interface UserRow {
   id: string;
   email: string;

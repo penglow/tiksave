@@ -1,8 +1,4 @@
-/**
- * Folders API Tests
- * 
- * Tests for folder CRUD operations and hierarchy management.
- */
+/** Folders API tests. */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
 import {

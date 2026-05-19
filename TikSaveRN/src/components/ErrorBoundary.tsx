@@ -1,6 +1,12 @@
+/**
+ * React error boundary that catches render errors in child trees and shows a fallback UI.
+ * Wraps the app root so a single component failure does not white-screen the whole app.
+ */
+
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
+// --- Types / props ---
 interface Props {
   children: ReactNode;
 }
@@ -10,6 +16,7 @@ interface State {
   error: Error | null;
 }
 
+// --- Main component ---
 export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
@@ -39,6 +46,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -58,4 +66,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

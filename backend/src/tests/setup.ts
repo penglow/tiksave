@@ -1,9 +1,4 @@
-/**
- * Test Setup and Utilities
- * 
- * This file provides shared test setup, utilities, and mocks for testing
- * the TikSave backend API.
- */
+/** Shared test setup, utilities, and mocks for backend API tests. */
 
 import { Pool } from 'pg';
 import Redis from 'ioredis';

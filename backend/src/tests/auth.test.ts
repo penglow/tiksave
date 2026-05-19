@@ -1,8 +1,4 @@
-/**
- * Authentication API Tests
- * 
- * Tests for signup, signin, token refresh, and password reset flows.
- */
+/** Authentication API tests. */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
 import {

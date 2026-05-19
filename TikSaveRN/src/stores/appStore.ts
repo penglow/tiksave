@@ -1,6 +1,15 @@
+/**
+ * Global app UI state: tab selection, recent searches, user settings, and share intents.
+ * Persists recent searches and settings to AsyncStorage.
+ */
+
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserSettings, DEFAULT_USER_SETTINGS } from '../types';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 type TabName = 'library' | 'add' | 'search' | 'settings';
 
@@ -12,7 +21,6 @@ interface AppState {
   userSettings: UserSettings;
   pendingShareUrl: string | null;
 
-  // Actions
   setSelectedTab: (tab: TabName) => void;
   setUnreadInboxCount: (count: number) => void;
   setIsProcessing: (processing: boolean) => void;
@@ -25,9 +33,18 @@ interface AppState {
   clearPendingShare: () => void;
 }
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
 const RECENT_SEARCHES_KEY = 'recentSearches';
 const USER_SETTINGS_KEY = 'userSettings';
 
+// ---------------------------------------------------------------------------
+// Store
+// ---------------------------------------------------------------------------
+
+/** Zustand store for cross-screen app preferences and ephemeral UI state. */
 export const useAppStore = create<AppState>((set, get) => ({
   selectedTab: 'library',
   unreadInboxCount: 0,
@@ -91,20 +108,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   updateUserSettings: async (updates) => {
-
     const current = get().userSettings;
     const updated = { ...current, ...updates };
 
     set({ userSettings: updated });
 
-
     try {
       await AsyncStorage.setItem(USER_SETTINGS_KEY, JSON.stringify(updated));
-
-    } catch (error) {
-
+    } catch {
       // Ignore storage errors
     }
   },
 }));
-

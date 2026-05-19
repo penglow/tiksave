@@ -1,16 +1,56 @@
+/**
+ * PostgreSQL connection pool and schema initialization.
+ */
+
+// --- imports ---
+
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
+// --- constants ---
+
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 5000,
 });
 
+// --- helpers ---
+
+/** Retry database connection until available or max retries exceeded. */
+async function waitForDatabase() {
+  let retries = 0;
+  const maxRetries = 30;
+  const retryDelayMs = 1000;
+
+  while (retries < maxRetries) {
+    try {
+      const testClient = await pool.connect();
+      await testClient.query('SELECT 1');
+      testClient.release();
+      console.log('Database connection successful');
+      return;
+    } catch (error) {
+      retries++;
+      if (retries >= maxRetries) {
+        throw new Error(`Failed to connect to database after ${maxRetries} retries: ${(error as Error).message}`);
+      }
+      console.log(`Database connection attempt ${retries}/${maxRetries} failed, retrying in ${retryDelayMs}ms...`, (error as Error).message);
+      await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+    }
+  }
+}
+
+// --- handlers ---
+
+/** Create extensions, tables, indexes, and run idempotent migrations. */
 export async function initializeDatabase() {
+  // Wait for database to be ready before attempting to initialize schema
+  await waitForDatabase();
+
   const client = await pool.connect();
   
   try {
@@ -184,7 +224,7 @@ export async function initializeDatabase() {
   }
 }
 
-// Query helper
+/** Execute a parameterized SQL query with optional development logging. */
 export async function query(text: string, params?: any[]) {
   const start = Date.now();
   const result = await pool.query(text, params);
@@ -196,4 +236,3 @@ export async function query(text: string, params?: any[]) {
   
   return result;
 }
-

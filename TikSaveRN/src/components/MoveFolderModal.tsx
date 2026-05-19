@@ -1,3 +1,8 @@
+/**
+ * Bottom-sheet modal to move a saved item into a folder (library, AI suggestion, or tree picker).
+ * Loads folders from the API and renders a collapsible two-level folder hierarchy.
+ */
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -15,6 +20,7 @@ import { apiService } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
 import { AnimatedPressable } from './AnimatedPressable';
 
+// --- Types / props ---
 interface Props {
   visible: boolean;
   item: SaveItem | null;
@@ -22,6 +28,14 @@ interface Props {
   onMove: (folderId: string | null) => void;
 }
 
+interface FolderNodeItemProps {
+  node: FolderNode;
+  selectedId?: string | null;
+  currentFolderId?: string;
+  onSelect: (id: string) => void;
+}
+
+// --- Helpers ---
 function buildFolderTree(folders: Folder[]): FolderNode[] {
   const topLevel = folders.filter((f) => !f.parentId);
 
@@ -37,6 +51,7 @@ function buildFolderTree(folders: Folder[]): FolderNode[] {
   return topLevel.map(buildNode).sort((a, b) => a.folder.sortOrder - b.folder.sortOrder);
 }
 
+// --- Main component ---
 export default function MoveFolderModal({ visible, item, onClose, onMove }: Props) {
   const { colors } = useTheme();
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -216,17 +231,13 @@ export default function MoveFolderModal({ visible, item, onClose, onMove }: Prop
   );
 }
 
+// --- Helpers (subcomponents) ---
 function FolderNodeItem({
   node,
   selectedId,
   currentFolderId,
   onSelect,
-}: {
-  node: FolderNode;
-  selectedId?: string | null;
-  currentFolderId?: string;
-  onSelect: (id: string) => void;
-}) {
+}: FolderNodeItemProps) {
   const { colors } = useTheme();
   const [isExpanded, setIsExpanded] = useState(true);
   const hasChildren = node.children.length > 0;
@@ -316,6 +327,7 @@ function FolderNodeItem({
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,

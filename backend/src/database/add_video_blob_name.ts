@@ -1,4 +1,10 @@
+/** One-off migration: add video_blob_name column to save_items. */
+
+// --- imports ---
+
 import { query, pool } from './init';
+
+// --- handlers ---
 
 async function run() {
   try {
@@ -17,4 +23,3 @@ async function run() {
 }
 
 run();
-

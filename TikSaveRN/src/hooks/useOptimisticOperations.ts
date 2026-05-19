@@ -1,7 +1,16 @@
+/**
+ * Optimistic item operations: move-to-folder and delete with undo window.
+ * Updates list UI immediately and rolls back or confirms via the API.
+ */
+
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { SaveItem } from '../types';
 import { optimisticUpdate, UndoManager } from '../utils/optimistic';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface PendingDelete {
   item: SaveItem;
@@ -25,9 +34,15 @@ interface UndoState {
   timeRemaining: number;
 }
 
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
 /**
- * Hook providing optimistic update operations for items
- * Supports move-to-folder and delete with undo
+ * Optimistic update operations for save items.
+ * Supports move-to-folder and delete with undo.
+ *
+ * @param options - List mutation callbacks and undo delay.
  */
 export function useOptimisticOperations(options: UseOptimisticOperationsOptions = {}) {
   const {
@@ -76,9 +91,7 @@ export function useOptimisticOperations(options: UseOptimisticOperationsOptions 
     }
   }, [undoState?.itemId]);
 
-  /**
-   * Move item to folder with optimistic update
-   */
+  /** Move item to folder with optimistic update. */
   const moveToFolder = useCallback(async (
     item: SaveItem,
     folderId: string | null,
@@ -114,9 +127,7 @@ export function useOptimisticOperations(options: UseOptimisticOperationsOptions 
     return result !== null;
   }, [onItemUpdate]);
 
-  /**
-   * Delete item with undo capability
-   */
+  /** Delete item with undo capability. */
   const deleteWithUndo = useCallback((item: SaveItem): void => {
     // Immediately remove from UI
     onItemRemove?.(item.id);
@@ -154,9 +165,7 @@ export function useOptimisticOperations(options: UseOptimisticOperationsOptions 
     });
   }, [onItemRemove, onItemRestore, undoDelay]);
 
-  /**
-   * Undo a pending delete
-   */
+  /** Undo a pending delete before the confirmation timeout fires. */
   const undoDelete = useCallback((itemId: string): boolean => {
     const pending = pendingDeletes.get(itemId);
     if (!pending) return false;
@@ -180,16 +189,12 @@ export function useOptimisticOperations(options: UseOptimisticOperationsOptions 
     return true;
   }, [pendingDeletes, onItemRestore]);
 
-  /**
-   * Dismiss undo notification without undoing
-   */
+  /** Dismiss undo notification without undoing. */
   const dismissUndo = useCallback(() => {
     setUndoState(null);
   }, []);
 
-  /**
-   * Immediate delete (no undo)
-   */
+  /** Immediate delete (no undo). */
   const deleteImmediate = useCallback(async (itemId: string): Promise<boolean> => {
     const result = await optimisticUpdate({
       mutate: () => apiService.deleteItem(itemId),
@@ -213,7 +218,7 @@ export function useOptimisticOperations(options: UseOptimisticOperationsOptions 
     deleteImmediate,
     undoDelete,
     dismissUndo,
-    
+
     // State
     undoState,
     hasPendingDeletes: pendingDeletes.size > 0,

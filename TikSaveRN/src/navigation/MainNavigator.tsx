@@ -1,14 +1,26 @@
-import React from 'react';
+/**
+ * Main tab navigator with custom floating tab bar, nested stacks, and animated Add FAB.
+ */
+
+import React, { useEffect, useRef, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { View, StyleSheet, Platform, Pressable, Text } from 'react-native';
+import { View, StyleSheet, Platform, Pressable, Text, LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { useAnimatedStyle, withSpring, interpolateColor } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+  withRepeat,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
 
 import { MainTabParamList, LibraryStackParamList, SearchStackParamList, AddStackParamList, MapStackParamList, LibraryStackScreenProps } from './types';
-import { Spacing, BorderRadius, Shadows } from '../config';
+import { Spacing, BorderRadius, Shadows, Typography, Animation } from '../config';
 import { useTheme } from '../hooks/useTheme';
 
 // Screens
@@ -21,13 +33,21 @@ import SettingsScreen from '../screens/SettingsScreen';
 import VideoDetailScreen from '../screens/VideoDetailScreen';
 import FolderDetailScreen from '../screens/FolderDetailScreen';
 
+// ---------------------------------------------------------------------------
+// Navigators
+// ---------------------------------------------------------------------------
+
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const LibraryStack = createStackNavigator<LibraryStackParamList>();
 const SearchStack = createStackNavigator<SearchStackParamList>();
 const AddStack = createStackNavigator<AddStackParamList>();
 const MapStack = createStackNavigator<MapStackParamList>();
 
-// Animated Tab Icon
+// ---------------------------------------------------------------------------
+// Tab bar components
+// ---------------------------------------------------------------------------
+
+/** Animated tab icon with scale and bottom dot indicator. */
 function TabIcon({
   name,
   focused,
@@ -38,7 +58,19 @@ function TabIcon({
   color: string;
 }) {
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: withSpring(focused ? 1.1 : 1, { damping: 15, stiffness: 300 }) }],
+    transform: [
+      {
+        scale: withSpring(focused ? 1.12 : 1, Animation.spring.crisp),
+      },
+      {
+        translateY: withSpring(focused ? -1 : 0, Animation.spring.crisp),
+      },
+    ],
+  }));
+
+  const dotStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: withSpring(focused ? 1 : 0, Animation.spring.crisp) }],
+    opacity: withTiming(focused ? 1 : 0, { duration: Animation.duration.fast }),
   }));
 
   return (
@@ -46,35 +78,81 @@ function TabIcon({
       <Animated.View style={animatedStyle}>
         <Ionicons name={name} size={22} color={color} />
       </Animated.View>
-      {focused && (
-        <View style={[styles.activeDot, { backgroundColor: color }]} />
-      )}
+      <Animated.View style={[styles.activeDot, { backgroundColor: color }, dotStyle]} />
     </View>
   );
 }
 
-// Center Add Button
+/** Center Add FAB with idle breathe pulse and press scale. */
 function AddTabButton({ onPress }: { onPress?: () => void }) {
-  const { isDark } = useTheme();
+  const { isDark, colors } = useTheme();
   const gradientColors = isDark
-    ? ['#e8705a', '#c45a46'] as const
-    : ['#f28b78', '#d45a44'] as const;
+    ? ['#f28b78', '#e8705a', '#c45a46'] as const
+    : ['#f9a48f', '#f28b78', '#d45a44'] as const;
+
+  const pressed = useSharedValue(0);
+  const breathe = useSharedValue(0);
+
+  useEffect(() => {
+    breathe.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1800, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 1800, easing: Easing.inOut(Easing.quad) }),
+      ),
+      -1,
+      false,
+    );
+  }, [breathe]);
+
+  const animatedButton = useAnimatedStyle(() => {
+    const scale =
+      1 + breathe.value * 0.04 - pressed.value * 0.12;
+    const rotate = pressed.value * 90;
+    return {
+      transform: [{ scale }, { rotate: `${rotate}deg` }],
+    };
+  });
+
+  const animatedRing = useAnimatedStyle(() => ({
+    opacity: 0.18 + breathe.value * 0.22,
+    transform: [{ scale: 1 + breathe.value * 0.18 }],
+  }));
 
   return (
-    <Pressable onPress={onPress} style={styles.addButtonContainer}>
-      <LinearGradient
-        colors={gradientColors}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.addButton}
-      >
-        <Ionicons name="add" size={28} color="#ffffff" />
-      </LinearGradient>
+    <Pressable
+      onPress={onPress}
+      onPressIn={() => {
+        pressed.value = withSpring(1, Animation.spring.crisp);
+      }}
+      onPressOut={() => {
+        pressed.value = withSpring(0, Animation.spring.snappy);
+      }}
+      style={styles.addButtonContainer}
+    >
+      {/* Halo ring — sits behind the FAB to lift it off the bar */}
+      <View style={[styles.addButtonHalo, { backgroundColor: colors.background }]} />
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.addButtonGlowRing, { borderColor: colors.accent }, animatedRing]}
+      />
+      <Animated.View style={animatedButton}>
+        <LinearGradient
+          colors={gradientColors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.addButton}
+        >
+          <Ionicons name="add" size={28} color="#ffffff" />
+        </LinearGradient>
+      </Animated.View>
     </Pressable>
   );
 }
 
+// ---------------------------------------------------------------------------
 // Stack navigators
+// ---------------------------------------------------------------------------
+
 function LibraryStackNavigator() {
   const { colors } = useTheme();
   return (
@@ -162,6 +240,7 @@ function AddStackNavigator() {
 
 function SearchStackNavigator() {
   const { colors } = useTheme();
+
   return (
     <SearchStack.Navigator
       screenOptions={{
@@ -232,12 +311,19 @@ function MapStackNavigator() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Main export
+// ---------------------------------------------------------------------------
+
+/** Bottom tab shell: Library, Search, Add, Map, Settings. */
 export default function MainNavigator() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
+      detachInactiveScreens={false}
+      sceneContainerStyle={{ flex: 1 }}
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
@@ -308,6 +394,8 @@ export default function MainNavigator() {
   );
 }
 
+type TabLayout = { x: number; width: number };
+
 function CustomTabBar({
   state,
   descriptors,
@@ -315,12 +403,56 @@ function CustomTabBar({
   colors,
   insets,
 }: any) {
+  // Track measured layouts of each non-FAB tab so the morphing pill can slide.
+  const [layouts, setLayouts] = useState<Record<string, TabLayout>>({});
+  const pillX = useSharedValue(0);
+  const pillW = useSharedValue(0);
+  const pillOpacity = useSharedValue(0);
+  const initialised = useRef(false);
+
+  const focusedRoute = state.routes[state.index];
+  const focusedKey = focusedRoute?.key;
+  const focusedLayout = focusedKey ? layouts[focusedKey] : null;
+
+  useEffect(() => {
+    if (!focusedLayout) return;
+
+    if (!initialised.current) {
+      // First measurement — snap into place without animating.
+      pillX.value = focusedLayout.x;
+      pillW.value = focusedLayout.width;
+      pillOpacity.value = withTiming(1, { duration: Animation.duration.fast });
+      initialised.current = true;
+      return;
+    }
+
+    pillX.value = withSpring(focusedLayout.x, Animation.spring.crisp);
+    pillW.value = withSpring(focusedLayout.width, Animation.spring.crisp);
+  }, [focusedLayout, pillX, pillW, pillOpacity]);
+
+  const pillStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: pillX.value }],
+    width: pillW.value,
+    opacity: pillOpacity.value,
+  }));
+
+  const handleLayout = (key: string) => (event: LayoutChangeEvent) => {
+    const { x, width } = event.nativeEvent.layout;
+    setLayouts((prev) => {
+      const existing = prev[key];
+      if (existing && Math.abs(existing.x - x) < 0.5 && Math.abs(existing.width - width) < 0.5) {
+        return prev;
+      }
+      return { ...prev, [key]: { x, width } };
+    });
+  };
+
   return (
     <View
       style={[
         styles.tabBarContainer,
         {
-          paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 12) : 12,
+          paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, Spacing.lg) : Spacing.lg,
         },
       ]}
     >
@@ -333,6 +465,16 @@ function CustomTabBar({
           },
         ]}
       >
+        {/* Shared morphing pill — slides between focused tabs */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.tabPill,
+            { backgroundColor: colors.surfaceHover, borderColor: colors.border },
+            pillStyle,
+          ]}
+        />
+
         {state.routes.map((route: any, index: number) => {
           const { options } = descriptors[route.key];
           const isFocused = state.index === index;
@@ -367,6 +509,7 @@ function CustomTabBar({
             <Pressable
               key={route.key}
               onPress={onPress}
+              onLayout={handleLayout(route.key)}
               style={styles.tabItem}
             >
               <View style={styles.tabContent}>
@@ -391,14 +534,18 @@ function CustomTabBar({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
 const styles = StyleSheet.create({
   tabBarContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: Spacing.md,
-    paddingTop: 8,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
     backgroundColor: 'transparent',
   },
   tabBar: {
@@ -406,15 +553,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-around',
     borderRadius: BorderRadius.xl,
-    paddingVertical: 6,
-    height: 68,
-    overflow: 'hidden',
+    paddingVertical: 8,
+    height: 72,
     borderWidth: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.20,
+        shadowRadius: 60,
+      },
+      android: {
+        elevation: 24,
+      },
+      default: {
+        boxShadow: '0 14px 70px rgba(0, 0, 0, 0.22)',
+      },
+    }),
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    height: '100%',
+    marginHorizontal: 4,
+  },
+  tabPill: {
+    position: 'absolute',
+    top: 8,
+    bottom: 8,
+    left: 0,
+    borderRadius: 22,
+    borderWidth: 1,
   },
   tabContent: {
     alignItems: 'center',
@@ -438,13 +608,30 @@ const styles = StyleSheet.create({
   },
   centerTab: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -28,
+    position: 'relative',
   },
   addButtonContainer: {
+    position: 'absolute',
+    top: -30,
+    left: '50%',
+    transform: [{ translateX: -32 }],
     alignItems: 'center',
     justifyContent: 'center',
+    width: 64,
+    height: 64,
+  },
+  addButtonHalo: {
+    position: 'absolute',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+  addButtonGlowRing: {
+    position: 'absolute',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 1.5,
   },
   addButton: {
     width: 56,

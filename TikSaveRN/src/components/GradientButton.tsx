@@ -1,3 +1,8 @@
+/**
+ * Primary/secondary/ghost call-to-action button with optional icon and gradient fill.
+ * Wraps AnimatedPressable for haptic press feedback on native.
+ */
+
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -6,6 +11,7 @@ import { useTheme } from '../hooks/useTheme';
 import { AnimatedPressable } from './AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
 
+// --- Types / props ---
 interface GradientButtonProps {
   children: React.ReactNode;
   onPress?: () => void;
@@ -17,6 +23,7 @@ interface GradientButtonProps {
   style?: ViewStyle;
 }
 
+// --- Main component ---
 export function GradientButton({
   children,
   onPress,
@@ -89,9 +96,10 @@ export function GradientButton({
     );
   }
 
-  const gradientColors = isDark
-    ? ['#e85d4c', '#c44a3b']
-    : ['#ff7b6b', '#d94a3a'];
+  // Primary: warm gradient tuned per theme
+  const gradientColors: [string, string] = isDark
+    ? ['#e8705a', '#c45a46']
+    : ['#f28b78', '#d45a44'];
 
   return (
     <AnimatedPressable
@@ -124,6 +132,7 @@ export function GradientButton({
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   button: {
     flexDirection: 'row',

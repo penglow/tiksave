@@ -1,8 +1,14 @@
+/**
+ * Compact status label pill (default, accent, success, warning, error, ghost).
+ * Used for counts, processing states, and metadata on cards and list rows.
+ */
+
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { BorderRadius, Typography, Spacing } from '../config';
 import { useTheme } from '../hooks/useTheme';
 
+// --- Types / props ---
 interface BadgeProps {
   label: string;
   variant?: 'default' | 'accent' | 'success' | 'warning' | 'error' | 'ghost';
@@ -10,6 +16,7 @@ interface BadgeProps {
   style?: ViewStyle;
 }
 
+// --- Main component ---
 export function Badge({ label, variant = 'default', size = 'sm', style }: BadgeProps) {
   const { colors } = useTheme();
 
@@ -54,6 +61,7 @@ export function Badge({ label, variant = 'default', size = 'sm', style }: BadgeP
           paddingVertical: size === 'sm' ? 3 : 5,
           paddingHorizontal: size === 'sm' ? 8 : 12,
           borderRadius: size === 'sm' ? BorderRadius.sm : BorderRadius.md,
+          alignSelf: 'center',
         },
         style,
       ]}
@@ -73,9 +81,10 @@ export function Badge({ label, variant = 'default', size = 'sm', style }: BadgeP
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   badge: {
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
   },
   label: {
     ...Typography.captionStrong,

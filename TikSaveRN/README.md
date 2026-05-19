@@ -88,6 +88,10 @@ Development defaults:
 - Web: `http://localhost:3000/api`
 - Native: `http://<detected-host>:3000/api`
 
+## Google Maps
+
+Maps use Google Maps on web and Android. iOS native uses Apple Maps. The Google key is resolved from `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`, `GOOGLE_MAPS_API_KEY`, or `../backend/.env` during Expo config generation.
+
 ## Backend Contract
 
 Client integrates with:

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#0c0c0e" />
+    <meta name="description" content="TikSave — save, search and revisit the TikToks you actually love. Organized by AI." />
+
+    <title>TikSave — organize your TikToks with AI</title>
+
+    <!-- Inline SVG favicon: matches the in-app brand mark exactly -->
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='280 280 460 460'><rect x='280' y='280' width='460' height='460' rx='110' fill='%23e8705a'/><g fill='%23ffffff'><path d='M315.4 676.5c-8.7-17.3-9.9-35.4-9.1-53.9 0.1-3.3 0.5-6.7 0.5-10 0-66.2 0.1-132.3-0.1-198.5-0.1-10.8-1-21.6-0.6-32.5 1.3-31.8 13.9-57.3 42.1-73.7 11-6.4 23.1-9.2 35.9-9.2 63.8 0 127.6 0 191.5 0 33.5 0 62.7 20.9 74.1 52.6 3.9 10.8 5.7 21.9 5.6 33.3-0.1 59.3 0 118.7-0.4 178-0.2 24.8 0.2 49.7-0.1 74.5-0.4 34.3-15.6 60.4-46.8 76.1-10.3 5.2-21.4 7.1-32.9 7.1-63.2 0-126.3 0.2-189.5-0.1-32-0.1-55-15.4-70.2-43.7zm105.1-312.2c-6 0-12 0-18 0.1-5.9 0.1-11.6 0.9-16.9 3.8-16.9 9-25.3 23.5-25.4 42.3-0.3 67.3 0.1 134.7-0.2 202 0 22 20.5 37.2 41.9 24.7 22-12.8 44.9-24.2 67.2-36.5 7.2-4 13.4-4 20.6 0 23.2 12.8 46.6 25.1 70 37.7 5.8 3.1 11.8 4.4 18.3 2.9 12.7-3 20.9-14.3 20.9-29.2 0-48.7 0-97.3 0-146 0-18.7 0.1-37.3 0-56-0.1-21.9-16.8-46.4-45.9-45.8-43.8 0.8-87.6 0.2-132.5 0.2z'/><path d='M719.3 481c0 55.5 0 110.5-0.1 165.4 0 33.6-24.5 64.5-57 72.2-9.4 2.2-19 1.8-28.5 1.4-0.4-2.7 1.4-3.5 2.4-4.6 22.5-22.6 33.6-49.7 33.5-81.8-0.2-84.1-0.3-168.2 0.2-252.4 0.2-30.5-11-55.7-32.3-76.9-1.3-1.3-3-2.2-3.6-5.2 7.5-0.4 14.9-0.8 22.2 0.1 34.1 4.3 59.8 31.1 63.1 65.5 1.5 16 0.4 31.9 0.1 47.9-0.4 22.7-0.1 45.3-0.1 68.4z'/><path d='M479 448.9c14 9.4 27.7 18.6 41.3 27.8 7.9 5.4 8 14.8 0 20.2-19.5 13-39.1 26-58.7 38.9-9.9 6.5-19.4 1.7-19.7-10.2-0.9-26-0.7-51.9 0-77.9 0.3-11.9 9.7-16.7 19.7-10.2 5.7 3.7 11.4 7.4 17.4 11.4z'/></g></svg>"
+    />
+
+    <!-- Editorial display + crisp humanist sans, plus mono for technical bits -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..900,0..100&family=DM+Sans:opsz,wght@9..40,300..900&family=JetBrains+Mono:wght@400..700&display=swap"
+    />
+
+    <style id="expo-reset">
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html {
+        height: 100%;
+        width: 100%;
+        -webkit-text-size-adjust: none;
+        text-size-adjust: none;
+      }
+
+      body {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #0c0c0e;
+        overscroll-behavior: none;
+        color: #f5f5f0;
+        font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-feature-settings: 'ss01', 'cv11';
+
+        /* Always center the app like a phone frame */
+        display: flex;
+        justify-content: center;
+      }
+
+      /* Subtle vignette on the desktop "frame" background so the device
+         doesn't look like it's floating on a flat slab */
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background:
+          radial-gradient(circle at 22% 18%, rgba(232, 112, 90, 0.10), transparent 45%),
+          radial-gradient(circle at 78% 82%, rgba(120, 80, 200, 0.08), transparent 50%),
+          #0c0c0e;
+        z-index: -1;
+        pointer-events: none;
+      }
+
+      /* Root fills height but is capped at mobile width so the app
+         always looks like a phone app — on desktop, DevTools, or real device */
+      #root {
+        display: flex;
+        width: 100%;
+        max-width: 430px;
+        height: 100%;
+        position: relative;
+        background-color: #0c0c0e;
+        box-shadow:
+          0 0 0 1px rgba(245, 245, 240, 0.04),
+          0 30px 80px -20px rgba(0, 0, 0, 0.6);
+      }
+
+      /* Pre-mount loader: shown while the JS bundle is downloading and
+         removed automatically as soon as React mounts and #root has children. */
+      .ts-pre-loader {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background:
+          radial-gradient(circle at 50% 38%, rgba(232, 112, 90, 0.18), transparent 55%),
+          linear-gradient(180deg, #141416 0%, #0c0c0e 100%);
+        color: #f5f5f0;
+        text-align: center;
+      }
+
+      .ts-pre-loader__mark {
+        width: 88px;
+        height: 88px;
+        border-radius: 24px;
+        background:
+          linear-gradient(135deg, #f28b78 0%, #c45a46 100%);
+        display: grid;
+        place-items: center;
+        box-shadow:
+          0 18px 48px -10px rgba(232, 112, 90, 0.55),
+          inset 0 1px 0 rgba(255, 255, 255, 0.18);
+        animation: ts-mark-rise 700ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+      }
+
+      .ts-pre-loader__mark svg {
+        width: 50px;
+        height: 50px;
+        fill: #ffffff;
+      }
+
+      .ts-pre-loader__title {
+        margin: 8px 0 0;
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: -1.1px;
+        font-variation-settings: 'opsz' 36, 'SOFT' 50;
+        animation: ts-fade-up 700ms 80ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+      }
+
+      .ts-pre-loader__sub {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        color: rgba(245, 245, 240, 0.45);
+        animation: ts-fade-up 700ms 160ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+      }
+
+      .ts-pre-loader__pulse {
+        margin-top: 18px;
+        width: 36px;
+        height: 2px;
+        border-radius: 1px;
+        background: rgba(245, 245, 240, 0.18);
+        overflow: hidden;
+        position: relative;
+      }
+
+      .ts-pre-loader__pulse::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent, #e8705a, transparent);
+        animation: ts-pulse 1.4s ease-in-out infinite;
+      }
+
+      /* The pre-loader fades out the moment React inserts something into #root. */
+      #root:not(:empty) .ts-pre-loader {
+        opacity: 0;
+        transform: scale(1.04);
+        transition:
+          opacity 350ms ease,
+          transform 500ms ease;
+        pointer-events: none;
+      }
+
+      @keyframes ts-mark-rise {
+        from {
+          opacity: 0;
+          transform: translateY(8px) scale(0.94);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      @keyframes ts-fade-up {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes ts-pulse {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(100%);
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <noscript>
+      You need to enable JavaScript to run this app.
+    </noscript>
+    <div id="root">
+      <div class="ts-pre-loader" aria-label="Loading TikSave">
+        <div class="ts-pre-loader__mark" aria-hidden="true">
+          <svg viewBox="280 280 460 460" xmlns="http://www.w3.org/2000/svg">
+            <path d="M315.4 676.5c-8.7-17.3-9.9-35.4-9.1-53.9 0.1-3.3 0.5-6.7 0.5-10 0-66.2 0.1-132.3-0.1-198.5-0.1-10.8-1-21.6-0.6-32.5 1.3-31.8 13.9-57.3 42.1-73.7 11-6.4 23.1-9.2 35.9-9.2 63.8 0 127.6 0 191.5 0 33.5 0 62.7 20.9 74.1 52.6 3.9 10.8 5.7 21.9 5.6 33.3-0.1 59.3 0 118.7-0.4 178-0.2 24.8 0.2 49.7-0.1 74.5-0.4 34.3-15.6 60.4-46.8 76.1-10.3 5.2-21.4 7.1-32.9 7.1-63.2 0-126.3 0.2-189.5-0.1-32-0.1-55-15.4-70.2-43.7zm105.1-312.2c-6 0-12 0-18 0.1-5.9 0.1-11.6 0.9-16.9 3.8-16.9 9-25.3 23.5-25.4 42.3-0.3 67.3 0.1 134.7-0.2 202 0 22 20.5 37.2 41.9 24.7 22-12.8 44.9-24.2 67.2-36.5 7.2-4 13.4-4 20.6 0 23.2 12.8 46.6 25.1 70 37.7 5.8 3.1 11.8 4.4 18.3 2.9 12.7-3 20.9-14.3 20.9-29.2 0-48.7 0-97.3 0-146 0-18.7 0.1-37.3 0-56-0.1-21.9-16.8-46.4-45.9-45.8-43.8 0.8-87.6 0.2-132.5 0.2z" />
+            <path d="M719.3 481c0 55.5 0 110.5-0.1 165.4 0 33.6-24.5 64.5-57 72.2-9.4 2.2-19 1.8-28.5 1.4-0.4-2.7 1.4-3.5 2.4-4.6 22.5-22.6 33.6-49.7 33.5-81.8-0.2-84.1-0.3-168.2 0.2-252.4 0.2-30.5-11-55.7-32.3-76.9-1.3-1.3-3-2.2-3.6-5.2 7.5-0.4 14.9-0.8 22.2 0.1 34.1 4.3 59.8 31.1 63.1 65.5 1.5 16 0.4 31.9 0.1 47.9-0.4 22.7-0.1 45.3-0.1 68.4z" />
+            <path d="M479 448.9c14 9.4 27.7 18.6 41.3 27.8 7.9 5.4 8 14.8 0 20.2-19.5 13-39.1 26-58.7 38.9-9.9 6.5-19.4 1.7-19.7-10.2-0.9-26-0.7-51.9 0-77.9 0.3-11.9 9.7-16.7 19.7-10.2 5.7 3.7 11.4 7.4 17.4 11.4z" />
+          </svg>
+        </div>
+        <h1 class="ts-pre-loader__title">TikSave</h1>
+        <p class="ts-pre-loader__sub">Organize with AI</p>
+        <div class="ts-pre-loader__pulse" aria-hidden="true"></div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,3 +1,10 @@
+/**
+ * Public barrel for shared UI components.
+ * Re-exports primitives (buttons, cards, lists), brand marks, and feature-specific
+ * widgets (import morph button, folder modal, processing progress) used across screens.
+ */
+
+// --- Re-exports ---
 export { ErrorBoundary } from './ErrorBoundary';
 export { AnimatedPressable } from './AnimatedPressable';
 export { AnimatedListItem, AnimatedSection } from './AnimatedList';

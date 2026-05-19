@@ -1,10 +1,20 @@
+/**
+ * Azure Blob Storage helpers for video upload URLs and blob lifecycle.
+ */
+
+// --- imports ---
+
 import { BlobServiceClient, BlobSASPermissions } from '@azure/storage-blob';
 import { v4 as uuidv4 } from 'uuid';
+
+// --- constants ---
 
 const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING!;
 const containerName = process.env.AZURE_STORAGE_CONTAINER || 'tiksave-videos';
 
 let blobServiceClient: BlobServiceClient | null = null;
+
+// --- helpers ---
 
 function getBlobServiceClient(): BlobServiceClient {
   if (!blobServiceClient) {
@@ -13,6 +23,9 @@ function getBlobServiceClient(): BlobServiceClient {
   return blobServiceClient;
 }
 
+// --- handlers ---
+
+/** Generate a signed SAS URL for uploading a video blob for an item. */
 export async function generateUploadUrl(itemId: string): Promise<{
   uploadURL: string;
   blobName: string;
@@ -20,25 +33,21 @@ export async function generateUploadUrl(itemId: string): Promise<{
 }> {
   const client = getBlobServiceClient();
   const containerClient = client.getContainerClient(containerName);
-  
-  // Ensure container exists
+
   await containerClient.createIfNotExists();
-  
-  // Generate unique blob name
+
   const blobName = `${itemId}/${uuidv4()}.mp4`;
   const blobClient = containerClient.getBlockBlobClient(blobName);
-  
-  // Set expiration time (1 hour)
+
   const expiresAt = new Date();
   expiresAt.setHours(expiresAt.getHours() + 1);
-  
-  // Generate SAS URL for upload
+
   const sasUrl = await blobClient.generateSasUrl({
-    permissions: BlobSASPermissions.parse('cw'), // create and write
+    permissions: BlobSASPermissions.parse('cw'),
     expiresOn: expiresAt,
     contentType: 'video/mp4',
   });
-  
+
   return {
     uploadURL: sasUrl,
     blobName,
@@ -46,39 +55,40 @@ export async function generateUploadUrl(itemId: string): Promise<{
   };
 }
 
+/** Generate a read-only SAS URL for an existing blob. */
 export async function getBlobUrl(blobName: string): Promise<string> {
   const client = getBlobServiceClient();
   const containerClient = client.getContainerClient(containerName);
   const blobClient = containerClient.getBlobClient(blobName);
-  
-  // Generate read-only SAS URL (valid for 24 hours)
+
   const expiresAt = new Date();
   expiresAt.setHours(expiresAt.getHours() + 24);
-  
+
   return await blobClient.generateSasUrl({
     permissions: BlobSASPermissions.parse('r'),
     expiresOn: expiresAt,
   });
 }
 
+/** Delete a blob if it exists. */
 export async function deleteBlob(blobName: string): Promise<void> {
   const client = getBlobServiceClient();
   const containerClient = client.getContainerClient(containerName);
   const blobClient = containerClient.getBlobClient(blobName);
-  
+
   await blobClient.deleteIfExists();
 }
 
+/** List blob names under a prefix. */
 export async function listBlobs(prefix: string): Promise<string[]> {
   const client = getBlobServiceClient();
   const containerClient = client.getContainerClient(containerName);
-  
+
   const blobs: string[] = [];
-  
+
   for await (const blob of containerClient.listBlobsFlat({ prefix })) {
     blobs.push(blob.name);
   }
-  
+
   return blobs;
 }
-

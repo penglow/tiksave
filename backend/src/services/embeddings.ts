@@ -1,17 +1,27 @@
+/**
+ * OpenAI embedding generation for semantic search and item indexing.
+ */
+
+// --- imports ---
+
 import { getOpenAIClient, isOpenAIConfigured, withRetry } from './openai.js';
 import { RedisCache } from './redis.js';
 import crypto from 'crypto';
 
-// Cache for search query embeddings (1 hour TTL - searches are often repeated)
+// --- constants ---
+
 const searchEmbeddingCache = new RedisCache('search-embedding', 3600);
 
-// Hash function for cache keys
+// --- helpers ---
+
 function hashText(text: string): string {
   return crypto.createHash('sha256').update(text).digest('hex').slice(0, 32);
 }
 
+// --- handlers ---
+
 /**
- * Generate embedding for text using OpenAI's embedding model
+ * Generate embedding for text using OpenAI's embedding model.
  * @param text - The text to embed
  * @param useCache - Whether to use Redis caching (default: false, enable for search queries)
  */

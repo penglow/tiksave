@@ -1,8 +1,4 @@
-/**
- * Items API Tests
- * 
- * Tests for CRUD operations on save items, including soft delete.
- */
+/** Items API tests. */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
 import {

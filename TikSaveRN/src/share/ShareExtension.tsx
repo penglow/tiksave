@@ -1,8 +1,17 @@
+/**
+ * Native share extension UI for importing TikTok links into TikSave.
+ * Parses shared content and deep-links into the host app import flow.
+ */
+
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { ShareExtensionView } from 'expo-share-extension';
+import { View as ShareExtensionView } from 'expo-share-extension';
 import * as Linking from 'expo-linking';
 import { extractTikTokUrl } from '../utils/tiktokUrl';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 type ShareExtensionProps = {
   sharedContent?: any;
@@ -10,6 +19,11 @@ type ShareExtensionProps = {
   close?: () => void;
 };
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Normalize share payload shapes into a single text blob. */
 function getSharedText(sharedContent: any): string {
   if (!sharedContent) return '';
   if (typeof sharedContent === 'string') return sharedContent;
@@ -30,6 +44,11 @@ function getSharedText(sharedContent: any): string {
   return '';
 }
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+/** Share sheet entry point shown when the user shares a link to TikSave. */
 export default function ShareExtension(props: ShareExtensionProps) {
   const sharedText = useMemo(() => getSharedText(props.sharedContent), [props.sharedContent]);
   const tiktokUrl = useMemo(() => extractTikTokUrl(sharedText), [sharedText]);
@@ -73,6 +92,10 @@ export default function ShareExtension(props: ShareExtensionProps) {
     </ShareExtensionView>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
   root: {

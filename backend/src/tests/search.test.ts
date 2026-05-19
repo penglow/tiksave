@@ -1,8 +1,4 @@
-/**
- * Search API Tests
- * 
- * Tests for keyword and semantic search functionality.
- */
+/** Search API tests. */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
 import {

@@ -1,50 +1,52 @@
-import React from 'react';
-import { Text, TextProps, StyleSheet, TextStyle } from 'react-native';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+/**
+ * Text wrapper with FadeInDown layout entrance (spring or timed).
+ * Used for staggered hero copy on auth and onboarding screens.
+ */
+
+import React, { useMemo } from 'react';
+import { TextProps, TextStyle } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Animation } from '../config';
 
+// --- Types / props ---
 interface AnimatedTextProps extends TextProps {
     children: React.ReactNode;
-    /** Delay in ms */
+    /** Delay in ms. */
     delay?: number;
-    /** Animation duration (ignored if spring is used, but kept for API consistency) */
+    /** Animation duration when `spring` is false. */
     duration?: number;
-    /** Whether to use a spring animation (default: true) */
+    /** Use a spring animation (default: true). */
     spring?: boolean;
-    /** Damping for spring (default: 15) - lower = more bounce */
+    /** Damping for spring (lower = more bounce). */
     damping?: number;
-    /** Stiffness for spring (default: 300) */
+    /** Stiffness for spring (higher = snappier). */
     stiffness?: number;
     style?: TextStyle | TextStyle[];
 }
 
-/**
- * Text component that enters with a modern, subtle spring animation.
- */
+// --- Main component ---
 export function AnimatedText({
     children,
     delay = 0,
     duration = Animation.duration.normal,
     spring = true,
-    damping = 15,
-    stiffness = 300,
+    damping = Animation.spring.gentle.damping,
+    stiffness = Animation.spring.gentle.stiffness,
     style,
     ...props
 }: AnimatedTextProps) {
 
-    const getEnteringAnimation = () => {
-        let anim = FadeInDown.delay(delay);
-
+    const enteringAnimation = useMemo(() => {
+        const anim = FadeInDown.delay(delay);
         if (spring) {
             return anim.springify().damping(damping).stiffness(stiffness);
         }
-
         return anim.duration(duration);
-    };
+    }, [delay, spring, damping, stiffness, duration]);
 
     return (
         <Animated.Text
-            entering={getEnteringAnimation()}
+            entering={enteringAnimation}
             style={style}
             {...props}
         >

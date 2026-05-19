@@ -1,5 +1,14 @@
+/**
+ * In-memory cache for paginated item lists keyed by filter parameters.
+ * Short TTL avoids stale data while reducing redundant API calls on tab switches.
+ */
+
 import { create } from 'zustand';
 import { SaveItem } from '../types';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 export interface CachedPaginationState {
   items: SaveItem[];
@@ -17,6 +26,11 @@ interface PaginationCacheStore {
   clearAll: () => void;
 }
 
+// ---------------------------------------------------------------------------
+// Store
+// ---------------------------------------------------------------------------
+
+/** Zustand store for paginated list page snapshots. */
 export const usePaginationCacheStore = create<PaginationCacheStore>((set, get) => ({
   pages: {},
 

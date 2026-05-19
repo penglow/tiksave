@@ -1,40 +1,63 @@
-import React, { useState } from 'react';
+/**
+ * VideoDetailScreen
+ *
+ * Full metadata view for a single saved TikTok. Reachable from Library, Inbox,
+ * Search, Folders, and Category stacks via `VideoDetail` route param `item`.
+ * Supports open-in-TikTok and delete-with-confirmation.
+ */
+
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   Linking,
   Alert,
   ActivityIndicator,
   Platform,
   Image,
+  ScrollView,
+  type TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { Spacing, BorderRadius, Typography, Hairline, Gradients } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline, Gradients, Shadows, TAB_BAR_OVERLAP } from '../config';
 import { getDisplayTitle } from '../types';
 import { apiService } from '../services/api';
 import { InboxStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
-import { AnimatedPressable, AnimatedListItem, AnimatedText, Badge } from '../components';
+import { useResolvedTikTokThumbnail } from '../hooks/useResolvedTikTokThumbnail';
+import { AnimatedPressable, AnimatedListItem, Badge } from '../components';
+
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
 
 type Props =
   | InboxStackScreenProps<'VideoDetail'>
   | { route: { params: { item: import('../types').SaveItem } }; navigation: any };
 
+// -----------------------------------------------------------------------------
+// Main screen
+// -----------------------------------------------------------------------------
+
 export default function VideoDetailScreen({ route, navigation }: Props) {
   const { item } = route.params;
   const { colors, isDark } = useTheme();
+
+  // --- UI state -------------------------------------------------------------
+
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const openInTikTok = () => {
-    Linking.openURL(item.sourceURL);
-  };
+  // --- Handlers -------------------------------------------------------------
 
-  const performDelete = async () => {
+  const openInTikTok = useCallback(() => {
+    Linking.openURL(item.sourceURL);
+  }, [item.sourceURL]);
+
+  const performDelete = useCallback(async () => {
     setIsDeleting(true);
     try {
       await apiService.deleteItem(item.id);
@@ -49,9 +72,9 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [item.id, navigation]);
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     if (Platform.OS === 'web') {
       if (window.confirm('Delete this video?')) {
         performDelete();
@@ -62,15 +85,26 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
         { text: 'Delete', style: 'destructive', onPress: performDelete },
       ]);
     }
-  };
+  }, [performDelete]);
+
+  // --- Derived ----------------------------------------------------------------
 
   const gradientColors = isDark ? Gradients.heroDark : Gradients.heroLight;
+  const thumbnailUri = useResolvedTikTokThumbnail(item.sourceURL, item.thumbnailURL);
+  /** Keeps drag-to-scroll working on web (text selection steals pointer dragging). */
+  const webScrollAssist: TextStyle | undefined =
+    Platform.OS === 'web' ? { userSelect: 'none' } : undefined;
+
+  // --- Render -----------------------------------------------------------------
 
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      nestedScrollEnabled
+      keyboardShouldPersistTaps="handled"
+      scrollEventThrottle={16}
     >
       {/* Hero Video Preview */}
       <Animated.View entering={FadeIn.duration(200)} style={styles.heroContainer}>
@@ -80,9 +114,9 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
             onPress={openInTikTok}
             scaleOnPress={0.97}
           >
-            {item.thumbnailURL ? (
+            {thumbnailUri ? (
               <Image
-                source={{ uri: item.thumbnailURL, cache: 'force-cache' }}
+                source={{ uri: thumbnailUri, cache: 'force-cache' }}
                 style={styles.previewImage}
                 resizeMode="cover"
               />
@@ -105,11 +139,17 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
       {/* Title Section */}
       <AnimatedListItem index={0} direction="fade">
         <View style={styles.titleSection}>
-          <AnimatedText style={[styles.title, { color: colors.text }]}>
+          <Text
+            selectable={false}
+            style={[styles.title, { color: colors.text }, webScrollAssist]}
+          >
             {getDisplayTitle(item)}
-          </AnimatedText>
+          </Text>
           {item.creatorUsername && (
-            <Text style={[styles.creator, { color: colors.textSecondary }]}>
+            <Text
+              selectable={false}
+              style={[styles.creator, { color: colors.textSecondary }, webScrollAssist]}
+            >
               @{item.creatorUsername}
             </Text>
           )}
@@ -142,7 +182,12 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
                 <Ionicons name="folder-outline" size={16} color={colors.textTertiary} />
                 <Text style={[styles.infoLabel, { color: colors.textTertiary }]}>Folder</Text>
               </View>
-              <Text style={[styles.infoValue, { color: colors.text }]}>{item.folderName}</Text>
+              <Text
+                selectable={false}
+                style={[styles.infoValue, { color: colors.text }, webScrollAssist]}
+              >
+                {item.folderName}
+              </Text>
             </View>
           )}
 
@@ -199,7 +244,7 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
                     ]}
                   />
                 </View>
-                <Text style={[styles.confidenceText, { color: colors.textTertiary }]}>
+                <Text selectable={false} style={[styles.confidenceText, { color: colors.textTertiary }, webScrollAssist]}>
                   {Math.round(item.confidence * 100)}%
                 </Text>
               </View>
@@ -214,9 +259,16 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
                 <Text style={[styles.infoLabel, { color: colors.textTertiary }]}>Location</Text>
               </View>
               <View style={styles.locationContainer}>
-                <Text style={[styles.infoValue, { color: colors.text }]}>{item.locationName}</Text>
+                <Text selectable={false} style={[styles.infoValue, { color: colors.text }, webScrollAssist]}>
+                  {item.locationName}
+                </Text>
                 {item.address && (
-                  <Text style={[styles.addressText, { color: colors.textTertiary }]}>{item.address}</Text>
+                  <Text
+                    selectable={false}
+                    style={[styles.addressText, { color: colors.textTertiary }, webScrollAssist]}
+                  >
+                    {item.address}
+                  </Text>
                 )}
               </View>
             </View>
@@ -253,9 +305,12 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
       {item.rawSharedText && (
         <AnimatedListItem index={4} direction="fade">
           <View style={styles.section}>
-            <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>DESCRIPTION</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textTertiary }, webScrollAssist]}>DESCRIPTION</Text>
             <View style={[styles.textCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.descriptionText, { color: colors.textSecondary }]}>
+              <Text
+                selectable={false}
+                style={[styles.descriptionText, { color: colors.textSecondary }, webScrollAssist]}
+              >
                 {item.rawSharedText}
               </Text>
             </View>
@@ -267,9 +322,13 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
       {item.transcriptText && (
         <AnimatedListItem index={5} direction="fade">
           <View style={styles.section}>
-            <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>TRANSCRIPT</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textTertiary }, webScrollAssist]}>TRANSCRIPT</Text>
             <View style={[styles.textCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.transcriptText, { color: colors.textSecondary }]} numberOfLines={10}>
+              <Text
+                selectable={false}
+                style={[styles.transcriptText, { color: colors.textSecondary }, webScrollAssist]}
+                numberOfLines={10}
+              >
                 {item.transcriptText}
               </Text>
             </View>
@@ -300,12 +359,17 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
   );
 }
 
+// -----------------------------------------------------------------------------
+// Styles
+// -----------------------------------------------------------------------------
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 0,
   },
   content: {
-    paddingBottom: Spacing.xxl,
+    paddingBottom: Spacing.xxl + TAB_BAR_OVERLAP,
     gap: Spacing.lg,
   },
   heroContainer: {
@@ -319,9 +383,12 @@ const styles = StyleSheet.create({
   previewWrapper: {
     width: 200,
     aspectRatio: 9 / 16,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     overflow: 'hidden',
     position: 'relative',
+    ...Shadows.md,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 128, 128, 0.15)',
   },
   previewImage: {
     width: '100%',
@@ -379,6 +446,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     overflow: 'hidden',
+    ...Shadows.xs,
   },
   infoRow: {
     flexDirection: 'row',
@@ -453,6 +521,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     padding: Spacing.md,
+    ...Shadows.xs,
   },
   descriptionText: {
     ...Typography.body,

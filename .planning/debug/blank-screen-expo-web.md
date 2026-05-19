@@ -1,5 +1,5 @@
 ---
-status: investigating
+status: fixing
 trigger: "gives a blank screen after a flash of a colored square on running a expo web session"
 created: 2026-05-13
 updated: 2026-05-13
@@ -21,7 +21,7 @@ slug: blank-screen-expo-web
 - Expo SDK 54
 - react-native 0.81.5
 - react-native-web ^0.21.0
-- @react-navigation/native-stack ^6.9.26
+- @react-navigation/native-stack ^6.9.26 → replaced with @react-navigation/stack ^6.3.20
 - react-native-reanimated ~4.1.1
 - bun as package manager
 
@@ -33,19 +33,28 @@ slug: blank-screen-expo-web
 4. No error boundary screen shown (no "Something went wrong" message)
 5. Console shows app registered successfully: "Running application 'main'"
 
-## Suspected Root Causes
+## Root Cause
 
-### Primary: `createNativeStackNavigator` from `@react-navigation/native-stack`
-RootNavigator.tsx uses `createNativeStackNavigator` which depends on `react-native-screens`. On web, `react-native-screens` may silently fail to render, producing a blank screen.
+`createNativeStackNavigator` from `@react-navigation/native-stack` uses `react-native-screens` for screen rendering. On web, `react-native-screens` silently fails to render screen content, producing an empty container instead of the screen's children. The JS-based `@react-navigation/stack` uses standard React Native Views and renders correctly on web.
 
-### Secondary: `@react-navigation/bottom-tabs` tabBar custom renderer
-MainNavigator uses a custom `tabBar` function that calls `useSafeAreaInsets()`. If SafeAreaContext isn't properly initialized for web, this could cause issues.
+## Fix Applied
 
-### Secondary: `react-native-reanimated` on web
-MainNavigator uses `useAnimatedStyle` and `withSpring` which require Reanimated's web support. The babel plugin is configured (`react-native-reanimated/plugin`), but runtime issues could occur.
+**File**: `TikSaveRN/src/navigation/RootNavigator.tsx`
+- Changed import from `createNativeStackNavigator` (`@react-navigation/native-stack`) to `createStackNavigator` (`@react-navigation/stack`)
+- Changed `const Stack = createNativeStackNavigator<...>()` to `createStackNavigator<...>()`
+- Replaced native-stack `contentStyle` option with JS-stack `cardStyle`
+- Removed `animation: 'fade'` (native-stack-specific, not supported in JS stack; irrelevant since screens are conditionally rendered, not navigated)
+
+## Eliminated
+
+- hypothesis: `@react-navigation/stack` (JS-based) would also be affected by react-native-screens web issues
+  evidence: Sub-navigators in MainNavigator (LibraryStack, SearchStack, AddStack, MapStack) already use `createStackNavigator` from `@react-navigation/stack`. The JS stack uses React Native Views for card rendering and react-native-screens only for optional freeze optimization — it does not depend on native screen primitives for content rendering.
+
+- hypothesis: Component import issues from `../components` (AnimatedPressable, GradientButton)
+  evidence: All components are properly exported from `components/index.ts` and `useTheme` hook works correctly. ErrorBoundary does not trigger (no JS error was thrown).
 
 ## Current Focus
 
-- **Hypothesis**: `createNativeStackNavigator` from `@react-navigation/native-stack` does not properly render on web, silently producing an empty view
-- **Test setup**: Check if swapping to `@react-navigation/stack` (JS-based) resolves the blank screen
-- **Next action**: Reproduce the blank screen and verify the hypothesis by testing a simple native-stack screen on web
+- **Hypothesis**: `createNativeStackNavigator` from `@react-navigation/native-stack` silently produces blank screen on web. Swapping to JS-based `@react-navigation/stack` resolves it.
+- **Test**: Run `bun run start` → press `w` for web → observe if AuthScreen or ActivityIndicator appears after splash
+- **Next action**: Verify the fix by running the web app

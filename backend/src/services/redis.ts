@@ -1,6 +1,17 @@
+/**
+ * Redis connection management, distributed locks, and cache helpers.
+ */
+
+// --- imports ---
+
 import Redis, { Cluster, ClusterOptions, RedisOptions } from 'ioredis';
 
-// Redis connection configuration
+// --- types ---
+
+type RedisConnection = Redis | Cluster;
+
+// --- constants ---
+
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const REDIS_CLUSTER_NODES = process.env.REDIS_CLUSTER_NODES; // Comma-separated list of host:port
 const REDIS_CLUSTER_MODE = process.env.REDIS_CLUSTER_MODE === 'true';
@@ -9,14 +20,14 @@ const REDIS_CLUSTER_MODE = process.env.REDIS_CLUSTER_MODE === 'true';
 const POOL_SIZE = parseInt(process.env.REDIS_POOL_SIZE || '10', 10);
 
 // Singleton Redis client for general use
-let redisClient: Redis | Cluster | null = null;
+let redisClient: RedisConnection | null = null;
 
-// Connection pool for high-throughput scenarios
+/** Connection pool for high-throughput scenarios. */
 const connectionPool: Redis[] = [];
 
-/**
- * Parse Redis cluster nodes from environment variable
- */
+// --- helpers ---
+
+/** Parse Redis cluster nodes from environment variable. */
 function parseClusterNodes(): Array<{ host: string; port: number }> {
   if (!REDIS_CLUSTER_NODES) return [];
   
@@ -42,11 +53,13 @@ function getCommonOptions(): Partial<RedisOptions> {
   };
 }
 
+// --- handlers ---
+
 /**
- * Get the shared Redis client instance
- * Supports both standalone and cluster modes
+ * Get the shared Redis client instance.
+ * Supports both standalone and cluster modes.
  */
-export function getRedisClient(): Redis | Cluster {
+export function getRedisClient(): RedisConnection {
   if (!redisClient) {
     const clusterNodes = parseClusterNodes();
     
@@ -95,7 +108,7 @@ export function getRedisClient(): Redis | Cluster {
  * Get a connection from the pool for high-throughput operations
  * Falls back to shared client if pool is exhausted
  */
-export function getPooledConnection(): Redis {
+export function getPooledConnection(): RedisConnection {
   // Initialize pool if needed
   if (connectionPool.length === 0 && !REDIS_CLUSTER_MODE) {
     for (let i = 0; i < POOL_SIZE; i++) {
@@ -116,7 +129,7 @@ export function getPooledConnection(): Redis {
   }
   
   // Fallback to main client
-  return getRedisClient() as Redis;
+  return getRedisClient();
 }
 
 /**
@@ -137,7 +150,7 @@ export async function isRedisHealthy(): Promise<boolean> {
  * Uses SET NX with expiry for atomic lock acquisition
  */
 export class DistributedLock {
-  private client: Redis;
+  private client: RedisConnection;
   private lockKey: string;
   private lockValue: string;
   private ttlMs: number;
@@ -294,7 +307,7 @@ export async function withLock<T>(
  * Cache helper with automatic TTL
  */
 export class RedisCache {
-  private client: Redis;
+  private client: RedisConnection;
   private prefix: string;
   private defaultTtlSeconds: number;
 

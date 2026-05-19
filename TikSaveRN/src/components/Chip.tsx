@@ -1,3 +1,8 @@
+/**
+ * Selectable or static pill label with optional icon and dismiss control.
+ * Used for filters, tags, and removable URL chips in lists and import flows.
+ */
+
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -5,6 +10,7 @@ import { BorderRadius, Typography, Spacing } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { AnimatedPressable } from './AnimatedPressable';
 
+// --- Types / props ---
 interface ChipProps {
   label: string;
   icon?: keyof typeof Ionicons.glyphMap;
@@ -15,6 +21,7 @@ interface ChipProps {
   disabled?: boolean;
 }
 
+// --- Main component ---
 export function Chip({ label, icon, selected, onPress, onRemove, style, disabled }: ChipProps) {
   const { colors } = useTheme();
 
@@ -70,6 +77,7 @@ export function Chip({ label, icon, selected, onPress, onRemove, style, disabled
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',

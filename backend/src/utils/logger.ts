@@ -1,7 +1,8 @@
 /**
- * Structured logging utility
- * Provides consistent log formatting with levels, timestamps, and context
+ * Structured logging utility with levels, timestamps, and request-scoped context.
  */
+
+// --- types ---
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -26,7 +27,9 @@ interface LogEntry {
   };
 }
 
-// Log level hierarchy for filtering
+// --- constants ---
+
+/** Log level hierarchy for filtering. */
 const LOG_LEVELS: Record<LogLevel, number> = {
   debug: 0,
   info: 1,
@@ -34,7 +37,9 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   error: 3,
 };
 
-// Get minimum log level from environment
+// --- helpers ---
+
+/** Resolve minimum log level from environment. */
 function getMinLogLevel(): LogLevel {
   const envLevel = process.env.LOG_LEVEL?.toLowerCase() as LogLevel;
   if (envLevel && LOG_LEVELS[envLevel] !== undefined) {
@@ -43,7 +48,9 @@ function getMinLogLevel(): LogLevel {
   return process.env.NODE_ENV === 'production' ? 'info' : 'debug';
 }
 
-// Format log entry for output
+// --- helpers ---
+
+/** Format log entry for output. */
 function formatLogEntry(entry: LogEntry): string {
   if (process.env.LOG_FORMAT === 'json') {
     return JSON.stringify(entry);
@@ -77,7 +84,7 @@ function formatLogEntry(entry: LogEntry): string {
   return output;
 }
 
-// Write log entry
+/** Write log entry to stdout/stderr based on level. */
 function writeLog(entry: LogEntry): void {
   const minLevel = getMinLogLevel();
   if (LOG_LEVELS[entry.level] < LOG_LEVELS[minLevel]) {
@@ -98,8 +105,10 @@ function writeLog(entry: LogEntry): void {
   }
 }
 
+// --- handlers ---
+
 /**
- * Logger class for creating scoped loggers with persistent context
+ * Logger class for creating scoped loggers with persistent context.
  */
 export class Logger {
   private context: LogContext;

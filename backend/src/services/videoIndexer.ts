@@ -1,7 +1,15 @@
+/**
+ * TikTok URL analysis, Azure Video Indexer integration, and semantic context generation.
+ */
+
+// --- imports ---
+
 import { DefaultAzureCredential } from '@azure/identity';
 import * as cheerio from 'cheerio';
 import { getOpenAIClient, isOpenAIConfigured, withRetry } from './openai.js';
 import { sanitizeTikTokUrl, sanitizeTikTokImageUrl } from '../utils/sanitize.js';
+
+// --- types ---
 
 interface VideoIndexerConfig {
   subscriptionId: string;
@@ -62,7 +70,9 @@ interface OcrItem {
   confidence: number;
 }
 
-// Get access token for Video Indexer API
+// --- helpers ---
+
+/** Get access token for Video Indexer API. */
 async function getAccessToken(config: VideoIndexerConfig): Promise<string> {
   const credential = new DefaultAzureCredential();
 
@@ -92,6 +102,8 @@ async function getAccessToken(config: VideoIndexerConfig): Promise<string> {
   const data = await response.json() as { accessToken: string };
   return data.accessToken;
 }
+
+// --- handlers ---
 
 /**
  * Submit a video for indexing
@@ -382,9 +394,13 @@ export async function analyzeUrlOnly(url: string, sharedText?: string): Promise<
  * Extract video ID from TikTok URL
  */
 function extractVideoId(url: string): string | null {
-  // Pattern: https://www.tiktok.com/@username/video/VIDEO_ID
-  const match = url.match(/\/video\/(\d+)/);
-  return match ? match[1] : null;
+  const m1 = url.match(/\/video\/(\d+)/);
+  if (m1) return m1[1];
+  const m2 = url.match(/\/t\/(\d+)/);
+  if (m2) return m2[1];
+  const m3 = url.match(/\/v\/(\d+)/);
+  if (m3) return m3[1];
+  return null;
 }
 
 /**
@@ -451,32 +467,30 @@ async function fetchTikTokMetadata(url: string): Promise<{
     }
   }
 
-  const videoId = extractVideoId(canonicalUrl);
   let thumbnailUrl: string | undefined;
   let title: string | undefined;
   let description: string | undefined;
 
-  // Update check to use canonical URL for oEmbed if available
   const urlToUse = canonicalUrl || safeInputUrl;
 
-  // Method 1: Try TikTok's embed/oEmbed endpoint (most reliable)
-  if (videoId) {
-    try {
-      // Try multiple oEmbed endpoints
-      const embedUrls = [
-        `https://www.tiktok.com/oembed?url=${encodeURIComponent(urlToUse)}`,
-        `https://api.tiktok.com/oembed?url=${encodeURIComponent(urlToUse)}`,
-      ];
+  const urlsForOEmbed = [...new Set([urlToUse, safeInputUrl].filter((u): u is string => Boolean(u)))];
 
+  /** oEmbed works for many URLs that do not match /video/123 in the raw string */
+  try {
+    embedLoop: for (const embedBase of urlsForOEmbed) {
+      const embedUrls = [
+        `https://www.tiktok.com/oembed?url=${encodeURIComponent(embedBase)}`,
+        `https://api.tiktok.com/oembed?url=${encodeURIComponent(embedBase)}`,
+      ];
       for (const embedUrl of embedUrls) {
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 5000);
+          const timeout = setTimeout(() => controller.abort(), 8000);
 
           const response = await fetch(embedUrl, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Accept': 'application/json',
+              Accept: 'application/json',
             },
             signal: controller.signal,
           });
@@ -484,26 +498,33 @@ async function fetchTikTokMetadata(url: string): Promise<{
           clearTimeout(timeout);
 
           if (response.ok) {
-            const data = await response.json() as { thumbnail_url?: string; title?: string };
+            const data = (await response.json()) as {
+              thumbnail_url?: string;
+              title?: string;
+              description?: string;
+            };
             if (data.thumbnail_url) {
               thumbnailUrl = data.thumbnail_url;
-              title = data.title;
+              title = data.title ?? title;
+              description = data.description ?? description;
               console.log('📷 Got thumbnail from oEmbed API ✅');
-              return { thumbnailUrl, title, description };
+              break embedLoop;
             }
           }
-        } catch (e) {
-          // Try next endpoint
+        } catch {
           continue;
         }
       }
-    } catch (error) {
-      console.log('⚠️ oEmbed method failed, trying alternatives...');
     }
+  } catch (error) {
+    console.log('⚠️ oEmbed method failed, trying alternatives...');
   }
 
+  const videoId = extractVideoId(urlToUse) || extractVideoId(safeInputUrl);
+
   // Method 2: Try direct page scraping with better headers
-  try {
+  if (!thumbnailUrl) {
+    try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
 
@@ -541,7 +562,10 @@ async function fetchTikTokMetadata(url: string): Promise<{
         $('img[alt*="video"]').first().attr('src') ||
         $('img').filter((i, el) => {
           const src = $(el).attr('src') || '';
-          return src.includes('tiktokcdn.com') || src.includes('cover');
+          return (
+            /tiktokcdn|byteimg|muscdn|ttwstatic|tiktokv|ibyteimg/i.test(src) ||
+            src.includes('cover')
+          );
         }).first().attr('src');
 
       title = $('meta[property="og:title"]').attr('content') ||
@@ -575,6 +599,7 @@ async function fetchTikTokMetadata(url: string): Promise<{
     }
   } catch (error) {
     console.log('⚠️ Page scraping failed, trying fallback...');
+  }
   }
 
   // Method 3: Try using TikTok's share embed endpoint

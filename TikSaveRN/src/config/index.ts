@@ -1,7 +1,15 @@
+/**
+ * App configuration, API endpoints, and the Obsidian Luxe design system.
+ * Single source of truth for runtime config, theme tokens, and layout constants.
+ */
+
 import { Platform, StyleSheet } from 'react-native';
 import Constants from 'expo-constants';
 
-// API Configuration
+// ---------------------------------------------------------------------------
+// API configuration
+// ---------------------------------------------------------------------------
+
 const getLocalIp = (): string => {
   const envApiHost = Constants.expoConfig?.extra?.apiHost;
   if (envApiHost) return envApiHost;
@@ -32,6 +40,7 @@ const getGoogleMapsApiKey = (): string => {
   return typeof envKey === 'string' ? envKey.trim() : '';
 };
 
+/** Runtime app and API settings resolved from env and Expo config. */
 export const Config = {
   apiBaseURL: getApiUrl(),
   googleMapsApiKey: getGoogleMapsApiKey(),
@@ -154,6 +163,7 @@ const LightColors = {
 
 export const Colors = DarkColors;
 
+/** Resolve light or dark palette based on effective theme. */
 export const getThemeColors = (isDark: boolean) => {
   return isDark ? DarkColors : LightColors;
 };
@@ -317,7 +327,7 @@ export const Typography = {
     fontFamily: bodyFontFamily,
     fontSize: 13,
     fontWeight: '400' as const,
-    letterSpacing: 0,
+    letterSpacing: -0.3,
     lineHeight: 18,
   },
   captionStrong: {
@@ -334,7 +344,7 @@ export const Typography = {
     fontSize: 18,
     fontStyle: 'italic' as const,
     fontWeight: '400' as const,
-    letterSpacing: -0.3,
+    letterSpacing: 0,
     lineHeight: 28,
   },
 };

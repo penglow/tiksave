@@ -1,4 +1,11 @@
-import React, { useState } from 'react';
+/**
+ * SettingsScreen
+ *
+ * Account, theme, library sort preferences, collections management, and app info
+ * on the Settings tab. Modals for folder CRUD complement the Folders tab.
+ */
+
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,22 +23,33 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Spacing, BorderRadius, Typography, Hairline } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline, TAB_BAR_OVERLAP } from '../config';
 import { AppTheme, Folder, getDisplayIcon } from '../types';
 import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
 import { apiService } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
-import { AnimatedPressable, AnimatedListItem, AnimatedText, Card, Badge } from '../components';
+import { AnimatedPressable, AnimatedListItem, Badge, LogoMark, Avatar, Wordmark } from '../components';
+
+// -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
 
 const APP_VERSION = '1.0.0';
 
+// -----------------------------------------------------------------------------
+// Main screen
+// -----------------------------------------------------------------------------
+
 export default function SettingsScreen() {
   const signOut = useAuthStore((state) => state.signOut);
+  const user = useAuthStore((state) => state.user);
   const { userSettings, updateUserSettings } = useAppStore();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+
+  // --- Modal & folders state --------------------------------------------------
 
   const [thumbnailCacheSize] = useState('0.0 MB');
   const [showFoldersModal, setShowFoldersModal] = useState(false);
@@ -39,7 +57,9 @@ export default function SettingsScreen() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [foldersLoading, setFoldersLoading] = useState(false);
 
-  const loadFolders = async () => {
+  // --- Data loading -----------------------------------------------------------
+
+  const loadFolders = useCallback(async () => {
     setFoldersLoading(true);
     try {
       const data = await apiService.getFolders();
@@ -49,14 +69,16 @@ export default function SettingsScreen() {
     } finally {
       setFoldersLoading(false);
     }
-  };
+  }, []);
 
-  const handleOpenFolders = () => {
+  // --- Handlers ---------------------------------------------------------------
+
+  const handleOpenFolders = useCallback(() => {
     loadFolders();
     setShowFoldersModal(true);
-  };
+  }, [loadFolders]);
 
-  const handleCreateFolder = async (name: string, parentId?: string, iconName?: string) => {
+  const handleCreateFolder = useCallback(async (name: string, parentId?: string, iconName?: string) => {
     try {
       await apiService.createFolder(name, parentId, iconName);
       loadFolders();
@@ -69,9 +91,9 @@ export default function SettingsScreen() {
         Alert.alert('Error', 'Failed to create collection.');
       }
     }
-  };
+  }, [loadFolders]);
 
-  const handleDeleteFolder = async (folder: Folder) => {
+  const handleDeleteFolder = useCallback(async (folder: Folder) => {
     const message = `Delete "${folder.name}"? Videos will move back to library.`;
 
     if (Platform.OS === 'web') {
@@ -100,9 +122,9 @@ export default function SettingsScreen() {
         },
       ]);
     }
-  };
+  }, [loadFolders]);
 
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     if (Platform.OS === 'web') {
       if (window.confirm('Sign out?')) {
         await signOut();
@@ -113,9 +135,9 @@ export default function SettingsScreen() {
         { text: 'Sign Out', style: 'destructive', onPress: signOut },
       ]);
     }
-  };
+  }, [signOut]);
 
-  const handleDeleteData = () => {
+  const handleDeleteData = useCallback(() => {
     const message = 'Delete all data? This cannot be undone.';
     if (Platform.OS === 'web') {
       if (window.confirm(message)) {
@@ -127,17 +149,36 @@ export default function SettingsScreen() {
         { text: 'Delete', style: 'destructive', onPress: () => Alert.alert('Deleted') },
       ]);
     }
-  };
+  }, []);
 
-  const handleClearCache = () => {
+  const handleClearCache = useCallback(() => {
     if (Platform.OS === 'web') {
       window.alert('Cache cleared.');
     } else {
       Alert.alert('Success', 'Cache cleared.');
     }
-  };
+  }, []);
 
-  const openLink = (url: string) => Linking.openURL(url);
+  const openLink = useCallback((url: string) => {
+    Linking.openURL(url);
+  }, []);
+
+  const closeFoldersModal = useCallback(() => setShowFoldersModal(false), []);
+  const openCreateModal = useCallback(() => setShowCreateModal(true), []);
+  const closeCreateModal = useCallback(() => setShowCreateModal(false), []);
+
+  const navigateToFolderDetail = useCallback(
+    (folder: Folder) => {
+      setShowFoldersModal(false);
+      navigation.navigate('Library', {
+        screen: 'FolderDetail',
+        params: { folder },
+      });
+    },
+    [navigation],
+  );
+
+  // --- Render -----------------------------------------------------------------
 
   return (
     <ScrollView
@@ -146,16 +187,48 @@ export default function SettingsScreen() {
     >
       {/* Header */}
       <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
-        <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>
+        <View style={styles.brandRow}>
+          <LogoMark size={16} color={colors.accent} />
+          <Text style={[styles.brandLabel, { color: colors.textTertiary }]}>TIKSAVE · SETTINGS</Text>
+        </View>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
           Settings
-        </AnimatedText>
+        </Text>
       </Animated.View>
 
-      {/* Organization Section */}
+      {/* Profile card */}
       <AnimatedListItem index={0} direction="fade">
+        <View
+          style={[
+            styles.profileCard,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <Avatar
+            name={user?.email?.split('@')[0] || 'TS'}
+            size="lg"
+          />
+          <View style={styles.profileInfo}>
+            <Text style={[styles.profileName, { color: colors.text }]} numberOfLines={1}>
+              {user?.email?.split('@')[0] || 'Welcome'}
+            </Text>
+            <Text style={[styles.profileEmail, { color: colors.textTertiary }]} numberOfLines={1}>
+              {user?.email || 'Signed in'}
+            </Text>
+          </View>
+          <View style={[styles.profilePlanPill, { backgroundColor: colors.accentSubtle }]}>
+            <Text style={[styles.profilePlan, { color: colors.accent }]}>Beta</Text>
+          </View>
+        </View>
+      </AnimatedListItem>
+
+      {/* Organization Section */}
+      <AnimatedListItem index={1} direction="fade">
         <SettingSection label="ORGANIZATION">
           <SettingRow
             icon="folder-outline"
+            iconColor={colors.accent}
+            iconBgColor={colors.accentSubtle}
             title="Collections"
             subtitle="Create custom folders"
             onPress={handleOpenFolders}
@@ -165,7 +238,7 @@ export default function SettingsScreen() {
       </AnimatedListItem>
 
       {/* Appearance Section */}
-      <AnimatedListItem index={1} direction="fade">
+      <AnimatedListItem index={2} direction="fade">
         <SettingSection label="APPEARANCE">
           <View style={[styles.row, { borderBottomColor: colors.border }]}>
             <Text style={[styles.rowTitle, { color: colors.text }]}>Theme</Text>
@@ -208,7 +281,7 @@ export default function SettingsScreen() {
       </AnimatedListItem>
 
       {/* Storage Section */}
-      <AnimatedListItem index={2} direction="fade">
+      <AnimatedListItem index={3} direction="fade">
         <SettingSection label="STORAGE">
           <View style={[styles.row, { borderBottomColor: colors.border }]}>
             <Text style={[styles.rowTitle, { color: colors.text }]}>Cached Thumbnails</Text>
@@ -223,7 +296,7 @@ export default function SettingsScreen() {
       </AnimatedListItem>
 
       {/* Privacy Section */}
-      <AnimatedListItem index={3} direction="fade">
+      <AnimatedListItem index={4} direction="fade">
         <SettingSection label="PRIVACY">
           <SettingRow
             title="Privacy Policy"
@@ -239,7 +312,7 @@ export default function SettingsScreen() {
       </AnimatedListItem>
 
       {/* Danger Zone */}
-      <AnimatedListItem index={4} direction="fade">
+      <AnimatedListItem index={5} direction="fade">
         <SettingSection label="DANGER ZONE" labelColor={colors.error}>
           <SettingRow
             title="Delete All Data"
@@ -254,10 +327,20 @@ export default function SettingsScreen() {
         </SettingSection>
       </AnimatedListItem>
 
-      {/* Version */}
-      <AnimatedListItem index={5} direction="fade">
-        <View style={styles.versionContainer}>
-          <Badge label={`v${APP_VERSION}`} variant="ghost" size="sm" />
+      {/* Brand footer */}
+      <AnimatedListItem index={6} direction="fade">
+        <View style={styles.brandFooter}>
+          <Wordmark height={30} color={colors.textSecondary} />
+          <Text style={[styles.brandFooterTagline, { color: colors.textQuaternary }]}>
+            Your TikToks, organized by AI.
+          </Text>
+          <View style={styles.brandFooterMeta}>
+            <Badge label={`v${APP_VERSION}`} variant="ghost" size="sm" />
+            <Text style={[styles.brandFooterDot, { color: colors.textQuaternary }]}>·</Text>
+            <Text style={[styles.brandFooterMade, { color: colors.textQuaternary }]}>
+              Built for creators
+            </Text>
+          </View>
         </View>
       </AnimatedListItem>
 
@@ -266,15 +349,9 @@ export default function SettingsScreen() {
         visible={showFoldersModal}
         folders={folders}
         loading={foldersLoading}
-        onClose={() => setShowFoldersModal(false)}
-        onCreatePress={() => setShowCreateModal(true)}
-        onFolderPress={(folder) => {
-          setShowFoldersModal(false);
-          navigation.navigate('Library', {
-            screen: 'FolderDetail',
-            params: { folder },
-          });
-        }}
+        onClose={closeFoldersModal}
+        onCreatePress={openCreateModal}
+        onFolderPress={navigateToFolderDetail}
         onDeletePress={handleDeleteFolder}
       />
 
@@ -282,12 +359,16 @@ export default function SettingsScreen() {
       <CreateFolderModal
         visible={showCreateModal}
         folders={folders}
-        onClose={() => setShowCreateModal(false)}
+        onClose={closeCreateModal}
         onCreate={handleCreateFolder}
       />
     </ScrollView>
   );
 }
+
+// -----------------------------------------------------------------------------
+// Subcomponents — settings rows & folder modals
+// -----------------------------------------------------------------------------
 
 function SettingSection({
   label,
@@ -314,6 +395,8 @@ function SettingSection({
 
 function SettingRow({
   icon,
+  iconColor,
+  iconBgColor,
   title,
   subtitle,
   onPress,
@@ -321,6 +404,8 @@ function SettingRow({
   titleColor,
 }: {
   icon?: keyof typeof Ionicons.glyphMap;
+  iconColor?: string;
+  iconBgColor?: string;
   title: string;
   subtitle?: string;
   onPress?: () => void;
@@ -337,8 +422,8 @@ function SettingRow({
       opacityOnPress={0.6}
     >
       {icon && (
-        <View style={[styles.rowIconWrapper, { backgroundColor: colors.surfaceHover }]}>
-          <Ionicons name={icon} size={16} color={colors.textSecondary} />
+        <View style={[styles.rowIconWrapper, { backgroundColor: iconBgColor || colors.surfaceHover }]}>
+          <Ionicons name={icon} size={16} color={iconColor || colors.textSecondary} />
         </View>
       )}
       <View style={styles.rowContent}>
@@ -392,8 +477,8 @@ function FoldersModal({
             </View>
           ) : folders.length === 0 ? (
             <View style={styles.modalEmpty}>
-              <View style={[styles.emptyIconWrapper, { backgroundColor: colors.surfaceHover }]}>
-                <Ionicons name="folder-open-outline" size={28} color={colors.textTertiary} />
+              <View style={[styles.emptyIconWrapper, { backgroundColor: colors.accentSubtle }]}>
+                <Ionicons name="folder-open-outline" size={28} color={colors.accent} />
               </View>
               <Text style={[styles.modalEmptyTitle, { color: colors.text }]}>
                 No collections
@@ -410,7 +495,9 @@ function FoldersModal({
                   style={[styles.folderItem, { borderBottomColor: colors.border }]}
                   onPress={() => onFolderPress(folder)}
                 >
-                  <Text style={styles.folderIcon}>{getDisplayIcon(folder) || '📁'}</Text>
+                  <View style={[styles.folderIconWrapper, { backgroundColor: colors.accentSubtle }]}>
+                    <Ionicons name="folder-open-outline" size={18} color={colors.accent} />
+                  </View>
                   <View style={styles.folderInfo}>
                     <Text style={[styles.folderName, { color: colors.text }]}>{folder.name}</Text>
                     <Text style={[styles.folderCount, { color: colors.textTertiary }]}>
@@ -542,19 +629,94 @@ function CreateFolderModal({
   );
 }
 
+// -----------------------------------------------------------------------------
+// Styles
+// -----------------------------------------------------------------------------
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 0,
   },
   content: {
     padding: Spacing.md,
-    paddingBottom: Spacing.xxl,
+    paddingBottom: Spacing.xxl + TAB_BAR_OVERLAP,
   },
   header: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
+    gap: Spacing.xs,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  brandLabel: {
+    ...Typography.label,
+    fontSize: 10,
+    letterSpacing: 1.6,
   },
   headerTitle: {
     ...Typography.displayMd,
+    fontSize: 34,
+    lineHeight: 38,
+  },
+
+  // Profile card
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    marginBottom: Spacing.lg,
+  },
+  profileInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  profileName: {
+    ...Typography.bodyStrong,
+  },
+  profileEmail: {
+    ...Typography.caption,
+  },
+  profilePlanPill: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  profilePlan: {
+    ...Typography.label,
+    fontSize: 10,
+  },
+
+  // Brand footer
+  brandFooter: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+    gap: Spacing.sm,
+  },
+  brandFooterTagline: {
+    ...Typography.caption,
+    opacity: 0.85,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  brandFooterMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  brandFooterDot: {
+    ...Typography.caption,
+  },
+  brandFooterMade: {
+    ...Typography.caption,
+    fontSize: 11,
+    letterSpacing: 0.4,
   },
 
   // Section
@@ -621,12 +783,6 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.85 }],
   },
 
-  // Version
-  versionContainer: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xl,
-  },
-
   // Modal
   modalOverlay: {
     flex: 1,
@@ -661,8 +817,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyIconWrapper: {
-    width: 64,
-    height: 64,
+    width: 72,
+    height: 72,
     borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
@@ -689,9 +845,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: Hairline,
     gap: Spacing.sm,
   },
-  folderIcon: {
-    fontSize: 20,
-    marginRight: Spacing.xs,
+  folderIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.sm,
   },
   folderInfo: {
     flex: 1,

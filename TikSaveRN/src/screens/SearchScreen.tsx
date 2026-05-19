@@ -1,4 +1,11 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+/**
+ * SearchScreen
+ *
+ * Semantic and keyword search across saved videos in the Search tab. Debounces input,
+ * shows recent searches and suggestions, and navigates to `VideoDetail` from results.
+ */
+
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,20 +16,29 @@ import {
   Keyboard,
   Image,
   Linking,
+  TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
-import { Spacing, BorderRadius, Typography, Hairline } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline, Shadows, TAB_BAR_OVERLAP } from '../config';
 import { SaveItem, SearchMode, getDisplayTitle } from '../types';
 import { apiService, APIError } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import { SearchStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
-import { AnimatedPressable, AnimatedListItem, AnimatedText, Badge } from '../components';
+import { useResolvedTikTokThumbnail } from '../hooks/useResolvedTikTokThumbnail';
+import { AnimatedPressable, AnimatedListItem, AnimatedText, Badge, LogoMark, WordReveal, RotatingLogo } from '../components';
+
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
 
 type Props = SearchStackScreenProps<'SearchMain'>;
+
+// -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
 
 const SUGGESTIONS = [
   'ramen tokyo',
@@ -33,9 +49,16 @@ const SUGGESTIONS = [
   'travel vlog',
 ];
 
+// -----------------------------------------------------------------------------
+// Main screen
+// -----------------------------------------------------------------------------
+
 export default function SearchScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+
+  // --- Search state -----------------------------------------------------------
+
   const [searchText, setSearchText] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('semantic');
   const [results, setResults] = useState<SaveItem[]>([]);
@@ -47,6 +70,8 @@ export default function SearchScreen({ navigation }: Props) {
   const searchIdRef = useRef(0);
 
   const { recentSearches, addRecentSearch, clearRecentSearches } = useAppStore();
+
+  // --- Data loading -----------------------------------------------------------
 
   const performSearch = useCallback(async (query: string, mode: SearchMode, searchId: number) => {
     if (!query.trim()) {
@@ -120,6 +145,8 @@ export default function SearchScreen({ navigation }: Props) {
     };
   }, [searchText, searchMode, performSearch]);
 
+  // --- Handlers ---------------------------------------------------------------
+
   const handleClear = useCallback(() => {
     setSearchText('');
     setResults([]);
@@ -132,15 +159,43 @@ export default function SearchScreen({ navigation }: Props) {
     setError(null);
   }, []);
 
+  // --- Derived ----------------------------------------------------------------
+
   const showInitialState = !searchText && results.length === 0 && !isLoading && !error;
   const showNoResults = searchText && results.length === 0 && !isLoading && !error;
   const showError = error && !isLoading;
+
+  const searchHeadlineSegments = useMemo(
+    (): { text: string; style?: TextStyle }[] => [
+      { text: 'Find anything' },
+      { text: 'fast.', style: { color: colors.accent, fontStyle: 'italic' } },
+    ],
+    [colors.accent],
+  );
+
+  const searchHeadlineTextStyle = useMemo(
+    () =>
+      ({
+        ...StyleSheet.flatten(styles.headerTitle),
+        color: colors.text,
+      }) as TextStyle,
+    [colors.text],
+  );
+
+  // --- Render -----------------------------------------------------------------
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>Search</AnimatedText>
+        <View style={styles.brandRow}>
+          <LogoMark size={16} color={colors.accent} />
+          <Text style={[styles.brandLabel, { color: colors.textTertiary }]}>TIKSAVE · SEARCH</Text>
+        </View>
+        <WordReveal segments={searchHeadlineSegments} style={searchHeadlineTextStyle} stagger={45} />
+        <Text style={[styles.headerSub, { color: colors.textTertiary }]}>
+          Semantic search reads transcripts, captions and tags.
+        </Text>
       </View>
 
       {/* Search Bar */}
@@ -155,10 +210,10 @@ export default function SearchScreen({ navigation }: Props) {
           ]}
         >
           {isLoading ? (
-            <ActivityIndicator size="small" color={colors.textQuaternary} />
+            <RotatingLogo size={18} color={colors.accent} />
           ) : isTyping ? (
             <View style={styles.typingIndicator}>
-              <View style={[styles.typingDot, { backgroundColor: colors.textQuaternary }]} />
+              <View style={[styles.typingDot, { backgroundColor: colors.accent }]} />
             </View>
           ) : (
             <Ionicons name="search" size={16} color={colors.textQuaternary} />
@@ -267,12 +322,15 @@ export default function SearchScreen({ navigation }: Props) {
         >
           {/* Recent Searches */}
           {recentSearches.length > 0 && (
-            <AnimatedListItem index={0} direction="fade">
+            <AnimatedListItem index={0} direction="fade" disableExitAnimation>
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
-                    RECENT
-                  </Text>
+                  <View style={styles.sectionLabelRow}>
+                    <View style={[styles.sectionLabelDot, { backgroundColor: colors.accent }]} />
+                    <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
+                      RECENT
+                    </Text>
+                  </View>
                   <AnimatedPressable onPress={clearRecentSearches}>
                     <Text style={[styles.clearButton, { color: colors.textQuaternary }]}>
                       Clear
@@ -298,11 +356,18 @@ export default function SearchScreen({ navigation }: Props) {
           )}
 
           {/* Suggestions */}
-          <AnimatedListItem index={1} direction="fade">
+          <AnimatedListItem
+            index={recentSearches.length > 0 ? 1 : 0}
+            direction="fade"
+            disableExitAnimation
+          >
             <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
-                TRY SEARCHING
-              </Text>
+              <View style={styles.sectionLabelRow}>
+                <View style={[styles.sectionLabelDot, { backgroundColor: colors.accent }]} />
+                <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
+                  TRY SEARCHING
+                </Text>
+              </View>
               <View style={styles.suggestionsContainer}>
                 {SUGGESTIONS.map((suggestion) => (
                   <AnimatedPressable
@@ -341,7 +406,7 @@ export default function SearchScreen({ navigation }: Props) {
           showsVerticalScrollIndicator={false}
         >
           {results.map((item, index) => (
-            <AnimatedListItem key={item.id} index={index} direction="fade">
+            <AnimatedListItem key={item.id} index={index} direction="fade" disableExitAnimation>
               <SearchResultRow
                 item={item}
                 searchQuery={searchText}
@@ -355,6 +420,10 @@ export default function SearchScreen({ navigation }: Props) {
   );
 }
 
+// -----------------------------------------------------------------------------
+// Subcomponents — search result row
+// -----------------------------------------------------------------------------
+
 function SearchResultRow({
   item,
   searchQuery,
@@ -365,6 +434,8 @@ function SearchResultRow({
   onNavigateToDetail: () => void;
 }) {
   const { colors } = useTheme();
+
+  const thumbUri = useResolvedTikTokThumbnail(item.sourceURL, item.thumbnailURL);
 
   const findMatchContext = (): string | null => {
     if (!item.transcriptText) return null;
@@ -394,18 +465,15 @@ function SearchResultRow({
   };
 
   return (
-    <AnimatedPressable
-      style={[styles.resultRow, { borderBottomColor: colors.border }]}
-      onPress={onNavigateToDetail}
-    >
+    <View style={[styles.resultRow, { borderBottomColor: colors.border }]}>
       <AnimatedPressable
         style={styles.resultThumbnail}
         onPress={openInTikTok}
         scaleOnPress={0.97}
       >
-        {item.thumbnailURL ? (
+        {thumbUri ? (
           <Image
-            source={{ uri: item.thumbnailURL, cache: 'force-cache' }}
+            source={{ uri: thumbUri, cache: 'force-cache' }}
             style={styles.thumbnailImage}
             resizeMode="cover"
           />
@@ -423,48 +491,86 @@ function SearchResultRow({
         )}
       </AnimatedPressable>
 
-      <View style={styles.resultInfo}>
-        <Text style={[styles.resultTitle, { color: colors.text }]} numberOfLines={2}>
-          {getDisplayTitle(item)}
-        </Text>
-
-        {item.creatorUsername && (
-          <Text style={[styles.resultCreator, { color: colors.textTertiary }]}>
-            @{item.creatorUsername}
+      <AnimatedPressable
+        style={styles.resultMain}
+        onPress={onNavigateToDetail}
+        noScale
+        opacityOnPress={0.6}
+        accessibilityLabel={`View details for ${getDisplayTitle(item)}`}
+        accessibilityRole="button"
+      >
+        <View style={styles.resultInfo}>
+          <Text style={[styles.resultTitle, { color: colors.text }]} numberOfLines={2}>
+            {getDisplayTitle(item)}
           </Text>
-        )}
 
-        {matchContext && (
-          <Text style={[styles.matchContext, { color: colors.textQuaternary }]} numberOfLines={1}>
-            {matchContext}
-          </Text>
-        )}
+          {item.creatorUsername && (
+            <Text style={[styles.resultCreator, { color: colors.textTertiary }]}>
+              @{item.creatorUsername}
+            </Text>
+          )}
 
-        {item.detectedTopics.length > 0 && (
-          <View style={styles.topicsRow}>
-            {item.detectedTopics.slice(0, 2).map((topic) => (
-              <Badge key={topic} label={topic} variant="ghost" size="sm" />
-            ))}
-          </View>
-        )}
-      </View>
+          {matchContext && (
+            <Text style={[styles.matchContext, { color: colors.textQuaternary }]} numberOfLines={1}>
+              {matchContext}
+            </Text>
+          )}
 
-      <Ionicons name="chevron-forward" size={14} color={colors.textQuaternary} />
-    </AnimatedPressable>
+          {item.detectedTopics.length > 0 && (
+            <View style={styles.topicsRow}>
+              {item.detectedTopics.slice(0, 2).map((topic) => (
+                <Badge key={topic} label={topic} variant="ghost" size="sm" />
+              ))}
+            </View>
+          )}
+        </View>
+
+        <Ionicons name="chevron-forward" size={14} color={colors.textQuaternary} />
+      </AnimatedPressable>
+    </View>
   );
 }
+
+// -----------------------------------------------------------------------------
+// Styles
+// -----------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 0,
   },
   header: {
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.sm,
     paddingBottom: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  brandLabel: {
+    ...Typography.label,
+    fontSize: 10,
+    letterSpacing: 1.6,
   },
   headerTitle: {
     ...Typography.displayMd,
+    fontSize: 32,
+    lineHeight: 36,
+  },
+  headerTitleAccent: {
+    ...Typography.displayMd,
+    fontSize: 32,
+    lineHeight: 36,
+    fontStyle: 'italic',
+  },
+  headerSub: {
+    ...Typography.caption,
+    marginTop: Spacing.xs,
   },
   searchBarContainer: {
     flexDirection: 'row',
@@ -478,10 +584,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.sm,
-    gap: Spacing.xs,
-    height: 44,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
+    height: 48,
   },
   searchInput: {
     flex: 1,
@@ -575,13 +681,15 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    minHeight: 0,
   },
   scrollContent: {
     padding: Spacing.md,
+    paddingBottom: Spacing.md + TAB_BAR_OVERLAP,
     gap: Spacing.lg,
   },
   resultsContent: {
-    paddingBottom: Spacing.xl,
+    paddingBottom: Spacing.xl + TAB_BAR_OVERLAP,
   },
   section: {
     gap: Spacing.sm,
@@ -590,6 +698,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  sectionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  sectionLabelDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
   },
   sectionLabel: {
     ...Typography.label,
@@ -601,8 +719,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     borderBottomWidth: Hairline,
+    borderRadius: BorderRadius.sm,
   },
   recentText: {
     ...Typography.body,
@@ -615,12 +735,15 @@ const styles = StyleSheet.create({
   },
   suggestionBadge: {
     borderWidth: 1,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 9,
+    borderRadius: BorderRadius.full,
+    ...Shadows.xs,
   },
   suggestionText: {
     ...Typography.caption,
+    fontWeight: '500',
+    fontSize: 13,
   },
   resultRow: {
     flexDirection: 'row',
@@ -633,9 +756,12 @@ const styles = StyleSheet.create({
   resultThumbnail: {
     width: 64,
     height: 86,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.sm,
     overflow: 'hidden',
     backgroundColor: '#000',
+    ...Shadows.xs,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 128, 128, 0.12)',
   },
   thumbnailImage: {
     width: '100%',
@@ -664,13 +790,18 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  resultMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   resultTitle: {
     ...Typography.captionStrong,
     lineHeight: 17,
   },
   resultCreator: {
     fontSize: 12,
-    color: 'rgba(128, 128, 128, 0.7)',
   },
   matchContext: {
     fontSize: 11,

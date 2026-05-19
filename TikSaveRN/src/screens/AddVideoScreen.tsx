@@ -1,3 +1,11 @@
+/**
+ * AddVideoScreen
+ *
+ * TikTok URL import UI on the Add tab and as `AddVideo` in the Library stack.
+ * Supports paste, clipboard suggestions, batch import, share-extension hand-off,
+ * and navigates to Library or VideoDetail when imports complete.
+ */
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -52,6 +60,10 @@ import {
 } from '../utils/tiktokOEmbed';
 import { usePaginationCacheStore } from '../stores/paginationCacheStore';
 
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
+
 type Props =
   | LibraryStackScreenProps<'AddVideo'>
   | AddStackScreenProps<'AddMain'>;
@@ -62,6 +74,10 @@ interface ImportingItem {
   status: 'processing' | 'complete' | 'error';
   generation: number;
 }
+
+// -----------------------------------------------------------------------------
+// Constants & URL parsing helpers
+// -----------------------------------------------------------------------------
 
 const URL_SPLIT = /[\s,]+/;
 const TIKTOK_HOSTS = ['tiktok.com', 'vm.tiktok'];
@@ -82,9 +98,15 @@ function parseUrls(input: string): string[] {
   return out;
 }
 
+// -----------------------------------------------------------------------------
+// Main screen
+// -----------------------------------------------------------------------------
+
 export default function AddVideoScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+
+  // --- Import UI state --------------------------------------------------------
 
   const [manualUrl, setManualUrl] = useState('');
   const [importingItems, setImportingItems] = useState<ImportingItem[]>([]);
@@ -95,6 +117,8 @@ export default function AddVideoScreen({ navigation }: Props) {
   const [previews, setPreviews] = useState<Record<string, { loading: boolean; data?: TikTokOEmbedPreview }>>({});
   const [howToOpen, setHowToOpen] = useState(false);
   const [cancellingItemIds, setCancellingItemIds] = useState<Set<string>>(new Set());
+
+  // --- Refs (import session bookkeeping) ----------------------------------------
 
   const importGenerationRef = useRef(0);
   const finalizedForGenerationRef = useRef<number | null>(null);
@@ -116,7 +140,8 @@ export default function AddVideoScreen({ navigation }: Props) {
 
   const showHowTo = manualUrl.length === 0 && !isImporting && importStatus === 'idle';
 
-  // Auto-collapse "how to" when input gets content
+  // --- Effects ----------------------------------------------------------------
+
   useEffect(() => {
     if (manualUrl.length > 0) setHowToOpen(false);
   }, [manualUrl.length]);
@@ -176,6 +201,10 @@ export default function AddVideoScreen({ navigation }: Props) {
     // intentional: deps tracked via [manualUrl] only
   }, [manualUrl]);
 
+  useEffect(() => () => cancelAnimation(inputShake), [inputShake]);
+
+  // --- Import session helpers -------------------------------------------------
+
   const nextImportGeneration = () => {
     importGenerationRef.current += 1;
     finalizedForGenerationRef.current = null;
@@ -195,8 +224,6 @@ export default function AddVideoScreen({ navigation }: Props) {
   const inputShakeStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: inputShake.value }],
   }));
-
-  useEffect(() => () => cancelAnimation(inputShake), [inputShake]);
 
   const finalizeImportSession = useCallback(
     async (items: ImportingItem[], generation: number) => {
@@ -268,7 +295,7 @@ export default function AddVideoScreen({ navigation }: Props) {
     [finalizeImportSession],
   );
 
-  const handleSingleImport = async (url: string) => {
+  const handleSingleImport = useCallback(async (url: string) => {
     if (!isTikTokUrl(url)) {
       setErrorMessage("That doesn't look like a TikTok URL.");
       triggerInputShake();
@@ -300,9 +327,17 @@ export default function AddVideoScreen({ navigation }: Props) {
       setIsImporting(false);
       setErrorMessage('Import failed. Please try again.');
     }
-  };
+  }, [updateItemStatus]);
 
-  const handleBatchImport = async (urls: string[]) => {
+  useEffect(() => {
+    if (pendingShareUrl) {
+      void handleSingleImport(pendingShareUrl);
+      clearPendingShare();
+    }
+    // intentional: deps tracked via [pendingShareUrl] only
+  }, [pendingShareUrl]);
+
+  const handleBatchImport = useCallback(async (urls: string[]) => {
     const invalid = urls.filter((u) => !isTikTokUrl(u));
     if (invalid.length > 0) {
       setErrorMessage(`${invalid.length} URL(s) are not TikTok links.`);
@@ -359,9 +394,9 @@ export default function AddVideoScreen({ navigation }: Props) {
       setIsImporting(false);
       setErrorMessage('Batch import failed. Please try again.');
     }
-  };
+  }, [navigation]);
 
-  const handleCancelImport = async (itemId: string) => {
+  const handleCancelImport = useCallback(async (itemId: string) => {
     setCancellingItemIds((prev) => {
       const next = new Set(prev);
       next.add(itemId);
@@ -393,22 +428,22 @@ export default function AddVideoScreen({ navigation }: Props) {
         return next;
       });
     }
-  };
+  }, [finalizeImportSession]);
 
-  const handlePrimaryPress = () => {
+  const handlePrimaryPress = useCallback(() => {
     if (validUrls.length === 0) return;
     if (validUrls.length === 1) {
       void handleSingleImport(validUrls[0]);
     } else {
       void handleBatchImport(validUrls);
     }
-  };
+  }, [validUrls, handleSingleImport, handleBatchImport]);
 
-  const handleEmptyPress = () => {
+  const handleEmptyPress = useCallback(() => {
     triggerInputShake();
-  };
+  }, []);
 
-  const handleProgressPress = () => {
+  const handleProgressPress = useCallback(() => {
     const cancelAll = () => {
       importingItems
         .filter((i) => i.status === 'processing' && !cancellingItemIds.has(i.id))
@@ -429,23 +464,13 @@ export default function AddVideoScreen({ navigation }: Props) {
         { text: 'Cancel imports', style: 'destructive', onPress: cancelAll },
       ],
     );
-  };
+  }, [importingItems, cancellingItemIds, handleCancelImport]);
 
-  const handleRemoveUrl = (url: string) => {
+  const handleRemoveUrl = useCallback((url: string) => {
     const remaining = parsedUrls.filter((u) => u !== url);
     setManualUrl(remaining.join('\n'));
-  };
+  }, [parsedUrls]);
 
-  // Share-extension hand-off
-  useEffect(() => {
-    if (pendingShareUrl) {
-      void handleSingleImport(pendingShareUrl);
-      clearPendingShare();
-    }
-    // intentional: deps tracked via [pendingShareUrl] only
-  }, [pendingShareUrl]);
-
-  // Map UI status → MorphState
   const morphState: MorphState = useMemo(() => {
     if (importStatus === 'success') return { kind: 'done' };
     if (importStatus === 'error' && !isImporting) return { kind: 'error' };
@@ -464,6 +489,8 @@ export default function AddVideoScreen({ navigation }: Props) {
       : `Import ${validUrls.length} →`;
 
   const morphVariant = validUrls.length === 0 && morphState.kind === 'idle' ? 'ghost' : 'solid';
+
+  // --- Render -----------------------------------------------------------------
 
   return (
     <ScrollView
@@ -676,6 +703,10 @@ export default function AddVideoScreen({ navigation }: Props) {
   );
 }
 
+// -----------------------------------------------------------------------------
+// Subcomponents — how-to steps & importing rows
+// -----------------------------------------------------------------------------
+
 function StepItem({ number, text }: { number: number; text: string }) {
   const { colors } = useTheme();
   return (
@@ -733,6 +764,10 @@ function ImportingItemRow({
     </View>
   );
 }
+
+// -----------------------------------------------------------------------------
+// Styles
+// -----------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
   container: {

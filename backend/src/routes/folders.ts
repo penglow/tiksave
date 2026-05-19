@@ -1,3 +1,9 @@
+/**
+ * Folder CRUD routes with Redis-backed caching.
+ */
+
+// --- imports ---
+
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { query } from '../database/init.js';
@@ -12,9 +18,12 @@ import {
 } from '../services/folderCache.js';
 import { validateParams, CommonSchemas } from '../middleware/validation.js';
 
+// --- constants ---
+
 export const foldersRouter = Router();
 
-// Validation schemas
+// --- validation schemas ---
+
 const createFolderSchema = z.object({
   name: z.string().min(1).max(255),
   parentId: z.string().uuid().optional(),
@@ -29,7 +38,9 @@ const updateFolderSchema = z.object({
   sortOrder: z.number().int().optional(),
 });
 
-// Get all folders (with caching)
+// --- handlers ---
+
+/** GET / — list all folders for the authenticated user. */
 foldersRouter.get('/', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   
@@ -40,7 +51,7 @@ foldersRouter.get('/', async (req, res: Response) => {
   });
 });
 
-// Get single folder (with caching)
+/** GET /:id — fetch a single folder by ID. */
 foldersRouter.get('/:id', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
@@ -54,7 +65,7 @@ foldersRouter.get('/:id', validateParams(CommonSchemas.idParam), async (req, res
   res.json(folder);
 });
 
-// Create folder
+/** POST / — create a new folder. */
 foldersRouter.post('/', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   
@@ -116,7 +127,7 @@ foldersRouter.post('/', async (req, res: Response) => {
   }
 });
 
-// Update folder
+/** PATCH /:id — update folder metadata. */
 foldersRouter.patch('/:id', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
@@ -204,7 +215,7 @@ foldersRouter.patch('/:id', validateParams(CommonSchemas.idParam), async (req, r
   }
 });
 
-// Delete folder
+/** DELETE /:id — delete a folder and move its items to the library. */
 foldersRouter.delete('/:id', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
@@ -224,7 +235,7 @@ foldersRouter.delete('/:id', validateParams(CommonSchemas.idParam), async (req, 
     throw new AppError('Default folders cannot be deleted', 400);
   }
 
-  // Delete all items in this folder subtree
+  // Move items in this folder subtree back to the library before deleting folders.
   await query(
     `WITH RECURSIVE folder_tree AS (
        SELECT id FROM folders WHERE id = $1 AND user_id = $2
@@ -232,7 +243,10 @@ foldersRouter.delete('/:id', validateParams(CommonSchemas.idParam), async (req, 
        SELECT f.id FROM folders f
        JOIN folder_tree ft ON f.parent_id = ft.id
      )
-     DELETE FROM save_items WHERE folder_id IN (SELECT id FROM folder_tree)`,
+     UPDATE save_items
+     SET folder_id = NULL, updated_at = NOW()
+     WHERE user_id = $2
+       AND folder_id IN (SELECT id FROM folder_tree)`,
     [id, authReq.userId]
   );
   
@@ -251,6 +265,7 @@ const reorderSchema = z.object({
   orderedIds: z.array(z.string().uuid()),
 });
 
+/** POST /reorder — update sort order for a list of folder IDs. */
 foldersRouter.post('/reorder', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   

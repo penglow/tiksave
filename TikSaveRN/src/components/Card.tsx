@@ -1,9 +1,15 @@
+/**
+ * Themed surface container with variant presets (default, elevated, outlined, glass, gradient).
+ * Used for grouping content on library, settings, and detail screens.
+ */
+
 import React from 'react';
-import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { BorderRadius, Shadows, Spacing, Typography } from '../config';
+import { View, StyleSheet, ViewStyle } from 'react-native';
+import { BorderRadius, Shadows, Spacing } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { LinearGradient } from 'expo-linear-gradient';
 
+// --- Types / props ---
 interface CardProps {
   children: React.ReactNode;
   variant?: 'default' | 'elevated' | 'outlined' | 'glass' | 'gradient';
@@ -12,6 +18,7 @@ interface CardProps {
   gradientColors?: readonly [string, string, ...string[]];
 }
 
+// --- Main component ---
 export function Card({
   children,
   variant = 'default',
@@ -106,6 +113,7 @@ export function Card({
   return cardContent;
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   card: {
     overflow: 'hidden',

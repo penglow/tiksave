@@ -1,3 +1,8 @@
+/**
+ * Shimmer loading placeholders: single bar, multi-line text, and video-card preset.
+ * Used while library/search data and thumbnails are fetching.
+ */
+
 import React, { useEffect } from 'react';
 import { View, StyleSheet, ViewStyle, StyleProp } from 'react-native';
 import Animated, {
@@ -12,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../hooks/useTheme';
 import { BorderRadius } from '../config';
 
+// --- Types / props ---
 interface SkeletonProps {
     width?: number | string;
     height?: number;
@@ -21,9 +27,7 @@ interface SkeletonProps {
     duration?: number;
 }
 
-/**
- * Skeleton loading component with shimmer animation
- */
+// --- Main component ---
 export function Skeleton({
     width = '100%',
     height = 16,
@@ -88,9 +92,6 @@ interface SkeletonTextProps {
     style?: StyleProp<ViewStyle>;
 }
 
-/**
- * Multi-line text skeleton
- */
 export function SkeletonText({
     lines = 3,
     lineHeight = 14,
@@ -116,9 +117,6 @@ interface SkeletonVideoCardProps {
     style?: StyleProp<ViewStyle>;
 }
 
-/**
- * Video card skeleton for loading states
- */
 export function SkeletonVideoCard({ style }: SkeletonVideoCardProps) {
     return (
         <View style={[styles.videoCard, style]}>
@@ -129,6 +127,7 @@ export function SkeletonVideoCard({ style }: SkeletonVideoCardProps) {
     );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
     container: {
         overflow: 'hidden',

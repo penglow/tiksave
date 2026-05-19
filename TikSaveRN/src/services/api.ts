@@ -1,3 +1,8 @@
+/**
+ * HTTP client for the TikSave backend: auth, items, folders, and search.
+ * Handles token storage, refresh, retries, and GET request deduplication.
+ */
+
 import { Platform } from 'react-native';
 
 // Conditional import for SecureStore (not available on web)
@@ -20,7 +25,11 @@ import {
   UploadURLResponse,
 } from '../types';
 
-// API Error class
+// ---------------------------------------------------------------------------
+// Errors
+// ---------------------------------------------------------------------------
+
+/** Typed API error with optional rate-limit retry hint. */
 export class APIError extends Error {
   retryAfter?: number; // seconds until retry is allowed (for rate limiting)
   
@@ -36,7 +45,10 @@ export class APIError extends Error {
   }
 }
 
-// Request deduplication - prevents duplicate concurrent requests
+// ---------------------------------------------------------------------------
+// Request deduplication
+// ---------------------------------------------------------------------------
+
 const pendingRequests = new Map<string, Promise<any>>();
 
 function serializeQueryParams(queryParams?: Record<string, string | number | boolean | undefined>): string {
@@ -58,7 +70,10 @@ function getRequestKey(
   return `${method}:${path}?${queryString}:${body ? JSON.stringify(body) : ''}`;
 }
 
-// Token storage keys
+// ---------------------------------------------------------------------------
+// Token storage
+// ---------------------------------------------------------------------------
+
 const ACCESS_TOKEN_KEY = 'accessToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 
@@ -170,6 +185,10 @@ const TokenStorage = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// APIService
+// ---------------------------------------------------------------------------
+
 class APIService {
   private baseURL: string;
   private accessToken: string | null = null;
@@ -264,9 +283,10 @@ class APIService {
       queryParams?: Record<string, string | number | boolean | undefined>;
       skipDedup?: boolean; // Skip deduplication for certain requests
       retryCount?: number; // Current retry attempt
+      signal?: AbortSignal;
     } = {}
   ): Promise<T> {
-    const { method = 'GET', body, queryParams, skipDedup = false, retryCount = 0 } = options;
+    const { method = 'GET', body, queryParams, skipDedup = false, retryCount = 0, signal } = options;
     const maxRetries = 3;
 
     // Request deduplication for GET requests
@@ -305,6 +325,22 @@ class APIService {
     // Create the request promise
     const requestPromise = (async (): Promise<T> => {
       const controller = new AbortController();
+      let abortedByCaller = signal?.aborted ?? false;
+
+      const onCallerAbort = () => {
+        abortedByCaller = true;
+        controller.abort();
+      };
+
+      if (signal) {
+        if (signal.aborted) {
+          abortedByCaller = true;
+          controller.abort();
+        } else {
+          signal.addEventListener('abort', onCallerAbort, { once: true });
+        }
+      }
+
       const timeoutId = setTimeout(() => controller.abort(), Config.apiTimeoutMs);
 
       try {
@@ -388,6 +424,9 @@ class APIService {
 
         if (error instanceof Error) {
           if (error.name === 'AbortError') {
+            if (abortedByCaller || signal?.aborted) {
+              throw error;
+            }
             throw new APIError('TIMEOUT', 'Request timed out');
           }
           
@@ -507,20 +546,28 @@ class APIService {
 
   // Cursor-based pagination (more efficient for large datasets)
   async getItemsPaginated(options?: {
-    status?: SaveItemStatus;
+    status?: SaveItemStatus | SaveItemStatus[];
     folderId?: string;
     cursor?: string;
     limit?: number;
     direction?: 'next' | 'prev';
+    signal?: AbortSignal;
   }): Promise<ItemsResponse> {
+    const statusParam =
+      options?.status === undefined
+        ? undefined
+        : Array.isArray(options.status)
+          ? [...new Set(options.status)].join(',')
+          : options.status;
     return this.request<ItemsResponse>('/items/paginated', {
       queryParams: {
-        status: options?.status,
+        status: statusParam,
         folderId: options?.folderId,
         cursor: options?.cursor,
         limit: options?.limit ?? 20,
         direction: options?.direction ?? 'next',
       },
+      signal: options?.signal,
     });
   }
 
@@ -611,6 +658,10 @@ class APIService {
   }
 }
 
-// Export singleton instance
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+
+/** Singleton API client used across stores and hooks. */
 export const apiService = new APIService();
 

@@ -1,3 +1,8 @@
+/**
+ * Import-screen primary CTA with morphing state machine (idle → submitting → progress → done/error).
+ * Pill collapses to a circle; progress ring and done checkmark are driven by Reanimated shared values.
+ */
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View, StyleSheet, ActivityIndicator, Platform, LayoutChangeEvent } from 'react-native';
 import Animated, {
@@ -18,8 +23,12 @@ import * as Haptics from 'expo-haptics';
 import { Animation, Spacing, Typography } from '../config';
 import { useTheme } from '../hooks/useTheme';
 
+// --- Constants ---
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+const BUTTON_HEIGHT = 52;
+
+// --- Types / props ---
 export type MorphState =
   | { kind: 'idle' }
   | { kind: 'submitting' }
@@ -46,12 +55,7 @@ interface MorphButtonProps {
   accessibilityLabel?: string;
 }
 
-const BUTTON_HEIGHT = 52;
-
-/**
- * Primary CTA with a state machine: idle → submitting → progress → done.
- * Tap = submit; the press-fill is purely visual feedback.
- */
+// --- Main component ---
 export function MorphButton({
   label,
   state,
@@ -314,6 +318,7 @@ export function MorphButton({
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   outerHost: {
     width: '100%',

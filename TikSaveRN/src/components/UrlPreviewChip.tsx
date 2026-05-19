@@ -1,3 +1,8 @@
+/**
+ * Inline TikTok URL preview row for the import screen (thumbnail, title, remove).
+ * Shown below the paste field while oEmbed metadata loads.
+ */
+
 import React from 'react';
 import { View, Text, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +12,7 @@ import { useTheme } from '../hooks/useTheme';
 import { AnimatedPressable } from './AnimatedPressable';
 import type { TikTokOEmbedPreview } from '../utils/tiktokOEmbed';
 
+// --- Types / props ---
 interface UrlPreviewChipProps {
   url: string;
   preview?: TikTokOEmbedPreview;
@@ -14,7 +20,7 @@ interface UrlPreviewChipProps {
   onRemove: () => void;
 }
 
-/** Single-row preview chip used inline below the import input. */
+// --- Main component ---
 export function UrlPreviewChip({ url, preview, loading, onRemove }: UrlPreviewChipProps) {
   const { colors } = useTheme();
 
@@ -56,6 +62,7 @@ export function UrlPreviewChip({ url, preview, loading, onRemove }: UrlPreviewCh
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',

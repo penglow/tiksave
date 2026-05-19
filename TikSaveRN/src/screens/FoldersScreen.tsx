@@ -1,3 +1,10 @@
+/**
+ * FoldersScreen
+ *
+ * Hierarchical folder browser in the Folders tab. Loads user folders on focus,
+ * navigates to `FolderDetail` on selection, and supports create-folder via modal.
+ */
+
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -14,14 +21,22 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Spacing, BorderRadius, Typography, Hairline, Gradients } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline, Shadows, TAB_BAR_OVERLAP } from '../config';
 import { Folder, FolderNode, getDisplayIcon } from '../types';
 import { apiService } from '../services/api';
 import { FoldersStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
-import { AnimatedPressable, AnimatedListItem, Card } from '../components';
+import { AnimatedPressable, AnimatedListItem } from '../components';
+
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
 
 type Props = FoldersStackScreenProps<'FoldersList'>;
+
+// -----------------------------------------------------------------------------
+// Helpers — flat folder list → tree for UI
+// -----------------------------------------------------------------------------
 
 function buildFolderTree(folders: Folder[]): FolderNode[] {
   const topLevel = folders.filter((f) => !f.parentId);
@@ -38,14 +53,23 @@ function buildFolderTree(folders: Folder[]): FolderNode[] {
   return topLevel.map(buildNode).sort((a, b) => a.folder.sortOrder - b.folder.sortOrder);
 }
 
+// -----------------------------------------------------------------------------
+// Main screen
+// -----------------------------------------------------------------------------
+
 export default function FoldersScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+
+  // --- List & modal state -----------------------------------------------------
+
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderNodes, setFolderNodes] = useState<FolderNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // --- Data loading -----------------------------------------------------------
 
   const loadFolders = useCallback(async () => {
     try {
@@ -66,27 +90,37 @@ export default function FoldersScreen({ navigation }: Props) {
     }, [loadFolders])
   );
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
     loadFolders();
-  };
+  }, [loadFolders]);
 
-  const handleCreateFolder = async (name: string, parentId?: string, iconName?: string) => {
-    try {
-      await apiService.createFolder(name, parentId, iconName);
-      loadFolders();
-    } catch (error) {
-      console.error('Failed to create folder:', error);
-    }
-  };
+  const handleCreateFolder = useCallback(
+    async (name: string, parentId?: string, iconName?: string) => {
+      try {
+        await apiService.createFolder(name, parentId, iconName);
+        loadFolders();
+      } catch (error) {
+        console.error('Failed to create folder:', error);
+      }
+    },
+    [loadFolders],
+  );
+
+  const openAddModal = useCallback(() => setShowAddModal(true), []);
+  const closeAddModal = useCallback(() => setShowAddModal(false), []);
+
+  const navigateToFolderDetail = useCallback(
+    (folder: Folder) => {
+      navigation.navigate('FolderDetail', { folder });
+    },
+    [navigation],
+  );
+
+  // --- Render -----------------------------------------------------------------
 
   if (isLoading) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}
->
-        <ActivityIndicator size="small" color={colors.text} />
-      </View>
-    );
+    return <FoldersLoadingView backgroundColor={colors.background} />;
   }
 
   if (folderNodes.length === 0) {
@@ -96,35 +130,20 @@ export default function FoldersScreen({ navigation }: Props) {
           <Text style={[styles.headerTitle, { color: colors.text }]}>Folders</Text>
         </View>
 
-        <Animated.View
-          entering={FadeIn.duration(300)}
-          style={styles.emptyContainer}
-        >
-          <View style={[styles.emptyIconWrapper, { backgroundColor: colors.accentSubtle }]}>
-            <Ionicons name="folder-open-outline" size={32} color={colors.accent} />
-          </View>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            No folders yet
-          </Text>
-          <Text style={[styles.emptySubtitle, { color: colors.textTertiary }]}>
-            Create folders to organize{'\n'}your saved videos
-          </Text>
-          <AnimatedPressable
-            style={[styles.createButton, { backgroundColor: colors.text }]}
-            onPress={() => setShowAddModal(true)}
-            haptic
-          >
-            <Ionicons name="add" size={18} color={colors.background} />
-            <Text style={[styles.createButtonText, { color: colors.background }]}>
-              Create folder
-            </Text>
-          </AnimatedPressable>
-        </Animated.View>
+        <FoldersEmptyView
+          accentSubtleColor={colors.accentSubtle}
+          accentColor={colors.accent}
+          textColor={colors.text}
+          subtitleColor={colors.textTertiary}
+          buttonBackgroundColor={colors.text}
+          buttonForegroundColor={colors.background}
+          onCreatePress={openAddModal}
+        />
 
         <AddFolderModal
           visible={showAddModal}
           folders={folders}
-          onClose={() => setShowAddModal(false)}
+          onClose={closeAddModal}
           onCreate={handleCreateFolder}
         />
       </View>
@@ -143,7 +162,7 @@ export default function FoldersScreen({ navigation }: Props) {
         </View>
         <AnimatedPressable
           style={[styles.addButton, { backgroundColor: colors.text }]}
-          onPress={() => setShowAddModal(true)}
+          onPress={openAddModal}
           haptic
         >
           <Ionicons name="add" size={18} color={colors.background} />
@@ -164,10 +183,7 @@ export default function FoldersScreen({ navigation }: Props) {
       >
         {folderNodes.map((node, index) => (
           <AnimatedListItem key={node.folder.id} index={index} direction="fade">
-            <FolderNodeView
-              node={node}
-              onSelect={(folder) => navigation.navigate('FolderDetail', { folder })}
-            />
+            <FolderNodeView node={node} onSelect={navigateToFolderDetail} />
           </AnimatedListItem>
         ))}
       </ScrollView>
@@ -175,12 +191,70 @@ export default function FoldersScreen({ navigation }: Props) {
       <AddFolderModal
         visible={showAddModal}
         folders={folders}
-        onClose={() => setShowAddModal(false)}
+        onClose={closeAddModal}
         onCreate={handleCreateFolder}
       />
     </View>
   );
 }
+
+// -----------------------------------------------------------------------------
+// Presentational subviews (loading / empty)
+// -----------------------------------------------------------------------------
+
+function FoldersLoadingView({ backgroundColor }: { backgroundColor: string }) {
+  const { colors } = useTheme();
+
+  return (
+    <View style={[styles.loadingContainer, { backgroundColor }]}>
+      <ActivityIndicator size="small" color={colors.text} />
+    </View>
+  );
+}
+
+function FoldersEmptyView({
+  accentSubtleColor,
+  accentColor,
+  textColor,
+  subtitleColor,
+  buttonBackgroundColor,
+  buttonForegroundColor,
+  onCreatePress,
+}: {
+  accentSubtleColor: string;
+  accentColor: string;
+  textColor: string;
+  subtitleColor: string;
+  buttonBackgroundColor: string;
+  buttonForegroundColor: string;
+  onCreatePress: () => void;
+}) {
+  return (
+    <Animated.View entering={FadeIn.duration(300)} style={styles.emptyContainer}>
+      <View style={[styles.emptyIconWrapper, { backgroundColor: accentSubtleColor }]}>
+        <Ionicons name="folder-open-outline" size={32} color={accentColor} />
+      </View>
+      <Text style={[styles.emptyTitle, { color: textColor }]}>No folders yet</Text>
+      <Text style={[styles.emptySubtitle, { color: subtitleColor }]}>
+        Create folders to organize{'\n'}your saved videos
+      </Text>
+      <AnimatedPressable
+        style={[styles.createButton, { backgroundColor: buttonBackgroundColor }]}
+        onPress={onCreatePress}
+        haptic
+      >
+        <Ionicons name="add" size={18} color={buttonForegroundColor} />
+        <Text style={[styles.createButtonText, { color: buttonForegroundColor }]}>
+          Create folder
+        </Text>
+      </AnimatedPressable>
+    </Animated.View>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Subcomponents — folder tree node & create modal
+// -----------------------------------------------------------------------------
 
 function FolderNodeView({
   node,
@@ -208,7 +282,9 @@ function FolderNodeView({
         scaleOnPress={0.98}
       >
         <View style={styles.folderCardContent}>
-          <Text style={styles.folderEmoji}>{getDisplayIcon(node.folder) || '📁'}</Text>
+          <View style={[styles.folderIconWrapper, { backgroundColor: colors.accentSubtle }]}>
+            <Ionicons name="folder-open-outline" size={22} color={colors.accent} />
+          </View>
           <View style={styles.folderInfo}>
             <Text style={[styles.folderName, { color: colors.text }]}>{node.folder.name}</Text>
             <Text style={[styles.folderItemCount, { color: colors.textTertiary }]}>
@@ -216,14 +292,18 @@ function FolderNodeView({
             </Text>
           </View>
           {hasChildren ? (
-            <Ionicons
-              name="chevron-down"
-              size={18}
-              color={colors.textQuaternary}
-              style={{ transform: [{ rotate: isExpanded ? '0deg' : '-90deg' }] }}
-            />
+            <View style={[styles.chevronWrapper, { backgroundColor: colors.surfaceHover }]}>
+              <Ionicons
+                name="chevron-down"
+                size={16}
+                color={colors.textTertiary}
+                style={{ transform: [{ rotate: isExpanded ? '0deg' : '-90deg' }] }}
+              />
+            </View>
           ) : (
-            <Ionicons name="chevron-forward" size={18} color={colors.textQuaternary} />
+            <View style={[styles.chevronWrapper, { backgroundColor: colors.surfaceHover }]}>
+              <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+            </View>
           )}
         </View>
       </AnimatedPressable>
@@ -236,7 +316,9 @@ function FolderNodeView({
               style={[styles.childRow, { borderBottomColor: colors.border }]}
               onPress={() => onSelect(childNode.folder)}
             >
-              <Text style={styles.childEmoji}>{getDisplayIcon(childNode.folder) || '📁'}</Text>
+              <View style={[styles.childIconWrapper, { backgroundColor: colors.accentSubtle }]}>
+                <Ionicons name="folder-outline" size={14} color={colors.accent} />
+              </View>
               <Text style={[styles.childName, { color: colors.text }]}>{childNode.folder.name}</Text>
               <Text style={[styles.childCount, { color: colors.textQuaternary }]}>
                 {childNode.folder.itemCount}
@@ -378,6 +460,10 @@ function AddFolderModal({
   );
 }
 
+// -----------------------------------------------------------------------------
+// Styles
+// -----------------------------------------------------------------------------
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -413,9 +499,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.xl,
-    gap: Spacing.md,
+    paddingBottom: Spacing.xl + TAB_BAR_OVERLAP,
   },
 
   // Empty state
@@ -462,14 +546,19 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     padding: Spacing.md,
+    ...Shadows.xs,
   },
   folderCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
   },
-  folderEmoji: {
-    fontSize: 24,
+  folderIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   folderInfo: {
     flex: 1,
@@ -481,6 +570,13 @@ const styles = StyleSheet.create({
   folderItemCount: {
     ...Typography.caption,
     marginTop: 2,
+  },
+  chevronWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   childrenContainer: {
     marginLeft: Spacing.xl,
@@ -494,9 +590,14 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderBottomWidth: Hairline,
+    borderRadius: BorderRadius.sm,
   },
-  childEmoji: {
-    fontSize: 16,
+  childIconWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   childName: {
     ...Typography.bodySm,

@@ -1,3 +1,8 @@
+/**
+ * Square icon-only pressable with size and visual variant presets.
+ * Built on AnimatedPressable for consistent tap feedback across the app.
+ */
+
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -5,6 +10,7 @@ import { BorderRadius, Spacing } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { AnimatedPressable } from './AnimatedPressable';
 
+// --- Types / props ---
 interface IconButtonProps {
   icon: keyof typeof Ionicons.glyphMap;
   size?: 'sm' | 'md' | 'lg';
@@ -15,6 +21,7 @@ interface IconButtonProps {
   style?: ViewStyle;
 }
 
+// --- Main component ---
 export function IconButton({
   icon,
   size = 'md',
@@ -36,10 +43,10 @@ export function IconButton({
   const iconColor = color || colors.text;
 
   const variantStyles = {
-    default: { backgroundColor: 'transparent' },
-    filled: { backgroundColor: colors.surface },
+    default: { backgroundColor: 'transparent', borderWidth: 0, borderColor: 'transparent' },
+    filled: { backgroundColor: colors.surface, borderWidth: 0, borderColor: 'transparent' },
     outlined: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
-    ghost: { backgroundColor: colors.accentSubtle },
+    ghost: { backgroundColor: colors.accentSubtle, borderWidth: 0, borderColor: 'transparent' },
   };
 
   const v = variantStyles[variant];
@@ -67,6 +74,7 @@ export function IconButton({
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   button: {
     alignItems: 'center',

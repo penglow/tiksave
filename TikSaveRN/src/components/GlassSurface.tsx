@@ -1,9 +1,15 @@
+/**
+ * Frosted-glass panel using expo-blur on iOS/web and a solid glass tint on Android.
+ * Wraps children with themed border, padding, and corner radius.
+ */
+
 import React from 'react';
 import { View, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { BorderRadius, Spacing } from '../config';
 import { useTheme } from '../hooks/useTheme';
 
+// --- Types / props ---
 interface GlassSurfaceProps {
   children: React.ReactNode;
   intensity?: number;
@@ -14,6 +20,7 @@ interface GlassSurfaceProps {
   border?: boolean;
 }
 
+// --- Main component ---
 export function GlassSurface({
   children,
   intensity = 40,
@@ -50,6 +57,7 @@ export function GlassSurface({
         styles.container,
         {
           borderRadius: radiusMap[borderRadius],
+          // Android has no reliable BlurView — fall back to semi-opaque fill
           backgroundColor: Platform.OS === 'android' ? colors.glass : undefined,
           borderWidth: border ? 1 : 0,
           borderColor: colors.glassBorder,
@@ -71,6 +79,7 @@ export function GlassSurface({
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   container: {
     position: 'relative',

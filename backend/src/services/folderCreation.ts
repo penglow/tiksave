@@ -1,4 +1,12 @@
+/**
+ * Automatic folder creation and lookup based on detected topics and labels.
+ */
+
+// --- imports ---
+
 import { query } from '../database/init.js';
+
+// --- types ---
 
 interface FolderSuggestion {
   name: string;
@@ -6,10 +14,9 @@ interface FolderSuggestion {
   iconName?: string;
 }
 
-/**
- * Suggest a folder name based on topics and labels
- * Avoids being too specific by using general categories
- */
+// --- helpers ---
+
+/** Suggest a folder name based on topics and labels. */
 function suggestFolderName(topics: string[], labels: string[], suggestedName?: string): string | null {
   // 1. Use AI suggested name if available and not generic
   if (suggestedName && suggestedName !== 'Saved') {
@@ -205,9 +212,11 @@ async function findParentFolder(
   return null;
 }
 
+// --- handlers ---
+
 /**
- * Create or find a folder for the given topics/labels
- * Returns the folder ID
+ * Create or find a folder for the given topics/labels.
+ * Returns the folder ID and name when a folder is resolved or created.
  */
 export async function createOrFindFolder(
   userId: string,

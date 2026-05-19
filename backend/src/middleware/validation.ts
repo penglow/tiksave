@@ -1,9 +1,16 @@
+/**
+ * Zod-based request validation middleware.
+ * Provides factories for validating body, query, params, and shared schemas.
+ */
+
+// --- imports ---
+
 import { Request, Response, NextFunction } from 'express';
 import { z, ZodSchema, ZodError } from 'zod';
 
-/**
- * Validation error response format
- */
+// --- types ---
+
+/** Validation error response shape returned to API clients. */
 interface ValidationErrorResponse {
   error: string;
   field?: string;
@@ -26,6 +33,8 @@ function formatZodError(error: ZodError): ValidationErrorResponse {
     })),
   };
 }
+
+// --- handlers ---
 
 /**
  * Middleware factory for validating request body
@@ -127,9 +136,9 @@ export function validate<
   };
 }
 
-/**
- * Common validation schemas for reuse across routes
- */
+// --- constants ---
+
+/** Common validation schemas for reuse across routes. */
 export const CommonSchemas = {
   // UUID parameter
   uuid: z.string().uuid('Invalid UUID format'),

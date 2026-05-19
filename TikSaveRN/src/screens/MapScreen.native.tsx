@@ -1,5 +1,12 @@
+/**
+ * MapScreen (native)
+ *
+ * react-native-maps view of geotagged saves with draggable preview card. Map tab on
+ * iOS/Android; requests location permission and navigates to `VideoDetail` on selection.
+ */
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { View, StyleSheet, Text, Image, Dimensions, Platform, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Text, Image, Dimensions, Platform, TouchableOpacity, type ImageStyle, type ViewStyle } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ExpoLocation from 'expo-location';
@@ -13,11 +20,15 @@ import { SaveItem, getDisplayTitle } from '../types';
 import { apiService } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing, BorderRadius, Typography } from '../config';
-import { AnimatedText, AnimatedPressable, Skeleton } from '../components';
+import { AnimatedPressable, Skeleton } from '../components';
+import { useResolvedTikTokThumbnail } from '../hooks/useResolvedTikTokThumbnail';
 
 const { width } = Dimensions.get('window');
 
-// Google Maps style for dark mode to match the app theme
+// -----------------------------------------------------------------------------
+// Constants — dark map style
+// -----------------------------------------------------------------------------
+
 const darkMapStyle = [
     { elementType: 'geometry', stylers: [{ color: '#1d1d1d' }] },
     { elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
@@ -35,10 +46,64 @@ const darkMapStyle = [
     { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
 ];
 
+// -----------------------------------------------------------------------------
+// Subcomponents — marker thumbnail & preview card
+// -----------------------------------------------------------------------------
+
+function MapMarkerBubble({
+    item,
+    colors,
+    markerImageStyle,
+    fallbackMarkerStyle,
+}: {
+    item: SaveItem;
+    colors: { primary: string };
+    markerImageStyle: ImageStyle;
+    fallbackMarkerStyle: ViewStyle;
+}) {
+    const thumbUri = useResolvedTikTokThumbnail(item.sourceURL, item.thumbnailURL);
+    if (thumbUri) {
+        return <Image source={{ uri: thumbUri }} style={markerImageStyle} resizeMode="cover" />;
+    }
+    return (
+        <View style={[fallbackMarkerStyle, { backgroundColor: colors.primary }]}>
+            <Ionicons name="location" size={24} color="white" />
+        </View>
+    );
+}
+
+function MapPreviewCardThumbnail({
+    item,
+    colors,
+    imageStyle,
+    placeholderStyle,
+}: {
+    item: SaveItem;
+    colors: { accentSubtle: string; textTertiary: string };
+    imageStyle: ImageStyle;
+    placeholderStyle: ViewStyle;
+}) {
+    const thumbUri = useResolvedTikTokThumbnail(item.sourceURL, item.thumbnailURL);
+    if (thumbUri) {
+        return <Image source={{ uri: thumbUri }} style={imageStyle} />;
+    }
+    return (
+        <View style={[placeholderStyle, { backgroundColor: colors.accentSubtle }]}>
+            <Ionicons name="play" size={24} color={colors.textTertiary} />
+        </View>
+    );
+}
+
+// -----------------------------------------------------------------------------
+// Main screen
+// -----------------------------------------------------------------------------
+
 export default function MapScreen({ navigation }: any) {
     const { colors, isDark } = useTheme();
     const insets = useSafeAreaInsets();
     const mapRef = useRef<MapView>(null);
+
+    // --- Map & selection state ------------------------------------------------
 
     const [items, setItems] = useState<SaveItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -240,12 +305,8 @@ export default function MapScreen({ navigation }: any) {
     const openInMaps = (item: SaveItem) => {
         const lat = item.latitude;
         const lng = item.longitude;
-        const label = item.locationName || 'Location';
-
-        const url = Platform.select({
-            ios: `maps:0,0?q=${label}@${lat},${lng}`,
-            android: `geo:0,0?q=${lat},${lng}(${label})`
-        });
+        const query = encodeURIComponent(`${lat},${lng}`);
+        const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
 
         if (url) {
             Linking.openURL(url);
@@ -256,7 +317,7 @@ export default function MapScreen({ navigation }: any) {
         return (
             <View style={[styles.container, { backgroundColor: colors.background }]}>
                 <View style={[styles.header, { paddingTop: insets.top }]}>
-                    <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>Discover</AnimatedText>
+                    <Text style={[styles.headerTitle, { color: colors.text }]}>Discover</Text>
                 </View>
                 <View style={styles.loadingContainer}>
                     <Skeleton width={width - 32} height={200} style={{ borderRadius: 12 }} />
@@ -315,17 +376,12 @@ export default function MapScreen({ navigation }: any) {
                         tracksViewChanges={false}
                     >
                         <View pointerEvents="none">
-                            {item.thumbnailURL ? (
-                                <Image
-                                    source={{ uri: item.thumbnailURL }}
-                                    style={styles.markerImage}
-                                    resizeMode="cover"
-                                />
-                            ) : (
-                                <View style={[styles.defaultMarker, { backgroundColor: colors.primary }]}>
-                                    <Ionicons name="location" size={24} color="white" />
-                                </View>
-                            )}
+                            <MapMarkerBubble
+                                item={item}
+                                colors={colors}
+                                markerImageStyle={styles.markerImage}
+                                fallbackMarkerStyle={styles.defaultMarker}
+                            />
                         </View>
                     </Marker>
                 ))}
@@ -359,16 +415,12 @@ export default function MapScreen({ navigation }: any) {
                             </View>
                             <View style={styles.cardContent}>
                                 <View style={styles.cardImageContainer}>
-                                    {displayItem.thumbnailURL ? (
-                                        <Image
-                                            source={{ uri: displayItem.thumbnailURL }}
-                                            style={styles.cardImage}
-                                        />
-                                    ) : (
-                                        <View style={[styles.cardPlaceholder, { backgroundColor: colors.accentSubtle }]}>
-                                            <Ionicons name="play" size={24} color={colors.textTertiary} />
-                                        </View>
-                                    )}
+                                    <MapPreviewCardThumbnail
+                                        item={displayItem}
+                                        colors={colors}
+                                        imageStyle={styles.cardImage}
+                                        placeholderStyle={styles.cardPlaceholder}
+                                    />
                                     <View style={styles.cardDuration}>
                                         <Text style={styles.cardDurationText}>
                                             {displayItem.duration ?
@@ -449,6 +501,10 @@ export default function MapScreen({ navigation }: any) {
         </View>
     );
 }
+
+// -----------------------------------------------------------------------------
+// Styles
+// -----------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
     container: {

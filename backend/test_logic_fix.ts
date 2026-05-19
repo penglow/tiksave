@@ -1,3 +1,4 @@
+/** Manual script: verifies folder-creation guard when topics are only "Saved". */
 import { createOrFindFolder } from './src/services/folderCreation.js';
 
 async function testLogicFix() {

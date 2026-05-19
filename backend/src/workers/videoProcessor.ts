@@ -1,3 +1,9 @@
+/**
+ * BullMQ background worker for video processing and queue management.
+ */
+
+// --- imports ---
+
 import { Queue, Worker, Job } from 'bullmq';
 import { query } from '../database/init.js';
 import { indexVideo, getVideoIndex, analyzeUrlOnly, getThumbnailUrl, generateSemanticContext } from '../services/videoIndexer.js';
@@ -8,10 +14,12 @@ import { extractHashtags } from '../utils/text.js';
 import { extractLocationQueries, batchGeocodeLocations } from '../services/location.js';
 import { sanitizeTikTokImageUrl } from '../utils/sanitize.js';
 
-// Redis connection for job queue
+// --- constants ---
+
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
-// Parse Redis URL for BullMQ connection options
+// --- helpers ---
+
 function parseRedisUrl(url: string): { host: string; port: number; password?: string } {
   const parsed = new URL(url);
   return {
@@ -23,7 +31,6 @@ function parseRedisUrl(url: string): { host: string; port: number; password?: st
 
 const redisConnection = parseRedisUrl(REDIS_URL);
 
-// Job queue
 const processingQueue = new Queue('video-processing', {
   connection: redisConnection,
   defaultJobOptions: {
@@ -37,8 +44,9 @@ const processingQueue = new Queue('video-processing', {
   },
 });
 
-// Worker instance (initialized in startWorker)
 let processingWorker: Worker | null = null;
+
+// --- types ---
 
 interface ProcessingJob {
   itemId: string;
@@ -48,18 +56,16 @@ interface ProcessingJob {
   hasUploadedVideo?: boolean;
 }
 
-/**
- * Add an item to the processing queue
- */
+// --- handlers ---
+
+/** Enqueue an item for background video processing. */
 export async function addToProcessingQueue(job: ProcessingJob): Promise<void> {
   await processingQueue.add('process', job, {
     priority: job.hasUploadedVideo ? 1 : 2, // Uploaded videos get priority (lower number = higher priority)
   });
 }
 
-/**
- * Start the background worker
- */
+/** Start the BullMQ worker that processes queued save items. */
 export function startWorker(): void {
   processingWorker = new Worker(
     'video-processing',
@@ -336,6 +342,8 @@ export function startWorker(): void {
   });
 }
 
+// --- helpers ---
+
 async function processWithVideoIndexer(itemId: string, userId: string): Promise<any> {
   // Get the blob name for the uploaded video (persisted at uploadUrl time)
   const row = await query(
@@ -456,6 +464,7 @@ async function updateItemStatus(itemId: string, status: string): Promise<void> {
 // Graceful shutdown - exported for coordination with main server
 let isShuttingDown = false;
 
+/** Gracefully stop the worker and close the processing queue. */
 export async function shutdownWorker(): Promise<void> {
   if (isShuttingDown) return;
   isShuttingDown = true;

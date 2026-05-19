@@ -1,8 +1,14 @@
+/**
+ * Pressable with Reanimated scale/opacity feedback and optional haptics.
+ * Base interaction primitive used by buttons, chips, list rows, and modals.
+ */
+
 import React, { useCallback } from 'react';
 import { Pressable, PressableProps, ViewStyle, StyleProp, Platform, AccessibilityRole } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
+    withSpring,
     withTiming,
     interpolate,
     Easing,
@@ -10,29 +16,29 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { Animation } from '../config';
 
+// --- Constants ---
 const AnimatedPressableBase = Animated.createAnimatedComponent(Pressable);
 
+// --- Types / props ---
 interface AnimatedPressableProps extends Omit<PressableProps, 'style'> {
     children: React.ReactNode;
     style?: StyleProp<ViewStyle>;
-    /** Scale factor on press (default: 0.97) */
+    /** Scale factor on press (default: Animation.press.scale). */
     scaleOnPress?: number;
-    /** Opacity on press (default: 0.8) */
+    /** Opacity on press (default: Animation.press.opacity). */
     opacityOnPress?: number;
-    /** Whether to trigger haptic feedback on press (default: false) */
+    /** Trigger haptic feedback on press in (default: false). */
     haptic?: boolean;
-    /** Disable the scale animation */
+    /** Disable scale animation. */
     noScale?: boolean;
-    /** Disable the opacity animation */
+    /** Disable opacity animation. */
     noOpacity?: boolean;
-    /** Accessibility label for screen readers */
     accessibilityLabel?: string;
-    /** Accessibility hint for screen readers */
     accessibilityHint?: string;
-    /** Accessibility role (default: 'button' when onPress is provided) */
     accessibilityRole?: AccessibilityRole;
 }
 
+// --- Main component ---
 export function AnimatedPressable({
     children,
     style,
@@ -54,18 +60,12 @@ export function AnimatedPressable({
 
     const handlePressIn = useCallback(
         (event: any) => {
-            pressed.value = withTiming(1, {
-                duration: Animation.duration.instant,
-                easing: Easing.out(Easing.ease)
-            });
-            
-            // Trigger haptic feedback if enabled
+            pressed.value = withSpring(1, Animation.spring.crisp, () => {});
+
             if (haptic && Platform.OS !== 'web') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {
-                    // Haptics may fail on some devices, ignore silently
-                });
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
             }
-            
+
             onPressIn?.(event);
         },
         [pressed, onPressIn, haptic]
@@ -73,10 +73,7 @@ export function AnimatedPressable({
 
     const handlePressOut = useCallback(
         (event: any) => {
-            pressed.value = withTiming(0, {
-                duration: Animation.duration.fast,
-                easing: Easing.out(Easing.ease)
-            });
+            pressed.value = withSpring(0, Animation.spring.snappy);
             onPressOut?.(event);
         },
         [pressed, onPressOut]
@@ -93,7 +90,6 @@ export function AnimatedPressable({
         };
     });
 
-    // Default to 'button' role if onPress is provided and no role is specified
     const effectiveRole = accessibilityRole ?? (onPress ? 'button' : undefined);
 
     return (
@@ -114,5 +110,9 @@ export function AnimatedPressable({
         </AnimatedPressableBase>
     );
 }
+
+// Suppress unused-import warnings for utilities consumers may need.
+void withTiming;
+void Easing;
 
 export default AnimatedPressable;
