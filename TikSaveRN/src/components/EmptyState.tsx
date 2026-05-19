@@ -45,18 +45,8 @@ export function EmptyState({
   return (
     <View style={[styles.container, style]}>
       <View style={styles.iconStack}>
-        <View
-          style={[
-            styles.iconRing,
-            { borderColor: palette.ring, opacity: 0.18 },
-          ]}
-        />
-        <View
-          style={[
-            styles.iconRingInner,
-            { borderColor: palette.ring, opacity: 0.32 },
-          ]}
-        />
+        <View style={[styles.iconRing, { borderColor: palette.ring, opacity: 0.18 }]} />
+        <View style={[styles.iconRingInner, { borderColor: palette.ring, opacity: 0.32 }]} />
         <View style={[styles.iconWrapper, { backgroundColor: palette.bg }]}>
           <Ionicons name={icon} size={30} color={palette.fg} />
         </View>
@@ -64,9 +54,7 @@ export function EmptyState({
 
       <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
       {subtitle && (
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          {subtitle}
-        </Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
       )}
 
       {actionLabel && onAction && (

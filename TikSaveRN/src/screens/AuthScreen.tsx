@@ -49,8 +49,8 @@ export default function AuthScreen() {
   const isValid = email.length > 0 && password.length > 5;
 
   const gradientColors = isDark
-    ? ['#0a0a0c', '#0c0c0e', '#16100f'] as const
-    : ['#fbf9f6', '#f7f6f3', '#fff5f1'] as const;
+    ? (['#0a0a0c', '#0c0c0e', '#16100f'] as const)
+    : (['#fbf9f6', '#f7f6f3', '#fff5f1'] as const);
 
   const meshBlobs = useMemo(
     () =>
@@ -63,7 +63,7 @@ export default function AuthScreen() {
         : [
             { cx: 0.18, cy: 0.12, r: 0.55, color: '#f28b78', opacity: 0.32 },
             { cx: 0.85, cy: 0.85, r: 0.5, color: '#fbbf24', opacity: 0.18 },
-            { cx: 0.55, cy: 0.45, r: 0.4, color: '#d45a44', opacity: 0.10 },
+            { cx: 0.55, cy: 0.45, r: 0.4, color: '#d45a44', opacity: 0.1 },
           ],
     [isDark],
   );
@@ -125,7 +125,11 @@ export default function AuthScreen() {
                   { text: 'The TikToks you saved,', style: styles.headline as TextStyle },
                   {
                     text: 'found.',
-                    style: { ...(styles.headline as TextStyle), color: colors.accent, fontStyle: 'italic' },
+                    style: {
+                      ...(styles.headline as TextStyle),
+                      color: colors.accent,
+                      fontStyle: 'italic',
+                    },
                   },
                 ]}
                 style={{ ...(styles.headline as TextStyle), color: colors.text }}
@@ -137,8 +141,8 @@ export default function AuthScreen() {
                 entering={FadeInUp.duration(260).delay(420)}
                 style={[styles.heroSub, { color: colors.textSecondary }]}
               >
-                AI quietly tags, transcribes and organizes everything you save —
-                so you can search a thought and get the right clip back.
+                AI quietly tags, transcribes and organizes everything you save — so you can search a
+                thought and get the right clip back.
               </Animated.Text>
             </View>
 
@@ -155,7 +159,12 @@ export default function AuthScreen() {
                     },
                   ]}
                 >
-                  <Ionicons name="mail-outline" size={18} color={emailFocused ? colors.accent : colors.textTertiary} style={styles.inputIcon} />
+                  <Ionicons
+                    name="mail-outline"
+                    size={18}
+                    color={emailFocused ? colors.accent : colors.textTertiary}
+                    style={styles.inputIcon}
+                  />
                   <TextInput
                     style={[styles.input, { color: colors.text }]}
                     placeholder="you@example.com"
@@ -183,7 +192,12 @@ export default function AuthScreen() {
                     },
                   ]}
                 >
-                  <Ionicons name="lock-closed-outline" size={18} color={passwordFocused ? colors.accent : colors.textTertiary} style={styles.inputIcon} />
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={18}
+                    color={passwordFocused ? colors.accent : colors.textTertiary}
+                    style={styles.inputIcon}
+                  />
                   <TextInput
                     style={[styles.input, styles.passwordInput, { color: colors.text }]}
                     placeholder="••••••••"
@@ -196,11 +210,7 @@ export default function AuthScreen() {
                     autoCapitalize="none"
                     autoComplete="password"
                   />
-                  <AnimatedPressable
-                    style={styles.eyeButton}
-                    onPress={toggleShowPassword}
-                    noScale
-                  >
+                  <AnimatedPressable style={styles.eyeButton} onPress={toggleShowPassword} noScale>
                     <Ionicons
                       name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                       size={18}
@@ -231,16 +241,16 @@ export default function AuthScreen() {
               >
                 {isLoading ? (
                   <ActivityIndicator color="#ffffff" size="small" />
+                ) : isSignUp ? (
+                  'Create account'
                 ) : (
-                  isSignUp ? 'Create account' : 'Sign in'
+                  'Sign in'
                 )}
               </GradientButton>
 
               <AnimatedPressable style={styles.toggleButton} onPress={toggleMode}>
                 <Text style={[styles.toggleButtonText, { color: colors.textSecondary }]}>
-                  {isSignUp
-                    ? "Already have an account? "
-                    : "New to TikSave? "}
+                  {isSignUp ? 'Already have an account? ' : 'New to TikSave? '}
                   <Text style={{ color: colors.accent, fontWeight: '700' }}>
                     {isSignUp ? 'Sign in' : 'Create one'}
                   </Text>
@@ -252,8 +262,7 @@ export default function AuthScreen() {
             <Animated.View entering={FadeIn.duration(500).delay(280)} style={styles.footer}>
               <Text style={[styles.footerText, { color: colors.textQuaternary }]}>
                 By continuing you agree to our{' '}
-                <Text style={{ textDecorationLine: 'underline' }}>Terms</Text>
-                {' '}and{' '}
+                <Text style={{ textDecorationLine: 'underline' }}>Terms</Text> and{' '}
                 <Text style={{ textDecorationLine: 'underline' }}>Privacy Policy</Text>.
               </Text>
             </Animated.View>

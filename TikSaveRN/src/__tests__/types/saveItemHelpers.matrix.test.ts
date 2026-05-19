@@ -39,7 +39,9 @@ describe('saveItemHelpers.matrix — getDisplayTitle', () => {
   }
   for (let i = 0; i < 40; i++) {
     it(`default label ${i}`, () => {
-      expect(getDisplayTitle(buildSaveItem({ title: '', transcriptText: '' }))).toBe('TikTok Video');
+      expect(getDisplayTitle(buildSaveItem({ title: '', transcriptText: '' }))).toBe(
+        'TikTok Video',
+      );
     });
   }
 });
@@ -47,7 +49,9 @@ describe('saveItemHelpers.matrix — getDisplayTitle', () => {
 describe('saveItemHelpers.matrix — needsUserReview', () => {
   for (let i = 0; i < 50; i++) {
     it(`status needs_review ${i}`, () => {
-      expect(needsUserReview(buildSaveItem({ status: 'needs_review', confidence: 0.99 }))).toBe(true);
+      expect(needsUserReview(buildSaveItem({ status: 'needs_review', confidence: 0.99 }))).toBe(
+        true,
+      );
     });
   }
   for (let c = 0; c <= 100; c++) {
@@ -75,7 +79,9 @@ describe('saveItemHelpers.matrix — status flags', () => {
     for (let i = 0; i < 3; i++) {
       it(`loading ${status} #${i}`, () => {
         const loading = isLoadingStatus(status);
-        expect(['queued', 'upload_requested', 'uploading', 'processing'].includes(status)).toBe(loading);
+        expect(['queued', 'upload_requested', 'uploading', 'processing'].includes(status)).toBe(
+          loading,
+        );
       });
       it(`library ${status} #${i}`, () => {
         const listed = isLibraryListedStatus(status);

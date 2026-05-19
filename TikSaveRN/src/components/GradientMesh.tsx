@@ -5,13 +5,7 @@
 
 import React from 'react';
 import { StyleSheet, View, ViewStyle } from 'react-native';
-import Svg, {
-  Defs,
-  RadialGradient,
-  Stop,
-  Rect,
-  Circle,
-} from 'react-native-svg';
+import Svg, { Defs, RadialGradient, Stop, Rect, Circle } from 'react-native-svg';
 
 interface MeshBlob {
   /** Center X as a 0–1 fraction of the mesh width. */
@@ -47,7 +41,11 @@ export function GradientMesh({ blobs, style }: GradientMeshProps) {
               fy="50%"
             >
               <Stop offset="0%" stopColor={blob.color} stopOpacity={blob.opacity ?? 0.55} />
-              <Stop offset="60%" stopColor={blob.color} stopOpacity={(blob.opacity ?? 0.55) * 0.25} />
+              <Stop
+                offset="60%"
+                stopColor={blob.color}
+                stopOpacity={(blob.opacity ?? 0.55) * 0.25}
+              />
               <Stop offset="100%" stopColor={blob.color} stopOpacity={0} />
             </RadialGradient>
           ))}

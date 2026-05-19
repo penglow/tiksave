@@ -42,11 +42,7 @@ export function RotatingLogo({
   const scale = useSharedValue(1);
 
   useEffect(() => {
-    angle.value = withRepeat(
-      withTiming(360, { duration, easing: Easing.linear }),
-      -1,
-      false,
-    );
+    angle.value = withRepeat(withTiming(360, { duration, easing: Easing.linear }), -1, false);
 
     if (pulse) {
       scale.value = withRepeat(

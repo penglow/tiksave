@@ -23,7 +23,15 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { Spacing, BorderRadius, Typography, Hairline, Gradients, Shadows, TAB_BAR_OVERLAP } from '../config';
+import {
+  Spacing,
+  BorderRadius,
+  Typography,
+  Hairline,
+  Gradients,
+  Shadows,
+  TAB_BAR_OVERLAP,
+} from '../config';
 import { getDisplayTitle } from '../types';
 import { apiService } from '../services/api';
 import { InboxStackScreenProps } from '../navigation/types';
@@ -139,10 +147,7 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
       {/* Title Section */}
       <AnimatedListItem index={0} direction="fade">
         <View style={styles.titleSection}>
-          <Text
-            selectable={false}
-            style={[styles.title, { color: colors.text }, webScrollAssist]}
-          >
+          <Text selectable={false} style={[styles.title, { color: colors.text }, webScrollAssist]}>
             {getDisplayTitle(item)}
           </Text>
           {item.creatorUsername && (
@@ -174,7 +179,9 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
 
       {/* Info Section */}
       <AnimatedListItem index={2} direction="fade">
-        <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View
+          style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        >
           {/* Folder */}
           {item.folderName && (
             <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
@@ -235,16 +242,20 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
                       styles.confidenceFill,
                       {
                         width: `${item.confidence * 100}%`,
-                        backgroundColor: item.confidence >= 0.85
-                          ? colors.success
-                          : item.confidence >= 0.6
-                            ? colors.warning
-                            : colors.error,
+                        backgroundColor:
+                          item.confidence >= 0.85
+                            ? colors.success
+                            : item.confidence >= 0.6
+                              ? colors.warning
+                              : colors.error,
                       },
                     ]}
                   />
                 </View>
-                <Text selectable={false} style={[styles.confidenceText, { color: colors.textTertiary }, webScrollAssist]}>
+                <Text
+                  selectable={false}
+                  style={[styles.confidenceText, { color: colors.textTertiary }, webScrollAssist]}
+                >
                   {Math.round(item.confidence * 100)}%
                 </Text>
               </View>
@@ -259,7 +270,10 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
                 <Text style={[styles.infoLabel, { color: colors.textTertiary }]}>Location</Text>
               </View>
               <View style={styles.locationContainer}>
-                <Text selectable={false} style={[styles.infoValue, { color: colors.text }, webScrollAssist]}>
+                <Text
+                  selectable={false}
+                  style={[styles.infoValue, { color: colors.text }, webScrollAssist]}
+                >
                   {item.locationName}
                 </Text>
                 {item.address && (
@@ -280,14 +294,17 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
       {item.latitude && item.longitude && (
         <AnimatedListItem index={3} direction="fade">
           <AnimatedPressable
-            style={[styles.outlineButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+            style={[
+              styles.outlineButton,
+              { borderColor: colors.border, backgroundColor: colors.surface },
+            ]}
             onPress={() => {
               const lat = item.latitude;
               const lng = item.longitude;
               const label = item.locationName || 'Location';
               const url = Platform.select({
                 ios: `maps:0,0?q=${label}@${lat},${lng}`,
-                android: `geo:0,0?q=${lat},${lng}(${label})`
+                android: `geo:0,0?q=${lat},${lng}(${label})`,
               });
               if (url) Linking.openURL(url);
             }}
@@ -305,8 +322,15 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
       {item.rawSharedText && (
         <AnimatedListItem index={4} direction="fade">
           <View style={styles.section}>
-            <Text style={[styles.sectionLabel, { color: colors.textTertiary }, webScrollAssist]}>DESCRIPTION</Text>
-            <View style={[styles.textCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.sectionLabel, { color: colors.textTertiary }, webScrollAssist]}>
+              DESCRIPTION
+            </Text>
+            <View
+              style={[
+                styles.textCard,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
               <Text
                 selectable={false}
                 style={[styles.descriptionText, { color: colors.textSecondary }, webScrollAssist]}
@@ -322,8 +346,15 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
       {item.transcriptText && (
         <AnimatedListItem index={5} direction="fade">
           <View style={styles.section}>
-            <Text style={[styles.sectionLabel, { color: colors.textTertiary }, webScrollAssist]}>TRANSCRIPT</Text>
-            <View style={[styles.textCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.sectionLabel, { color: colors.textTertiary }, webScrollAssist]}>
+              TRANSCRIPT
+            </Text>
+            <View
+              style={[
+                styles.textCard,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
               <Text
                 selectable={false}
                 style={[styles.transcriptText, { color: colors.textSecondary }, webScrollAssist]}
@@ -348,9 +379,7 @@ export default function VideoDetailScreen({ route, navigation }: Props) {
           ) : (
             <>
               <Ionicons name="trash-outline" size={16} color={colors.error} />
-              <Text style={[styles.deleteButtonText, { color: colors.error }]}>
-                Delete Video
-              </Text>
+              <Text style={[styles.deleteButtonText, { color: colors.error }]}>Delete Video</Text>
             </>
           )}
         </AnimatedPressable>

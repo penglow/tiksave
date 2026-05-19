@@ -26,8 +26,7 @@ import { apiService, APIError } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import { InboxStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
-import { AnimatedPressable, AnimatedListItem, AnimatedText } from '../components';
-import MoveFolderModal from '../components/MoveFolderModal';
+import { AnimatedPressable, AnimatedListItem, AnimatedText, MoveFolderModal } from '../components';
 import { formatTimeAgo } from '../utils/date';
 
 type Props = InboxStackScreenProps<'InboxMain'>;
@@ -50,7 +49,7 @@ export default function InboxScreen({ navigation }: Props) {
       setError(null);
       const allItems = await apiService.getItems();
       const sorted = allItems.sort(
-        (a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
+        (a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime(),
       );
       setItems(sorted);
 
@@ -72,7 +71,7 @@ export default function InboxScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       loadItems();
-    }, [loadItems])
+    }, [loadItems]),
   );
 
   const handleRefresh = useCallback(() => {
@@ -102,26 +101,29 @@ export default function InboxScreen({ navigation }: Props) {
     [navigation],
   );
 
-  const handleMoveItem = useCallback(async (folderId: string | null) => {
-    if (!selectedItem) return;
-    setIsMoving(true);
-    try {
-      await apiService.moveItemToFolder(selectedItem.id, folderId);
-      setShowMoveModal(false);
-      setSelectedItem(null);
-      loadItems();
-    } catch (err) {
-      console.error('Failed to move item:', err);
-      // Show error inline - don't close modal
-      if (err instanceof APIError) {
-        setError(err.message);
-      } else {
-        setError('Failed to move item. Please try again.');
+  const handleMoveItem = useCallback(
+    async (folderId: string | null) => {
+      if (!selectedItem) return;
+      setIsMoving(true);
+      try {
+        await apiService.moveItemToFolder(selectedItem.id, folderId);
+        setShowMoveModal(false);
+        setSelectedItem(null);
+        loadItems();
+      } catch (err) {
+        console.error('Failed to move item:', err);
+        // Show error inline - don't close modal
+        if (err instanceof APIError) {
+          setError(err.message);
+        } else {
+          setError('Failed to move item. Please try again.');
+        }
+      } finally {
+        setIsMoving(false);
       }
-    } finally {
-      setIsMoving(false);
-    }
-  }, [selectedItem, loadItems]);
+    },
+    [selectedItem, loadItems],
+  );
 
   // --- Derived section lists --------------------------------------------------
 
@@ -139,7 +141,9 @@ export default function InboxScreen({ navigation }: Props) {
 
   if (error && items.length === 0) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <View
+        style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
+      >
         <InboxScreenHeader titleColor={colors.text} />
         <InboxErrorView
           errorSubtleColor={colors.errorSubtle}
@@ -156,7 +160,9 @@ export default function InboxScreen({ navigation }: Props) {
 
   if (items.length === 0) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <View
+        style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
+      >
         <InboxScreenHeader titleColor={colors.text} />
         <InboxEmptyView
           accentSubtleColor={colors.accentSubtle}
@@ -169,7 +175,9 @@ export default function InboxScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View
+      style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
+    >
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Inbox</Text>
@@ -196,15 +204,12 @@ export default function InboxScreen({ navigation }: Props) {
         {processingItems.length > 0 && (
           <AnimatedListItem index={0} direction="fade">
             <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
-                PROCESSING
-              </Text>
+              <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>PROCESSING</Text>
               {processingItems.map((item, index) => (
-                <View
-                  key={item.id}
-                  style={[styles.itemRow, { borderBottomColor: colors.border }]}
-                >
-                  <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.accentSubtle }]}>
+                <View key={item.id} style={[styles.itemRow, { borderBottomColor: colors.border }]}>
+                  <View
+                    style={[styles.thumbnailPlaceholder, { backgroundColor: colors.accentSubtle }]}
+                  >
                     <ActivityIndicator size="small" color={colors.text} />
                   </View>
                   <View style={styles.itemContent}>
@@ -225,16 +230,16 @@ export default function InboxScreen({ navigation }: Props) {
         {needsReviewItems.length > 0 && (
           <AnimatedListItem index={1} direction="fade">
             <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: colors.warning }]}>
-                NEEDS REVIEW
-              </Text>
+              <Text style={[styles.sectionLabel, { color: colors.warning }]}>NEEDS REVIEW</Text>
               {needsReviewItems.map((item) => (
                 <AnimatedPressable
                   key={item.id}
                   style={[styles.itemRow, { borderBottomColor: colors.border }]}
                   onPress={() => openMoveModalForItem(item)}
                 >
-                  <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.warningSubtle }]}>
+                  <View
+                    style={[styles.thumbnailPlaceholder, { backgroundColor: colors.warningSubtle }]}
+                  >
                     <Ionicons name="alert-circle" size={18} color={colors.warning} />
                   </View>
                   <View style={styles.itemContent}>

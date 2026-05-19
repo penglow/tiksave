@@ -4,9 +4,9 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import { Text, StyleSheet, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BorderRadius, Typography, Spacing } from '../config';
+import { BorderRadius, Typography } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { AnimatedPressable } from './AnimatedPressable';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,14 +51,23 @@ export function GradientButton({
         disabled={disabled || loading}
         style={[
           styles.button,
-          { borderRadius: s.borderRadius, paddingVertical: s.paddingVertical, paddingHorizontal: s.paddingHorizontal },
+          {
+            borderRadius: s.borderRadius,
+            paddingVertical: s.paddingVertical,
+            paddingHorizontal: s.paddingHorizontal,
+          },
           { backgroundColor: colors.accentSubtle },
           style,
         ]}
         haptic
       >
         {icon && (
-          <Ionicons name={icon} size={size === 'sm' ? 14 : 18} color={colors.accent} style={styles.icon} />
+          <Ionicons
+            name={icon}
+            size={size === 'sm' ? 14 : 18}
+            color={colors.accent}
+            style={styles.icon}
+          />
         )}
         <Text style={[styles.text, { color: colors.accent, fontSize: size === 'sm' ? 13 : 15 }]}>
           {children}
@@ -87,7 +96,12 @@ export function GradientButton({
         haptic
       >
         {icon && (
-          <Ionicons name={icon} size={size === 'sm' ? 14 : 18} color={colors.text} style={styles.icon} />
+          <Ionicons
+            name={icon}
+            size={size === 'sm' ? 14 : 18}
+            color={colors.text}
+            style={styles.icon}
+          />
         )}
         <Text style={[styles.text, { color: colors.text, fontSize: size === 'sm' ? 13 : 15 }]}>
           {children}
@@ -97,9 +111,7 @@ export function GradientButton({
   }
 
   // Primary: warm gradient tuned per theme
-  const gradientColors: [string, string] = isDark
-    ? ['#e8705a', '#c45a46']
-    : ['#f28b78', '#d45a44'];
+  const gradientColors: [string, string] = isDark ? ['#e8705a', '#c45a46'] : ['#f28b78', '#d45a44'];
 
   return (
     <AnimatedPressable
@@ -122,7 +134,12 @@ export function GradientButton({
         ]}
       >
         {icon && (
-          <Ionicons name={icon} size={size === 'sm' ? 14 : 18} color="#ffffff" style={styles.icon} />
+          <Ionicons
+            name={icon}
+            size={size === 'sm' ? 14 : 18}
+            color="#ffffff"
+            style={styles.icon}
+          />
         )}
         <Text style={[styles.text, { color: '#ffffff', fontSize: size === 'sm' ? 13 : 15 }]}>
           {children}

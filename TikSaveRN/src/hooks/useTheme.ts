@@ -26,10 +26,7 @@ export function useTheme() {
     return userSettings.theme;
   }, [userSettings.theme, systemColorScheme]);
 
-  const colors = useMemo(
-    () => getThemeColors(effectiveTheme === 'dark'),
-    [effectiveTheme],
-  );
+  const colors = useMemo(() => getThemeColors(effectiveTheme === 'dark'), [effectiveTheme]);
 
   return {
     colors,

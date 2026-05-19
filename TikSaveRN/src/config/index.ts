@@ -36,7 +36,8 @@ const getApiUrl = () => {
 };
 
 const getGoogleMapsApiKey = (): string => {
-  const envKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || Constants.expoConfig?.extra?.googleMapsApiKey;
+  const envKey =
+    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || Constants.expoConfig?.extra?.googleMapsApiKey;
   return typeof envKey === 'string' ? envKey.trim() : '';
 };
 
@@ -48,7 +49,7 @@ export const Config = {
   enableVideoUpload: true,
   autoFileHighConfidence: true,
   highConfidenceThreshold: 0.85,
-  mediumConfidenceThreshold: 0.60,
+  mediumConfidenceThreshold: 0.6,
   thumbnailCacheSize: 100 * 1024 * 1024,
   maxCachedThumbnails: 500,
   apiTimeoutMs: 60000,
@@ -453,32 +454,62 @@ export const Animation = {
 
 export const Shadows = {
   xs: Platform.select({
-    ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
+    ios: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+    },
     android: { elevation: 1 },
     default: { boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)' },
   }),
   sm: Platform.select({
-    ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6 },
+    ios: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+    },
     android: { elevation: 2 },
     default: { boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)' },
   }),
   md: Platform.select({
-    ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.10, shadowRadius: 16 },
+    ios: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.1,
+      shadowRadius: 16,
+    },
     android: { elevation: 5 },
     default: { boxShadow: '0 6px 20px rgba(0, 0, 0, 0.10)' },
   }),
   lg: Platform.select({
-    ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.14, shadowRadius: 32 },
+    ios: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.14,
+      shadowRadius: 32,
+    },
     android: { elevation: 10 },
     default: { boxShadow: '0 12px 32px rgba(0, 0, 0, 0.14)' },
   }),
   glow: Platform.select({
-    ios: { shadowColor: '#e8705a', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.30, shadowRadius: 20 },
+    ios: {
+      shadowColor: '#e8705a',
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.3,
+      shadowRadius: 20,
+    },
     android: { elevation: 8 },
     default: { boxShadow: '0 0 24px rgba(232, 112, 90, 0.30)' },
   }),
   warm: Platform.select({
-    ios: { shadowColor: '#e8705a', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 16 },
+    ios: {
+      shadowColor: '#e8705a',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 16,
+    },
     android: { elevation: 4 },
     default: { boxShadow: '0 4px 16px rgba(232, 112, 90, 0.08)' },
   }),

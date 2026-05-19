@@ -23,9 +23,7 @@ export function parseDetectedTopic(primaryTopic: string): {
 }
 
 /** True when the primary topic includes a subcategory segment (`Parent > Child`). */
-export function itemHasSubcategoryTopic(
-  item: Pick<SaveItem, 'detectedTopics'>,
-): boolean {
+export function itemHasSubcategoryTopic(item: Pick<SaveItem, 'detectedTopics'>): boolean {
   const primaryTopic = item.detectedTopics?.[0] || 'Saved';
   return parseDetectedTopic(primaryTopic).subName !== null;
 }
@@ -33,7 +31,7 @@ export function itemHasSubcategoryTopic(
 export function itemBelongsToLibraryCategory(
   item: Pick<SaveItem, 'status' | 'detectedTopics'>,
   categoryName: string,
-  subcategoryName?: string
+  subcategoryName?: string,
 ): boolean {
   if (!isLibraryListedStatus(item.status as SaveItemStatus)) {
     return false;

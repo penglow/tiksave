@@ -6,7 +6,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Spacing, Typography, Hairline } from '../config';
+import { Spacing, Typography } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { AnimatedPressable } from './AnimatedPressable';
 
@@ -34,21 +34,14 @@ export function SectionHeader({
   return (
     <View style={[styles.container, style]}>
       <Text
-        style={[
-          variant === 'large' ? styles.titleLarge : styles.title,
-          { color: colors.text },
-        ]}
+        style={[variant === 'large' ? styles.titleLarge : styles.title, { color: colors.text }]}
       >
         {title}
       </Text>
       {onAction && (
         <AnimatedPressable onPress={onAction} style={styles.action} haptic>
-          <Text style={[styles.actionLabel, { color: colors.accent }]}>
-            {actionLabel}
-          </Text>
-          {actionIcon && (
-            <Ionicons name={actionIcon} size={14} color={colors.accent} />
-          )}
+          <Text style={[styles.actionLabel, { color: colors.accent }]}>{actionLabel}</Text>
+          {actionIcon && <Ionicons name={actionIcon} size={14} color={colors.accent} />}
         </AnimatedPressable>
       )}
     </View>

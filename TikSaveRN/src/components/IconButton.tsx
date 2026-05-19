@@ -4,9 +4,9 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import { StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BorderRadius, Spacing } from '../config';
+import { BorderRadius } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { AnimatedPressable } from './AnimatedPressable';
 

@@ -8,6 +8,21 @@ TikSave is a full-stack app for saving TikTok links, classifying them into folde
 - `TikSaveRN/` Expo React Native app (iOS, Android, web)
 - `database/` Docker Compose for PostgreSQL (pgvector) and Redis
 - `security/gcp/` GCP security hardening scripts and guidance
+- `docs/STYLE_GUIDE.md` coding conventions (imports, layout, naming)
+
+## Code Style
+
+From `TikSaveRN/`:
+
+```powershell
+bun run format      # Prettier
+bun run lint        # ESLint (src only)
+bun run typecheck   # TypeScript
+```
+
+See [docs/STYLE_GUIDE.md](docs/STYLE_GUIDE.md) for project conventions.
+
+After pulling style-guide changes, restart Expo with a clean cache if modules fail to resolve: `bunx expo start -c`.
 
 ## Tech Stack
 

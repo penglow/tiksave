@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Spacing, BorderRadius, Typography, Hairline, Shadows, TAB_BAR_OVERLAP } from '../config';
-import { Folder, FolderNode, getDisplayIcon } from '../types';
+import { Folder, FolderNode } from '../types';
 import { apiService } from '../services/api';
 import { FoldersStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
@@ -87,7 +87,7 @@ export default function FoldersScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       loadFolders();
-    }, [loadFolders])
+    }, [loadFolders]),
   );
 
   const handleRefresh = useCallback(() => {
@@ -125,7 +125,9 @@ export default function FoldersScreen({ navigation }: Props) {
 
   if (folderNodes.length === 0) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <View
+        style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
+      >
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Folders</Text>
         </View>
@@ -151,7 +153,9 @@ export default function FoldersScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View
+      style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
+    >
       {/* Header */}
       <View style={styles.header}>
         <View>
@@ -319,7 +323,9 @@ function FolderNodeView({
               <View style={[styles.childIconWrapper, { backgroundColor: colors.accentSubtle }]}>
                 <Ionicons name="folder-outline" size={14} color={colors.accent} />
               </View>
-              <Text style={[styles.childName, { color: colors.text }]}>{childNode.folder.name}</Text>
+              <Text style={[styles.childName, { color: colors.text }]}>
+                {childNode.folder.name}
+              </Text>
               <Text style={[styles.childCount, { color: colors.textQuaternary }]}>
                 {childNode.folder.itemCount}
               </Text>
@@ -394,7 +400,10 @@ function AddFolderModal({
 
           <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>NAME</Text>
           <TextInput
-            style={[styles.textInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
+            style={[
+              styles.textInput,
+              { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface },
+            ]}
             placeholder="Folder name"
             placeholderTextColor={colors.textQuaternary}
             value={name}
@@ -404,8 +413,14 @@ function AddFolderModal({
 
           {topLevelFolders.length > 0 && (
             <>
-              <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>PARENT (OPTIONAL)</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.parentPicker}>
+              <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>
+                PARENT (OPTIONAL)
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.parentPicker}
+              >
                 <AnimatedPressable
                   style={[
                     styles.parentOption,
@@ -424,7 +439,8 @@ function AddFolderModal({
                     style={[
                       styles.parentOption,
                       {
-                        backgroundColor: selectedParentId === folder.id ? colors.accentSubtle : 'transparent',
+                        backgroundColor:
+                          selectedParentId === folder.id ? colors.accentSubtle : 'transparent',
                         borderColor: selectedParentId === folder.id ? colors.accent : colors.border,
                       },
                     ]}

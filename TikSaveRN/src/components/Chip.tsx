@@ -6,7 +6,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BorderRadius, Typography, Spacing } from '../config';
+import { BorderRadius, Typography } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { AnimatedPressable } from './AnimatedPressable';
 
@@ -47,12 +47,7 @@ export function Chip({ label, icon, selected, onPress, onRemove, style, disabled
           style={styles.icon}
         />
       )}
-      <Text
-        style={[
-          styles.label,
-          { color: selected ? colors.background : colors.textSecondary },
-        ]}
-      >
+      <Text style={[styles.label, { color: selected ? colors.background : colors.textSecondary }]}>
         {label}
       </Text>
       {onRemove && (
@@ -66,12 +61,7 @@ export function Chip({ label, icon, selected, onPress, onRemove, style, disabled
   if (!isInteractive) return content;
 
   return (
-    <AnimatedPressable
-      onPress={onPress}
-      disabled={disabled}
-      scaleOnPress={0.95}
-      haptic
-    >
+    <AnimatedPressable onPress={onPress} disabled={disabled} scaleOnPress={0.95} haptic>
       {content}
     </AnimatedPressable>
   );

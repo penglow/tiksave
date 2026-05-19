@@ -7,7 +7,6 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
 import { RootStackParamList } from './types';
-import { Colors } from '../config';
 import { useAuthStore } from '../stores/authStore';
 import { useTheme } from '../hooks/useTheme';
 

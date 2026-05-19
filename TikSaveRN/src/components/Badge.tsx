@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { BorderRadius, Typography, Spacing } from '../config';
+import { BorderRadius, Typography } from '../config';
 import { useTheme } from '../hooks/useTheme';
 
 // --- Types / props ---

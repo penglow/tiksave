@@ -12,8 +12,9 @@ import { Platform } from 'react-native';
 // Platform re-export
 // -----------------------------------------------------------------------------
 
-const MapScreen = Platform.OS === 'web'
-  ? require('./MapScreen.web').default
-  : require('./MapScreen.native').default;
+const MapScreen =
+  Platform.OS === 'web'
+    ? require('./MapScreen.web').default
+    : require('./MapScreen.native').default;
 
 export default MapScreen;

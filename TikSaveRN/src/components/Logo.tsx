@@ -147,10 +147,7 @@ export function LogoBadge({
       // Oversize → snap into place, with a small rotational kick that settles.
       scale.value = withDelay(
         entranceDelay,
-        withSequence(
-          withTiming(1.18, { duration: 180 }),
-          withSpring(1, Animation.spring.bouncy),
-        ),
+        withSequence(withTiming(1.18, { duration: 180 }), withSpring(1, Animation.spring.bouncy)),
       );
       rotation.value = withDelay(
         entranceDelay,

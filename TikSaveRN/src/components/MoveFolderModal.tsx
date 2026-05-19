@@ -4,14 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  ScrollView,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, Modal, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Spacing, BorderRadius, Typography, Hairline } from '../config';
@@ -104,8 +97,7 @@ export default function MoveFolderModal({ visible, item, onClose, onMove }: Prop
             <AnimatedPressable
               onPress={handleMove}
               disabled={
-                selectedFolderId === undefined ||
-                selectedFolderId === (item.folderId || null)
+                selectedFolderId === undefined || selectedFolderId === (item.folderId || null)
               }
             >
               <Text
@@ -113,7 +105,8 @@ export default function MoveFolderModal({ visible, item, onClose, onMove }: Prop
                   styles.moveText,
                   { color: colors.text },
                   (selectedFolderId === undefined ||
-                    selectedFolderId === (item.folderId || null)) && styles.moveTextDisabled,
+                    selectedFolderId === (item.folderId || null)) &&
+                    styles.moveTextDisabled,
                 ]}
               >
                 Move
@@ -151,9 +144,7 @@ export default function MoveFolderModal({ visible, item, onClose, onMove }: Prop
               {/* Library Option */}
               {item.folderId && (
                 <View style={styles.section}>
-                  <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
-                    MOVE TO
-                  </Text>
+                  <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>MOVE TO</Text>
                   <AnimatedPressable
                     style={[
                       styles.folderRow,
@@ -186,11 +177,15 @@ export default function MoveFolderModal({ visible, item, onClose, onMove }: Prop
                     style={[
                       styles.folderRow,
                       { borderBottomColor: colors.border },
-                      selectedFolderId === suggestedFolder.id && { backgroundColor: colors.accentSubtle },
+                      selectedFolderId === suggestedFolder.id && {
+                        backgroundColor: colors.accentSubtle,
+                      },
                     ]}
                     onPress={() => setSelectedFolderId(suggestedFolder.id)}
                   >
-                    <Text style={styles.folderEmoji}>{getDisplayIcon(suggestedFolder) || '📁'}</Text>
+                    <Text style={styles.folderEmoji}>
+                      {getDisplayIcon(suggestedFolder) || '📁'}
+                    </Text>
                     <View style={styles.folderInfo}>
                       <Text style={[styles.folderName, { color: colors.text }]}>
                         {suggestedFolder.name}
@@ -232,12 +227,7 @@ export default function MoveFolderModal({ visible, item, onClose, onMove }: Prop
 }
 
 // --- Helpers (subcomponents) ---
-function FolderNodeItem({
-  node,
-  selectedId,
-  currentFolderId,
-  onSelect,
-}: FolderNodeItemProps) {
+function FolderNodeItem({ node, selectedId, currentFolderId, onSelect }: FolderNodeItemProps) {
   const { colors } = useTheme();
   const [isExpanded, setIsExpanded] = useState(true);
   const hasChildren = node.children.length > 0;
@@ -256,10 +246,7 @@ function FolderNodeItem({
         disabled={isCurrent}
       >
         {hasChildren && (
-          <AnimatedPressable
-            onPress={() => setIsExpanded(!isExpanded)}
-            style={styles.expandButton}
-          >
+          <AnimatedPressable onPress={() => setIsExpanded(!isExpanded)} style={styles.expandButton}>
             <Ionicons
               name="chevron-down"
               size={14}
@@ -273,10 +260,7 @@ function FolderNodeItem({
         <Text style={styles.folderEmoji}>{getDisplayIcon(node.folder) || '📁'}</Text>
 
         <Text
-          style={[
-            styles.folderName,
-            { color: isCurrent ? colors.textQuaternary : colors.text },
-          ]}
+          style={[styles.folderName, { color: isCurrent ? colors.textQuaternary : colors.text }]}
         >
           {node.folder.name}
         </Text>
@@ -315,7 +299,9 @@ function FolderNodeItem({
                   {childNode.folder.name}
                 </Text>
                 {childIsCurrent && (
-                  <Text style={[styles.currentLabel, { color: colors.textQuaternary }]}>Current</Text>
+                  <Text style={[styles.currentLabel, { color: colors.textQuaternary }]}>
+                    Current
+                  </Text>
                 )}
                 {childIsSelected && <Ionicons name="checkmark" size={16} color={colors.text} />}
               </AnimatedPressable>

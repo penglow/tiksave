@@ -7,15 +7,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  Platform,
-  ScrollView,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, TextInput, Platform, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -54,19 +46,14 @@ import {
   UrlPreviewChip,
   ProcessingProgress,
 } from '../components';
-import {
-  fetchTikTokOEmbedPreview,
-  type TikTokOEmbedPreview,
-} from '../utils/tiktokOEmbed';
+import { fetchTikTokOEmbedPreview, type TikTokOEmbedPreview } from '../utils/tiktokOEmbed';
 import { usePaginationCacheStore } from '../stores/paginationCacheStore';
 
 // -----------------------------------------------------------------------------
 // Types
 // -----------------------------------------------------------------------------
 
-type Props =
-  | LibraryStackScreenProps<'AddVideo'>
-  | AddStackScreenProps<'AddMain'>;
+type Props = LibraryStackScreenProps<'AddVideo'> | AddStackScreenProps<'AddMain'>;
 
 interface ImportingItem {
   id: string;
@@ -114,7 +101,9 @@ export default function AddVideoScreen({ navigation }: Props) {
   const [pendingSubmit, setPendingSubmit] = useState(false);
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [previews, setPreviews] = useState<Record<string, { loading: boolean; data?: TikTokOEmbedPreview }>>({});
+  const [previews, setPreviews] = useState<
+    Record<string, { loading: boolean; data?: TikTokOEmbedPreview }>
+  >({});
   const [howToOpen, setHowToOpen] = useState(false);
   const [cancellingItemIds, setCancellingItemIds] = useState<Set<string>>(new Set());
 
@@ -130,7 +119,12 @@ export default function AddVideoScreen({ navigation }: Props) {
   const pendingShareUrl = useAppStore((state) => state.pendingShareUrl);
   const clearPendingShare = useAppStore((state) => state.clearPendingShare);
 
-  const { urls: clipboardUrls, hasUrls: hasClipboardUrls, dismissUrls, clearUrls } = useClipboard({
+  const {
+    urls: clipboardUrls,
+    hasUrls: hasClipboardUrls,
+    dismissUrls,
+    clearUrls,
+  } = useClipboard({
     autoCheck: true,
     onlyNew: true,
   });
@@ -215,8 +209,14 @@ export default function AddVideoScreen({ navigation }: Props) {
     inputShake.value = withSequence(
       withTiming(-Animation.shake.amplitude, { duration: 60, easing: Easing.out(Easing.quad) }),
       withTiming(Animation.shake.amplitude, { duration: 60, easing: Easing.inOut(Easing.quad) }),
-      withTiming(-Animation.shake.amplitude * 0.6, { duration: 60, easing: Easing.inOut(Easing.quad) }),
-      withTiming(Animation.shake.amplitude * 0.4, { duration: 60, easing: Easing.inOut(Easing.quad) }),
+      withTiming(-Animation.shake.amplitude * 0.6, {
+        duration: 60,
+        easing: Easing.inOut(Easing.quad),
+      }),
+      withTiming(Animation.shake.amplitude * 0.4, {
+        duration: 60,
+        easing: Easing.inOut(Easing.quad),
+      }),
       withTiming(0, { duration: 80, easing: Easing.in(Easing.quad) }),
     );
   };
@@ -281,9 +281,7 @@ export default function AddVideoScreen({ navigation }: Props) {
   const updateItemStatus = useCallback(
     (itemId: string, status: 'complete' | 'error') => {
       setImportingItems((prev) => {
-        const next = prev.map((i) =>
-          i.id === itemId ? { ...i, status } : i,
-        );
+        const next = prev.map((i) => (i.id === itemId ? { ...i, status } : i));
         const stillWorking = next.some((i) => i.status === 'processing');
         if (!stillWorking && next.length > 0) {
           const gen = next[0].generation;
@@ -295,39 +293,42 @@ export default function AddVideoScreen({ navigation }: Props) {
     [finalizeImportSession],
   );
 
-  const handleSingleImport = useCallback(async (url: string) => {
-    if (!isTikTokUrl(url)) {
-      setErrorMessage("That doesn't look like a TikTok URL.");
-      triggerInputShake();
-      return;
-    }
-    const generation = nextImportGeneration();
-    setPendingSubmit(true);
-    setIsImporting(true);
-    setImportStatus('idle');
-    setErrorMessage(null);
-
-    try {
-      const item = await apiService.createSaveItem(url);
-      const queued: ImportingItem = {
-        id: item.id,
-        url,
-        status: 'processing',
-        generation,
-      };
-      setImportingItems([queued]);
-      setPendingSubmit(false);
-      if (item.status === 'ready' || item.status === 'needs_review') {
-        setTimeout(() => updateItemStatus(item.id, 'complete'), 0);
+  const handleSingleImport = useCallback(
+    async (url: string) => {
+      if (!isTikTokUrl(url)) {
+        setErrorMessage("That doesn't look like a TikTok URL.");
+        triggerInputShake();
+        return;
       }
-    } catch (err) {
-      setPendingSubmit(false);
-      console.error('Failed to import:', err);
-      setImportStatus('error');
-      setIsImporting(false);
-      setErrorMessage('Import failed. Please try again.');
-    }
-  }, [updateItemStatus]);
+      const generation = nextImportGeneration();
+      setPendingSubmit(true);
+      setIsImporting(true);
+      setImportStatus('idle');
+      setErrorMessage(null);
+
+      try {
+        const item = await apiService.createSaveItem(url);
+        const queued: ImportingItem = {
+          id: item.id,
+          url,
+          status: 'processing',
+          generation,
+        };
+        setImportingItems([queued]);
+        setPendingSubmit(false);
+        if (item.status === 'ready' || item.status === 'needs_review') {
+          setTimeout(() => updateItemStatus(item.id, 'complete'), 0);
+        }
+      } catch (err) {
+        setPendingSubmit(false);
+        console.error('Failed to import:', err);
+        setImportStatus('error');
+        setIsImporting(false);
+        setErrorMessage('Import failed. Please try again.');
+      }
+    },
+    [updateItemStatus],
+  );
 
   useEffect(() => {
     if (pendingShareUrl) {
@@ -337,98 +338,104 @@ export default function AddVideoScreen({ navigation }: Props) {
     // intentional: deps tracked via [pendingShareUrl] only
   }, [pendingShareUrl]);
 
-  const handleBatchImport = useCallback(async (urls: string[]) => {
-    const invalid = urls.filter((u) => !isTikTokUrl(u));
-    if (invalid.length > 0) {
-      setErrorMessage(`${invalid.length} URL(s) are not TikTok links.`);
-      triggerInputShake();
-      return;
-    }
-
-    const generation = nextImportGeneration();
-    setPendingSubmit(true);
-    setIsImporting(true);
-    setImportStatus('idle');
-    setErrorMessage(null);
-
-    try {
-      const result = await apiService.batchCreateSaveItems(urls, {
-        skipDuplicates: true,
-        autoOrganize: true,
-      });
-
-      const queued: ImportingItem[] = result.items
-        .filter((i) => i.status === 'queued')
-        .map((i) => ({
-          id: i.id,
-          url: i.url,
-          status: 'processing',
-          generation,
-        }));
-
-      setImportingItems(queued);
-      setPendingSubmit(false);
-
-      const hasFeedback = result.duplicates > 0 || result.errors > 0;
-      if (hasFeedback) {
-        setErrorMessage(
-          `${result.queued} queued · ${result.duplicates} duplicates · ${result.errors} errors`,
-        );
+  const handleBatchImport = useCallback(
+    async (urls: string[]) => {
+      const invalid = urls.filter((u) => !isTikTokUrl(u));
+      if (invalid.length > 0) {
+        setErrorMessage(`${invalid.length} URL(s) are not TikTok links.`);
+        triggerInputShake();
+        return;
       }
 
-      if (queued.length === 0) {
-        setIsImporting(false);
-        // If there's a duplicate/error message, hold briefly so the user sees it before navigating.
+      const generation = nextImportGeneration();
+      setPendingSubmit(true);
+      setIsImporting(true);
+      setImportStatus('idle');
+      setErrorMessage(null);
+
+      try {
+        const result = await apiService.batchCreateSaveItems(urls, {
+          skipDuplicates: true,
+          autoOrganize: true,
+        });
+
+        const queued: ImportingItem[] = result.items
+          .filter((i) => i.status === 'queued')
+          .map((i) => ({
+            id: i.id,
+            url: i.url,
+            status: 'processing',
+            generation,
+          }));
+
+        setImportingItems(queued);
+        setPendingSubmit(false);
+
+        const hasFeedback = result.duplicates > 0 || result.errors > 0;
         if (hasFeedback) {
-          await new Promise((r) => setTimeout(r, 1800));
+          setErrorMessage(
+            `${result.queued} queued · ${result.duplicates} duplicates · ${result.errors} errors`,
+          );
         }
-        const nav = navigation as unknown as {
-          navigate: (name: string, params?: Record<string, unknown>) => void;
-        };
-        nav.navigate('Library', { screen: 'LibraryMain' });
-      }
-    } catch (err) {
-      setPendingSubmit(false);
-      console.error('Failed to batch import:', err);
-      setImportStatus('error');
-      setIsImporting(false);
-      setErrorMessage('Batch import failed. Please try again.');
-    }
-  }, [navigation]);
 
-  const handleCancelImport = useCallback(async (itemId: string) => {
-    setCancellingItemIds((prev) => {
-      const next = new Set(prev);
-      next.add(itemId);
-      return next;
-    });
-    try {
-      await apiService.deleteItem(itemId);
-      setImportingItems((prev) => {
-        const removed = prev.find((i) => i.id === itemId);
-        const gen = removed?.generation ?? importGenerationRef.current;
-        const next = prev.filter((i) => i.id !== itemId);
-        if (next.length === 0) {
+        if (queued.length === 0) {
           setIsImporting(false);
-          setImportStatus('idle');
-        } else {
-          const stillWorking = next.some((i) => i.status === 'processing');
-          if (!stillWorking) {
-            setTimeout(() => void finalizeImportSession(next, gen), 0);
+          // If there's a duplicate/error message, hold briefly so the user sees it before navigating.
+          if (hasFeedback) {
+            await new Promise((r) => setTimeout(r, 1800));
           }
+          const nav = navigation as unknown as {
+            navigate: (name: string, params?: Record<string, unknown>) => void;
+          };
+          nav.navigate('Library', { screen: 'LibraryMain' });
         }
-        return next;
-      });
-    } catch (err) {
-      console.error(`Failed to cancel ${itemId}:`, err);
-    } finally {
+      } catch (err) {
+        setPendingSubmit(false);
+        console.error('Failed to batch import:', err);
+        setImportStatus('error');
+        setIsImporting(false);
+        setErrorMessage('Batch import failed. Please try again.');
+      }
+    },
+    [navigation],
+  );
+
+  const handleCancelImport = useCallback(
+    async (itemId: string) => {
       setCancellingItemIds((prev) => {
         const next = new Set(prev);
-        next.delete(itemId);
+        next.add(itemId);
         return next;
       });
-    }
-  }, [finalizeImportSession]);
+      try {
+        await apiService.deleteItem(itemId);
+        setImportingItems((prev) => {
+          const removed = prev.find((i) => i.id === itemId);
+          const gen = removed?.generation ?? importGenerationRef.current;
+          const next = prev.filter((i) => i.id !== itemId);
+          if (next.length === 0) {
+            setIsImporting(false);
+            setImportStatus('idle');
+          } else {
+            const stillWorking = next.some((i) => i.status === 'processing');
+            if (!stillWorking) {
+              setTimeout(() => void finalizeImportSession(next, gen), 0);
+            }
+          }
+          return next;
+        });
+      } catch (err) {
+        console.error(`Failed to cancel ${itemId}:`, err);
+      } finally {
+        setCancellingItemIds((prev) => {
+          const next = new Set(prev);
+          next.delete(itemId);
+          return next;
+        });
+      }
+    },
+    [finalizeImportSession],
+  );
 
   const handlePrimaryPress = useCallback(() => {
     if (validUrls.length === 0) return;
@@ -456,20 +463,19 @@ export default function AddVideoScreen({ navigation }: Props) {
       return;
     }
 
-    Alert.alert(
-      'Cancel imports?',
-      'This will stop all imports currently in progress.',
-      [
-        { text: 'Keep importing', style: 'cancel' },
-        { text: 'Cancel imports', style: 'destructive', onPress: cancelAll },
-      ],
-    );
+    Alert.alert('Cancel imports?', 'This will stop all imports currently in progress.', [
+      { text: 'Keep importing', style: 'cancel' },
+      { text: 'Cancel imports', style: 'destructive', onPress: cancelAll },
+    ]);
   }, [importingItems, cancellingItemIds, handleCancelImport]);
 
-  const handleRemoveUrl = useCallback((url: string) => {
-    const remaining = parsedUrls.filter((u) => u !== url);
-    setManualUrl(remaining.join('\n'));
-  }, [parsedUrls]);
+  const handleRemoveUrl = useCallback(
+    (url: string) => {
+      const remaining = parsedUrls.filter((u) => u !== url);
+      setManualUrl(remaining.join('\n'));
+    },
+    [parsedUrls],
+  );
 
   const morphState: MorphState = useMemo(() => {
     if (importStatus === 'success') return { kind: 'done' };
@@ -484,9 +490,7 @@ export default function AddVideoScreen({ navigation }: Props) {
   }, [importStatus, isImporting, importingItems, pendingSubmit]);
 
   const morphLabel =
-    validUrls.length === 0
-      ? 'Paste a link to start'
-      : `Import ${validUrls.length} →`;
+    validUrls.length === 0 ? 'Paste a link to start' : `Import ${validUrls.length} →`;
 
   const morphVariant = validUrls.length === 0 && morphState.kind === 'idle' ? 'ghost' : 'solid';
 
@@ -522,7 +526,10 @@ export default function AddVideoScreen({ navigation }: Props) {
         <Animated.View
           entering={FadeInDown.duration(180)}
           exiting={FadeOut.duration(120)}
-          style={[styles.clipboardChip, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[
+            styles.clipboardChip,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
         >
           <Ionicons name="clipboard-outline" size={16} color={colors.accent} />
           <AnimatedPressable
@@ -553,9 +560,7 @@ export default function AddVideoScreen({ navigation }: Props) {
       {/* Input */}
       {!isImporting && (
         <View style={styles.inputBlock}>
-          <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>
-            PASTE TIKTOK URLS
-          </Text>
+          <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>PASTE TIKTOK URLS</Text>
           <Animated.View
             style={[
               styles.inputWrapper,
@@ -648,7 +653,10 @@ export default function AddVideoScreen({ navigation }: Props) {
         <Animated.View
           entering={FadeInDown.duration(160)}
           exiting={FadeOut.duration(120)}
-          style={[styles.errorChip, { backgroundColor: colors.errorSubtle, borderColor: colors.error }]}
+          style={[
+            styles.errorChip,
+            { backgroundColor: colors.errorSubtle, borderColor: colors.error },
+          ]}
         >
           <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
           <Text style={[styles.errorText, { color: colors.error }]} numberOfLines={2}>
@@ -747,7 +755,12 @@ function ImportingItemRow({
   }
   if (item.status === 'complete') {
     return (
-      <View style={[styles.statusCard, { backgroundColor: colors.successSubtle, borderColor: colors.successSubtle }]}>
+      <View
+        style={[
+          styles.statusCard,
+          { backgroundColor: colors.successSubtle, borderColor: colors.successSubtle },
+        ]}
+      >
         <Ionicons name="checkmark-circle" size={18} color={colors.success} />
         <Text style={[styles.statusText, { color: colors.success }]} numberOfLines={1}>
           Complete
@@ -756,7 +769,12 @@ function ImportingItemRow({
     );
   }
   return (
-    <View style={[styles.statusCard, { backgroundColor: colors.errorSubtle, borderColor: colors.errorSubtle }]}>
+    <View
+      style={[
+        styles.statusCard,
+        { backgroundColor: colors.errorSubtle, borderColor: colors.errorSubtle },
+      ]}
+    >
       <Ionicons name="close-circle" size={18} color={colors.error} />
       <Text style={[styles.statusText, { color: colors.error }]} numberOfLines={1}>
         Failed

@@ -97,7 +97,7 @@ export type ConfidenceLevel = 'high' | 'medium' | 'low';
 export const getConfidenceLevel = (
   confidence: number | undefined,
   highThreshold = 0.85,
-  mediumThreshold = 0.6
+  mediumThreshold = 0.6,
 ): ConfidenceLevel => {
   if (!confidence) return 'low';
   if (confidence >= highThreshold) return 'high';
@@ -183,62 +183,40 @@ const getFolderFallbackIcon = (name: string): string => {
   if (lowercased.includes('hotel') || lowercased.includes('stay')) return '🏨';
   if (lowercased.includes('attraction') || lowercased.includes('sightseeing')) return '🎡';
   if (lowercased.includes('shopping') || lowercased.includes('haul')) return '🛍️';
-  if (lowercased.includes('gym') || lowercased.includes('fitness') || lowercased.includes('workout')) return '💪';
+  if (
+    lowercased.includes('gym') ||
+    lowercased.includes('fitness') ||
+    lowercased.includes('workout')
+  )
+    return '💪';
   if (lowercased.includes('car') || lowercased.includes('auto')) return '🚗';
-  if (lowercased.includes('finance') || lowercased.includes('money') || lowercased.includes('invest')) return '💰';
+  if (
+    lowercased.includes('finance') ||
+    lowercased.includes('money') ||
+    lowercased.includes('invest')
+  )
+    return '💰';
   if (lowercased.includes('tech') || lowercased.includes('gadget')) return '📱';
-  if (lowercased.includes('fashion') || lowercased.includes('style') || lowercased.includes('outfit')) return '👗';
-  if (lowercased.includes('beauty') || lowercased.includes('makeup') || lowercased.includes('skincare')) return '💄';
-  if (lowercased.includes('pet') || lowercased.includes('dog') || lowercased.includes('cat')) return '🐾';
+  if (
+    lowercased.includes('fashion') ||
+    lowercased.includes('style') ||
+    lowercased.includes('outfit')
+  )
+    return '👗';
+  if (
+    lowercased.includes('beauty') ||
+    lowercased.includes('makeup') ||
+    lowercased.includes('skincare')
+  )
+    return '💄';
+  if (lowercased.includes('pet') || lowercased.includes('dog') || lowercased.includes('cat'))
+    return '🐾';
   if (lowercased.includes('diy') || lowercased.includes('craft')) return '🔨';
   if (lowercased.includes('music')) return '🎵';
   if (lowercased.includes('dance')) return '💃';
   if (lowercased.includes('comedy') || lowercased.includes('funny')) return '😂';
   if (lowercased.includes('education') || lowercased.includes('learn')) return '📚';
 
-  return '📁';
-};
-
-const getDefaultIconForName = (name: string): string => {
-  // Safety check: ensure name is valid
-  if (!name || typeof name !== 'string' || name.trim().length === 0) {
-    return '📁';
-  }
-
-  const lowercased = name.toLowerCase().trim();
-
-  // Travel destinations
-  if (lowercased.includes('japan')) return '🇯🇵';
-  if (lowercased.includes('korea')) return '🇰🇷';
-  if (lowercased.includes('china')) return '🇨🇳';
-  if (lowercased.includes('usa') || lowercased.includes('america')) return '🇺🇸';
-  if (lowercased.includes('uk') || lowercased.includes('britain')) return '🇬🇧';
-  if (lowercased.includes('france')) return '🇫🇷';
-  if (lowercased.includes('italy')) return '🇮🇹';
-  if (lowercased.includes('spain')) return '🇪🇸';
-  if (lowercased.includes('germany')) return '🇩🇪';
-  if (lowercased.includes('thailand')) return '🇹🇭';
-  if (lowercased.includes('vietnam')) return '🇻🇳';
-
-  // Categories
-  if (lowercased.includes('food') || lowercased.includes('recipe')) return '🍽️';
-  if (lowercased.includes('hotel') || lowercased.includes('stay')) return '🏨';
-  if (lowercased.includes('attraction') || lowercased.includes('sightseeing')) return '🎡';
-  if (lowercased.includes('shopping') || lowercased.includes('haul')) return '🛍️';
-  if (lowercased.includes('gym') || lowercased.includes('fitness') || lowercased.includes('workout')) return '💪';
-  if (lowercased.includes('car') || lowercased.includes('auto')) return '🚗';
-  if (lowercased.includes('finance') || lowercased.includes('money') || lowercased.includes('invest')) return '💰';
-  if (lowercased.includes('tech') || lowercased.includes('gadget')) return '📱';
-  if (lowercased.includes('fashion') || lowercased.includes('style') || lowercased.includes('outfit')) return '👗';
-  if (lowercased.includes('beauty') || lowercased.includes('makeup') || lowercased.includes('skincare')) return '💄';
-  if (lowercased.includes('pet') || lowercased.includes('dog') || lowercased.includes('cat')) return '🐾';
-  if (lowercased.includes('diy') || lowercased.includes('craft')) return '🔨';
-  if (lowercased.includes('music')) return '🎵';
-  if (lowercased.includes('dance')) return '💃';
-  if (lowercased.includes('comedy') || lowercased.includes('funny')) return '😂';
-  if (lowercased.includes('education') || lowercased.includes('learn')) return '📚';
-
-  // Default fallback
   return '📁';
 };
 
@@ -361,4 +339,3 @@ export interface OffsetPaginationParams {
   limit?: number;
   offset?: number;
 }
-

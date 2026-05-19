@@ -11,8 +11,6 @@ export interface PaginationCursorData {
 export function encodePaginationCursor(createdAt: string, id: string): string {
   const payload = JSON.stringify({ createdAt, id } satisfies PaginationCursorData);
   const base64 =
-    typeof btoa !== 'undefined'
-      ? btoa(payload)
-      : Buffer.from(payload, 'utf8').toString('base64');
+    typeof btoa !== 'undefined' ? btoa(payload) : Buffer.from(payload, 'utf8').toString('base64');
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }

@@ -2,17 +2,13 @@
  * Frontend test-case generators.
  */
 
-export function generateTikTokUrlsInText(count: number): Array<{ text: string; expected: string | null }> {
+export function generateTikTokUrlsInText(
+  count: number,
+): Array<{ text: string; expected: string | null }> {
   const out: Array<{ text: string; expected: string | null }> = [];
   for (let i = 0; i < count; i++) {
     const url = `https://www.tiktok.com/@user${i}/video/${7000000000000000000n + BigInt(i)}`;
-    const wrappers = [
-      `Check this ${url}`,
-      `${url} 🔥`,
-      `(${url})`,
-      `prefix ${url} suffix`,
-      url,
-    ];
+    const wrappers = [`Check this ${url}`, `${url} 🔥`, `(${url})`, `prefix ${url} suffix`, url];
     const text = wrappers[i % wrappers.length];
     out.push({ text, expected: url });
   }
@@ -44,7 +40,9 @@ export function generateDurationCases(count: number): Array<{ seconds: number; e
   return out;
 }
 
-export function buildSaveItem(overrides: Partial<import('../../types').SaveItem> = {}): import('../../types').SaveItem {
+export function buildSaveItem(
+  overrides: Partial<import('../../types').SaveItem> = {},
+): import('../../types').SaveItem {
   return {
     id: 'item-1',
     sourceURL: 'https://www.tiktok.com/@u/video/1',
@@ -67,5 +65,8 @@ export function generateFolderNames(count: number): string[] {
     '   ',
     'MUSIC mixes',
   ];
-  return Array.from({ length: count }, (_, i) => seeds[i % seeds.length] + (i > seeds.length ? ` ${i}` : ''));
+  return Array.from(
+    { length: count },
+    (_, i) => seeds[i % seeds.length] + (i > seeds.length ? ` ${i}` : ''),
+  );
 }

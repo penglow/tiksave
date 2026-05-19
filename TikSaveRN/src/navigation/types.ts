@@ -131,6 +131,6 @@ export type MapStackScreenProps<T extends keyof MapStackParamList> = NativeStack
 
 declare global {
   namespace ReactNavigation {
-    interface RootParamList extends RootStackParamList { }
+    interface RootParamList extends RootStackParamList {}
   }
 }

@@ -5,15 +5,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-  FadeIn,
-  FadeOut,
-  SlideInDown,
-  SlideOutDown,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -65,11 +57,7 @@ export function UndoToast({
     >
       <View style={[styles.progressTrack, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
         <Animated.View
-          style={[
-            styles.progressBar,
-            { backgroundColor: colors.background },
-            progressStyle,
-          ]}
+          style={[styles.progressBar, { backgroundColor: colors.background }, progressStyle]}
         />
       </View>
 
@@ -82,14 +70,8 @@ export function UndoToast({
         </View>
 
         <View style={styles.actions}>
-          <AnimatedPressable
-            style={styles.undoButton}
-            onPress={onUndo}
-            haptic
-          >
-            <Text style={[styles.undoText, { color: colors.warning }]}>
-              Undo
-            </Text>
+          <AnimatedPressable style={styles.undoButton} onPress={onUndo} haptic>
+            <Text style={[styles.undoText, { color: colors.warning }]}>Undo</Text>
           </AnimatedPressable>
 
           {onDismiss && (

@@ -75,7 +75,9 @@ export default function ShareExtension(props: ShareExtensionProps) {
         {tiktokUrl ? (
           <>
             <Text style={styles.subtitle}>Import this TikTok into your library</Text>
-            <Text style={styles.url} numberOfLines={2}>{tiktokUrl}</Text>
+            <Text style={styles.url} numberOfLines={2}>
+              {tiktokUrl}
+            </Text>
             <Pressable style={styles.button} onPress={openInTikSave}>
               <Text style={styles.buttonText}>Open in TikSave</Text>
             </Pressable>

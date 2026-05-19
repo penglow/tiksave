@@ -5,12 +5,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Text, TextStyle, StyleProp } from 'react-native';
-import {
-  useSharedValue,
-  withSpring,
-  useAnimatedReaction,
-  runOnJS,
-} from 'react-native-reanimated';
+import { useSharedValue, withSpring, useAnimatedReaction, runOnJS } from 'react-native-reanimated';
 
 import { Animation } from '../config';
 

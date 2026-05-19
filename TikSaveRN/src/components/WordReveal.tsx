@@ -51,22 +51,12 @@ interface RevealWordProps {
 
 // --- Helpers ---
 /** One word uses its own shared values — avoids layout `entering` which breaks when screens detach. */
-function RevealWord({
-  text,
-  combinedStyle,
-  delayMs,
-  damping,
-  stiffness,
-  fromY,
-}: RevealWordProps) {
+function RevealWord({ text, combinedStyle, delayMs, damping, stiffness, fromY }: RevealWordProps) {
   const settled = useSharedValue(0);
 
   useEffect(() => {
     settled.value = 0;
-    settled.value = withDelay(
-      delayMs,
-      withSpring(1, { damping, stiffness, mass: 0.9 }),
-    );
+    settled.value = withDelay(delayMs, withSpring(1, { damping, stiffness, mass: 0.9 }));
     return () => cancelAnimation(settled);
   }, [delayMs, damping, stiffness, fromY, settled]);
 

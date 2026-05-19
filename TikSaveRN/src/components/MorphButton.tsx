@@ -4,7 +4,15 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, View, StyleSheet, ActivityIndicator, Platform, LayoutChangeEvent } from 'react-native';
+import {
+  Pressable,
+  Text,
+  View,
+  StyleSheet,
+  ActivityIndicator,
+  Platform,
+  LayoutChangeEvent,
+} from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -72,7 +80,7 @@ export function MorphButton({
   const [parentWidth, setParentWidth] = useState(0);
   const pressFill = useSharedValue(0);
   const morph = useSharedValue(0); // 0 = full-width pill, 1 = circle
-  const ring = useSharedValue(0);  // 0..1 progress ring fill (progress state)
+  const ring = useSharedValue(0); // 0..1 progress ring fill (progress state)
   const doneScale = useSharedValue(0);
   const errorFlash = useSharedValue(0);
 
@@ -99,10 +107,7 @@ export function MorphButton({
     } else if (state.kind === 'done') {
       morph.value = withTiming(1, { duration: Animation.morph.morphDuration });
       ring.value = withSpring(1, Animation.morph.ringFillSpring);
-      doneScale.value = withDelay(
-        120,
-        withSpring(1, Animation.morph.doneScaleSpring),
-      );
+      doneScale.value = withDelay(120, withSpring(1, Animation.morph.doneScaleSpring));
     } else if (state.kind === 'error') {
       morph.value = withTiming(1, { duration: Animation.morph.morphDuration });
       errorFlash.value = withSequence(
@@ -172,12 +177,7 @@ export function MorphButton({
       // Pre-measure: don't animate, use full width.
       return { width: '100%', alignSelf: 'center' as const };
     }
-    const w = interpolate(
-      morph.value,
-      [0, 1],
-      [parentWidth, BUTTON_HEIGHT],
-      Extrapolation.CLAMP,
-    );
+    const w = interpolate(morph.value, [0, 1], [parentWidth, BUTTON_HEIGHT], Extrapolation.CLAMP);
     return { width: w, alignSelf: 'center' as const };
   });
 
@@ -191,8 +191,7 @@ export function MorphButton({
   }));
 
   const spinnerStyle = useAnimatedStyle(() => ({
-    opacity:
-      state.kind === 'submitting' || state.kind === 'progress' ? morph.value : 0,
+    opacity: state.kind === 'submitting' || state.kind === 'progress' ? morph.value : 0,
   }));
 
   const ringStyle = useAnimatedStyle(() => {
@@ -214,8 +213,7 @@ export function MorphButton({
     opacity: errorFlash.value * 0.6,
   }));
 
-  const solidBg =
-    state.kind === 'error' ? colors.error : colors.text;
+  const solidBg = state.kind === 'error' ? colors.error : colors.text;
   const ghostBg = 'transparent';
   const baseBg = variant === 'solid' ? solidBg : ghostBg;
   const fgColor = variant === 'solid' ? colors.background : colors.textSecondary;
@@ -242,78 +240,70 @@ export function MorphButton({
 
   return (
     <View style={styles.outerHost} onLayout={handleLayout}>
-    <Animated.View style={[styles.outer, containerStyle]}>
-      <AnimatedPressable
-        onPress={handlePress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        accessibilityRole="button"
-        accessibilityLabel={a11yLabel}
-        accessibilityState={a11yState}
-        style={[
-          styles.button,
-          {
-            backgroundColor: baseBg,
-            borderColor: variant === 'ghost' ? colors.border : 'transparent',
-          },
-        ]}
-      >
-        {/* Press-fill sweep (left → right). Hidden once morph begins. */}
-        <Animated.View
-          pointerEvents="none"
+      <Animated.View style={[styles.outer, containerStyle]}>
+        <AnimatedPressable
+          onPress={handlePress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          accessibilityRole="button"
+          accessibilityLabel={a11yLabel}
+          accessibilityState={a11yState}
           style={[
-            styles.fill,
-            { backgroundColor: colors.accent },
-            fillStyle,
+            styles.button,
+            {
+              backgroundColor: baseBg,
+              borderColor: variant === 'ghost' ? colors.border : 'transparent',
+            },
           ]}
-        />
+        >
+          {/* Press-fill sweep (left → right). Hidden once morph begins. */}
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.fill, { backgroundColor: colors.accent }, fillStyle]}
+          />
 
-        {/* Error-flash overlay */}
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.fill,
-            { backgroundColor: colors.error, transform: [{ scaleX: 1 }] },
-            errorFlashStyle,
-          ]}
-        />
+          {/* Error-flash overlay */}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.fill,
+              { backgroundColor: colors.error, transform: [{ scaleX: 1 }] },
+              errorFlashStyle,
+            ]}
+          />
 
-        {/* Idle label */}
-        <Animated.View style={[styles.labelRow, labelStyle]}>
-          <Text style={[styles.labelText, { color: fgColor }]} numberOfLines={1}>
-            {label}
-          </Text>
-        </Animated.View>
-
-        {/* Spinner (submitting) */}
-        <Animated.View style={[styles.center, spinnerStyle]} pointerEvents="none">
-          <ActivityIndicator size="small" color={colors.background} />
-        </Animated.View>
-
-        {/* Progress fill bar (rises bottom → top inside the circle) */}
-        <Animated.View style={[styles.center, ringStyle]} pointerEvents="none">
-          <View style={styles.ringTrack}>
-            <Animated.View
-              style={[
-                styles.ringFill,
-                { backgroundColor: colors.accent },
-                ringFillStyle,
-              ]}
-            />
-          </View>
-          {state.kind === 'progress' && (
-            <Text style={[styles.ringText, { color: colors.background }]}>
-              {state.completed}/{state.total}
+          {/* Idle label */}
+          <Animated.View style={[styles.labelRow, labelStyle]}>
+            <Text style={[styles.labelText, { color: fgColor }]} numberOfLines={1}>
+              {label}
             </Text>
-          )}
-        </Animated.View>
+          </Animated.View>
 
-        {/* Done check */}
-        <Animated.View style={[styles.center, doneStyle]} pointerEvents="none">
-          <Ionicons name="checkmark" size={24} color={colors.background} />
-        </Animated.View>
-      </AnimatedPressable>
-    </Animated.View>
+          {/* Spinner (submitting) */}
+          <Animated.View style={[styles.center, spinnerStyle]} pointerEvents="none">
+            <ActivityIndicator size="small" color={colors.background} />
+          </Animated.View>
+
+          {/* Progress fill bar (rises bottom → top inside the circle) */}
+          <Animated.View style={[styles.center, ringStyle]} pointerEvents="none">
+            <View style={styles.ringTrack}>
+              <Animated.View
+                style={[styles.ringFill, { backgroundColor: colors.accent }, ringFillStyle]}
+              />
+            </View>
+            {state.kind === 'progress' && (
+              <Text style={[styles.ringText, { color: colors.background }]}>
+                {state.completed}/{state.total}
+              </Text>
+            )}
+          </Animated.View>
+
+          {/* Done check */}
+          <Animated.View style={[styles.center, doneStyle]} pointerEvents="none">
+            <Ionicons name="checkmark" size={24} color={colors.background} />
+          </Animated.View>
+        </AnimatedPressable>
+      </Animated.View>
     </View>
   );
 }

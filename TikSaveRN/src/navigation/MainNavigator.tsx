@@ -19,8 +19,15 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 
-import { MainTabParamList, LibraryStackParamList, SearchStackParamList, AddStackParamList, MapStackParamList, LibraryStackScreenProps } from './types';
-import { Spacing, BorderRadius, Shadows, Typography, Animation } from '../config';
+import {
+  MainTabParamList,
+  LibraryStackParamList,
+  SearchStackParamList,
+  AddStackParamList,
+  MapStackParamList,
+  LibraryStackScreenProps,
+} from './types';
+import { Spacing, BorderRadius, Shadows, Animation } from '../config';
 import { useTheme } from '../hooks/useTheme';
 
 // Screens
@@ -87,8 +94,8 @@ function TabIcon({
 function AddTabButton({ onPress }: { onPress?: () => void }) {
   const { isDark, colors } = useTheme();
   const gradientColors = isDark
-    ? ['#f28b78', '#e8705a', '#c45a46'] as const
-    : ['#f9a48f', '#f28b78', '#d45a44'] as const;
+    ? (['#f28b78', '#e8705a', '#c45a46'] as const)
+    : (['#f9a48f', '#f28b78', '#d45a44'] as const);
 
   const pressed = useSharedValue(0);
   const breathe = useSharedValue(0);
@@ -105,8 +112,7 @@ function AddTabButton({ onPress }: { onPress?: () => void }) {
   }, [breathe]);
 
   const animatedButton = useAnimatedStyle(() => {
-    const scale =
-      1 + breathe.value * 0.04 - pressed.value * 0.12;
+    const scale = 1 + breathe.value * 0.04 - pressed.value * 0.12;
     const rotate = pressed.value * 90;
     return {
       transform: [{ scale }, { rotate: `${rotate}deg` }],
@@ -229,11 +235,7 @@ function AddStackNavigator() {
         cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
       }}
     >
-      <AddStack.Screen
-        name="AddMain"
-        component={AddVideoScreen}
-        options={{ headerShown: false }}
-      />
+      <AddStack.Screen name="AddMain" component={AddVideoScreen} options={{ headerShown: false }} />
     </AddStack.Navigator>
   );
 }
@@ -297,16 +299,8 @@ function MapStackNavigator() {
         cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
       }}
     >
-      <MapStack.Screen
-        name="MapMain"
-        component={MapScreen}
-        options={{ headerShown: false }}
-      />
-      <MapStack.Screen
-        name="VideoDetail"
-        component={VideoDetailScreen}
-        options={{ title: '' }}
-      />
+      <MapStack.Screen name="MapMain" component={MapScreen} options={{ headerShown: false }} />
+      <MapStack.Screen name="VideoDetail" component={VideoDetailScreen} options={{ title: '' }} />
     </MapStack.Navigator>
   );
 }
@@ -384,7 +378,11 @@ export default function MainNavigator() {
         component={SettingsScreen}
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <TabIcon name={focused ? 'settings' : 'settings-outline'} focused={focused} color={color} />
+            <TabIcon
+              name={focused ? 'settings' : 'settings-outline'}
+              focused={focused}
+              color={color}
+            />
           ),
           tabBarLabel: 'Settings',
           headerShown: false,
@@ -396,13 +394,7 @@ export default function MainNavigator() {
 
 type TabLayout = { x: number; width: number };
 
-function CustomTabBar({
-  state,
-  descriptors,
-  navigation,
-  colors,
-  insets,
-}: any) {
+function CustomTabBar({ state, descriptors, navigation, colors, insets }: any) {
   // Track measured layouts of each non-FAB tab so the morphing pill can slide.
   const [layouts, setLayouts] = useState<Record<string, TabLayout>>({});
   const pillX = useSharedValue(0);
@@ -560,7 +552,7 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.20,
+        shadowOpacity: 0.2,
         shadowRadius: 60,
       },
       android: {

@@ -25,12 +25,7 @@ export function UrlPreviewChip({ url, preview, loading, onRemove }: UrlPreviewCh
   const { colors } = useTheme();
 
   return (
-    <View
-      style={[
-        styles.row,
-        { backgroundColor: colors.surface, borderColor: colors.border },
-      ]}
-    >
+    <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={[styles.thumb, { backgroundColor: colors.surfaceHover }]}>
         {preview?.thumbnailUrl ? (
           <Image source={{ uri: preview.thumbnailUrl }} style={styles.thumbImage} />

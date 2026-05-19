@@ -29,8 +29,7 @@ import { apiService } from '../services/api';
 import { LibraryStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
 import { useResolvedTikTokThumbnail } from '../hooks/useResolvedTikTokThumbnail';
-import { AnimatedPressable, AnimatedListItem, AnimatedText } from '../components';
-import MoveFolderModal from '../components/MoveFolderModal';
+import { AnimatedPressable, AnimatedListItem, AnimatedText, MoveFolderModal } from '../components';
 import { formatDuration } from '../utils/date';
 
 // -----------------------------------------------------------------------------
@@ -40,8 +39,7 @@ import { formatDuration } from '../utils/date';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COLUMN_GAP = 12;
 const HORIZONTAL_PADDING = 16;
-const CARD_WIDTH =
-  (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - COLUMN_GAP) / 2;
+const CARD_WIDTH = (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - COLUMN_GAP) / 2;
 
 type Props = LibraryStackScreenProps<'FolderDetail'>;
 
@@ -82,7 +80,7 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       loadItems();
-    }, [loadItems])
+    }, [loadItems]),
   );
 
   const handleRefresh = useCallback(() => {
@@ -155,7 +153,7 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
         console.error('Failed to move item:', error);
       }
     },
-    [selectedItem, loadItems]
+    [selectedItem, loadItems],
   );
 
   const openMoveModalForItem = useCallback((item: SaveItem) => {
@@ -176,7 +174,7 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
     (item: SaveItem) => {
       navigation.navigate('VideoDetail', { item });
     },
-    [navigation]
+    [navigation],
   );
 
   // --- Render -----------------------------------------------------------------
@@ -221,10 +219,7 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
                 onLongPress={() => openMoveModalForItem(item)}
                 scaleOnPress={0.97}
               >
-                <VideoThumbnailCard
-                  item={item}
-                  onOpenTikTok={() => openInTikTok(item.sourceURL)}
-                />
+                <VideoThumbnailCard item={item} onOpenTikTok={() => openInTikTok(item.sourceURL)} />
               </AnimatedPressable>
             </AnimatedListItem>
           ))}

@@ -14,7 +14,7 @@ describe('mega2 — status + time grid', () => {
       });
       expect(isLoadingStatus(item.status)).toBe(item.status === 'processing');
       expect(needsUserReview(item, 0.6)).toBe(
-        item.status === 'needs_review' || (item.confidence ?? 0) < 0.6
+        item.status === 'needs_review' || (item.confidence ?? 0) < 0.6,
       );
 
       const ago = formatTimeAgo(new Date(Date.now() - i * 60_000).toISOString());

@@ -76,7 +76,7 @@ export async function optimisticUpdate<T, R = T>({
   } catch (error) {
     // Wait a bit before showing error (prevents flash on quick retries)
     if (errorDelay > 0) {
-      await new Promise(resolve => setTimeout(resolve, errorDelay));
+      await new Promise((resolve) => setTimeout(resolve, errorDelay));
     }
 
     // Rollback on error
@@ -93,7 +93,7 @@ export async function optimisticUpdate<T, R = T>({
  * @param defaultOptions - Partial options merged into each invocation.
  */
 export function createOptimisticHandler<T, R = T>(
-  defaultOptions: Partial<OptimisticUpdateOptions<T, R>>
+  defaultOptions: Partial<OptimisticUpdateOptions<T, R>>,
 ) {
   return (options: OptimisticUpdateOptions<T, R>) =>
     optimisticUpdate({ ...defaultOptions, ...options });
@@ -109,20 +109,18 @@ export class UndoManager<T> {
   private confirmDelay: number;
   private onUndo?: (operationId: string, data: T) => void;
 
-  constructor(options: {
-    confirmDelay?: number;
-    onUndo?: (operationId: string, data: T) => void;
-  } = {}) {
+  constructor(
+    options: {
+      confirmDelay?: number;
+      onUndo?: (operationId: string, data: T) => void;
+    } = {},
+  ) {
     this.confirmDelay = options.confirmDelay ?? 5000;
     this.onUndo = options.onUndo;
   }
 
   /** Add an operation that can be undone before auto-confirm. */
-  add(
-    operationId: string,
-    data: T,
-    onConfirm: () => Promise<void>
-  ): () => void {
+  add(operationId: string, data: T, onConfirm: () => Promise<void>): () => void {
     // Clear any existing operation with same ID
     this.cancel(operationId);
 

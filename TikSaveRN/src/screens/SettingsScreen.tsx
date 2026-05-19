@@ -29,7 +29,14 @@ import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
 import { apiService } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
-import { AnimatedPressable, AnimatedListItem, Badge, LogoMark, Avatar, Wordmark } from '../components';
+import {
+  AnimatedPressable,
+  AnimatedListItem,
+  Badge,
+  LogoMark,
+  Avatar,
+  Wordmark,
+} from '../components';
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -78,51 +85,57 @@ export default function SettingsScreen() {
     setShowFoldersModal(true);
   }, [loadFolders]);
 
-  const handleCreateFolder = useCallback(async (name: string, parentId?: string, iconName?: string) => {
-    try {
-      await apiService.createFolder(name, parentId, iconName);
-      loadFolders();
-      setShowCreateModal(false);
-    } catch (error) {
-      console.error('Failed to create folder:', error);
-      if (Platform.OS === 'web') {
-        window.alert('Failed to create collection.');
-      } else {
-        Alert.alert('Error', 'Failed to create collection.');
-      }
-    }
-  }, [loadFolders]);
-
-  const handleDeleteFolder = useCallback(async (folder: Folder) => {
-    const message = `Delete "${folder.name}"? Videos will move back to library.`;
-
-    if (Platform.OS === 'web') {
-      if (window.confirm(message)) {
-        try {
-          await apiService.deleteFolder(folder.id);
-          loadFolders();
-        } catch (error) {
-          window.alert('Failed to delete folder.');
+  const handleCreateFolder = useCallback(
+    async (name: string, parentId?: string, iconName?: string) => {
+      try {
+        await apiService.createFolder(name, parentId, iconName);
+        loadFolders();
+        setShowCreateModal(false);
+      } catch (error) {
+        console.error('Failed to create folder:', error);
+        if (Platform.OS === 'web') {
+          window.alert('Failed to create collection.');
+        } else {
+          Alert.alert('Error', 'Failed to create collection.');
         }
       }
-    } else {
-      Alert.alert('Delete Folder', message, [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await apiService.deleteFolder(folder.id);
-              loadFolders();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete folder.');
-            }
+    },
+    [loadFolders],
+  );
+
+  const handleDeleteFolder = useCallback(
+    async (folder: Folder) => {
+      const message = `Delete "${folder.name}"? Videos will move back to library.`;
+
+      if (Platform.OS === 'web') {
+        if (window.confirm(message)) {
+          try {
+            await apiService.deleteFolder(folder.id);
+            loadFolders();
+          } catch (error) {
+            window.alert('Failed to delete folder.');
+          }
+        }
+      } else {
+        Alert.alert('Delete Folder', message, [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await apiService.deleteFolder(folder.id);
+                loadFolders();
+              } catch (error) {
+                Alert.alert('Error', 'Failed to delete folder.');
+              }
+            },
           },
-        },
-      ]);
-    }
-  }, [loadFolders]);
+        ]);
+      }
+    },
+    [loadFolders],
+  );
 
   const handleSignOut = useCallback(async () => {
     if (Platform.OS === 'web') {
@@ -189,11 +202,11 @@ export default function SettingsScreen() {
       <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
         <View style={styles.brandRow}>
           <LogoMark size={16} color={colors.accent} />
-          <Text style={[styles.brandLabel, { color: colors.textTertiary }]}>TIKSAVE · SETTINGS</Text>
+          <Text style={[styles.brandLabel, { color: colors.textTertiary }]}>
+            TIKSAVE · SETTINGS
+          </Text>
         </View>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Settings
-        </Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Settings</Text>
       </Animated.View>
 
       {/* Profile card */}
@@ -204,10 +217,7 @@ export default function SettingsScreen() {
             { backgroundColor: colors.surface, borderColor: colors.border },
           ]}
         >
-          <Avatar
-            name={user?.email?.split('@')[0] || 'TS'}
-            size="lg"
-          />
+          <Avatar name={user?.email?.split('@')[0] || 'TS'} size="lg" />
           <View style={styles.profileInfo}>
             <Text style={[styles.profileName, { color: colors.text }]} numberOfLines={1}>
               {user?.email?.split('@')[0] || 'Welcome'}
@@ -250,16 +260,19 @@ export default function SettingsScreen() {
                     styles.themeOption,
                     {
                       borderColor: userSettings.theme === theme ? colors.text : colors.border,
-                      backgroundColor: userSettings.theme === theme ? colors.surfaceHover : 'transparent',
+                      backgroundColor:
+                        userSettings.theme === theme ? colors.surfaceHover : 'transparent',
                     },
                   ]}
                   onPress={() => updateUserSettings({ theme })}
                   haptic
                 >
-                  <Text style={[
-                    styles.themeOptionText,
-                    { color: userSettings.theme === theme ? colors.text : colors.textTertiary },
-                  ]}>
+                  <Text
+                    style={[
+                      styles.themeOptionText,
+                      { color: userSettings.theme === theme ? colors.text : colors.textTertiary },
+                    ]}
+                  >
                     {theme.charAt(0).toUpperCase() + theme.slice(1)}
                   </Text>
                 </AnimatedPressable>
@@ -285,13 +298,11 @@ export default function SettingsScreen() {
         <SettingSection label="STORAGE">
           <View style={[styles.row, { borderBottomColor: colors.border }]}>
             <Text style={[styles.rowTitle, { color: colors.text }]}>Cached Thumbnails</Text>
-            <Text style={[styles.rowValue, { color: colors.textTertiary }]}>{thumbnailCacheSize}</Text>
+            <Text style={[styles.rowValue, { color: colors.textTertiary }]}>
+              {thumbnailCacheSize}
+            </Text>
           </View>
-          <SettingRow
-            title="Clear Cache"
-            onPress={handleClearCache}
-            titleColor={colors.warning}
-          />
+          <SettingRow title="Clear Cache" onPress={handleClearCache} titleColor={colors.warning} />
         </SettingSection>
       </AnimatedListItem>
 
@@ -303,11 +314,7 @@ export default function SettingsScreen() {
             onPress={() => openLink('https://yourapp.com/privacy')}
             showChevron
           />
-          <SettingRow
-            title="Export Data"
-            onPress={() => { }}
-            showChevron
-          />
+          <SettingRow title="Export Data" onPress={() => {}} showChevron />
         </SettingSection>
       </AnimatedListItem>
 
@@ -319,11 +326,7 @@ export default function SettingsScreen() {
             onPress={handleDeleteData}
             titleColor={colors.error}
           />
-          <SettingRow
-            title="Sign Out"
-            onPress={handleSignOut}
-            titleColor={colors.error}
-          />
+          <SettingRow title="Sign Out" onPress={handleSignOut} titleColor={colors.error} />
         </SettingSection>
       </AnimatedListItem>
 
@@ -373,7 +376,7 @@ export default function SettingsScreen() {
 function SettingSection({
   label,
   labelColor,
-  children
+  children,
 }: {
   label: string;
   labelColor?: string;
@@ -386,7 +389,12 @@ function SettingSection({
       <Text style={[styles.sectionLabel, { color: labelColor || colors.textTertiary }]}>
         {label}
       </Text>
-      <View style={[styles.sectionContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.sectionContent,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
         {children}
       </View>
     </View>
@@ -422,7 +430,9 @@ function SettingRow({
       opacityOnPress={0.6}
     >
       {icon && (
-        <View style={[styles.rowIconWrapper, { backgroundColor: iconBgColor || colors.surfaceHover }]}>
+        <View
+          style={[styles.rowIconWrapper, { backgroundColor: iconBgColor || colors.surfaceHover }]}
+        >
           <Ionicons name={icon} size={16} color={iconColor || colors.textSecondary} />
         </View>
       )}
@@ -432,9 +442,7 @@ function SettingRow({
           <Text style={[styles.rowSubtitle, { color: colors.textTertiary }]}>{subtitle}</Text>
         )}
       </View>
-      {showChevron && (
-        <Ionicons name="chevron-forward" size={16} color={colors.textQuaternary} />
-      )}
+      {showChevron && <Ionicons name="chevron-forward" size={16} color={colors.textQuaternary} />}
     </AnimatedPressable>
   );
 }
@@ -480,9 +488,7 @@ function FoldersModal({
               <View style={[styles.emptyIconWrapper, { backgroundColor: colors.accentSubtle }]}>
                 <Ionicons name="folder-open-outline" size={28} color={colors.accent} />
               </View>
-              <Text style={[styles.modalEmptyTitle, { color: colors.text }]}>
-                No collections
-              </Text>
+              <Text style={[styles.modalEmptyTitle, { color: colors.text }]}>No collections</Text>
               <Text style={[styles.modalEmptySubtitle, { color: colors.textTertiary }]}>
                 Create folders for custom organization
               </Text>
@@ -495,7 +501,9 @@ function FoldersModal({
                   style={[styles.folderItem, { borderBottomColor: colors.border }]}
                   onPress={() => onFolderPress(folder)}
                 >
-                  <View style={[styles.folderIconWrapper, { backgroundColor: colors.accentSubtle }]}>
+                  <View
+                    style={[styles.folderIconWrapper, { backgroundColor: colors.accentSubtle }]}
+                  >
                     <Ionicons name="folder-open-outline" size={18} color={colors.accent} />
                   </View>
                   <View style={styles.folderInfo}>
@@ -591,7 +599,10 @@ function CreateFolderModal({
 
           <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>NAME</Text>
           <TextInput
-            style={[styles.textInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
+            style={[
+              styles.textInput,
+              { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface },
+            ]}
             placeholder="Collection name"
             placeholderTextColor={colors.textQuaternary}
             value={name}
@@ -600,13 +611,8 @@ function CreateFolderModal({
           />
 
           <View style={styles.modalActions}>
-            <AnimatedPressable
-              style={styles.cancelButton}
-              onPress={onClose}
-            >
-              <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
-                Cancel
-              </Text>
+            <AnimatedPressable style={styles.cancelButton} onPress={onClose}>
+              <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</Text>
             </AnimatedPressable>
             <AnimatedPressable
               style={[
@@ -618,9 +624,7 @@ function CreateFolderModal({
               disabled={!name.trim()}
               haptic
             >
-              <Text style={[styles.saveButtonText, { color: colors.background }]}>
-                Create
-              </Text>
+              <Text style={[styles.saveButtonText, { color: colors.background }]}>Create</Text>
             </AnimatedPressable>
           </View>
         </View>

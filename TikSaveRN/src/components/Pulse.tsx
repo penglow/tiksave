@@ -28,13 +28,7 @@ interface PulseProps {
 }
 
 // --- Main component ---
-export function Pulse({
-  color,
-  size = 8,
-  rings = 2,
-  duration = 1700,
-  style,
-}: PulseProps) {
+export function Pulse({ color, size = 8, rings = 2, duration = 1700, style }: PulseProps) {
   return (
     <View
       style={[
@@ -77,11 +71,7 @@ function Ring({
   useEffect(() => {
     progress.value = withDelay(
       delay,
-      withRepeat(
-        withTiming(1, { duration, easing: Easing.out(Easing.quad) }),
-        -1,
-        false,
-      ),
+      withRepeat(withTiming(1, { duration, easing: Easing.out(Easing.quad) }), -1, false),
     );
   }, [duration, delay, progress]);
 

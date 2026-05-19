@@ -11,7 +11,14 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
-import { StyleSheet, useColorScheme, View, Animated as RNAnimated, Text, Platform } from 'react-native';
+import {
+  StyleSheet,
+  useColorScheme,
+  View,
+  Animated as RNAnimated,
+  Text,
+  Platform,
+} from 'react-native';
 import * as Linking from 'expo-linking';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -106,12 +113,15 @@ export default function App() {
 
   // --- Handlers: share / deep-link URLs ---------------------------------------
 
-  const handleIncomingUrl = useCallback((url: string) => {
-    const tiktokUrl = extractTikTokUrlFromIncomingUrl(url);
-    if (tiktokUrl) {
-      setPendingShareUrl(tiktokUrl);
-    }
-  }, [setPendingShareUrl]);
+  const handleIncomingUrl = useCallback(
+    (url: string) => {
+      const tiktokUrl = extractTikTokUrlFromIncomingUrl(url);
+      if (tiktokUrl) {
+        setPendingShareUrl(tiktokUrl);
+      }
+    },
+    [setPendingShareUrl],
+  );
 
   // --- Effects: Linking subscription ------------------------------------------
 
@@ -146,16 +156,17 @@ export default function App() {
 
   // --- Derived splash visuals -------------------------------------------------
 
-  const splashGradient = effectiveTheme === 'dark'
-    ? ['#0c0c0e', '#141416', '#1a1418'] as const
-    : ['#fbf9f6', '#f7f6f3', '#ffffff'] as const;
+  const splashGradient =
+    effectiveTheme === 'dark'
+      ? (['#0c0c0e', '#141416', '#1a1418'] as const)
+      : (['#fbf9f6', '#f7f6f3', '#ffffff'] as const);
   const splashMeshBlobs = useMemo(
     () =>
       effectiveTheme === 'dark'
         ? [
             { cx: 0.3, cy: 0.25, r: 0.55, color: '#e8705a', opacity: 0.32 },
             { cx: 0.78, cy: 0.78, r: 0.5, color: '#7c5cff', opacity: 0.18 },
-            { cx: 0.5, cy: 0.55, r: 0.4, color: '#fbbf24', opacity: 0.10 },
+            { cx: 0.5, cy: 0.55, r: 0.4, color: '#fbbf24', opacity: 0.1 },
           ]
         : [
             { cx: 0.3, cy: 0.25, r: 0.55, color: '#f28b78', opacity: 0.35 },
@@ -213,12 +224,12 @@ export default function App() {
                       entrance="stamp"
                     />
 
-                    <RNAnimated.View
-                      style={[styles.splashTextWrap, { opacity: fadeAnim }]}
-                    >
+                    <RNAnimated.View style={[styles.splashTextWrap, { opacity: fadeAnim }]}>
                       <Wordmark height={56} color={themeColors.text} />
                       <View style={styles.splashRule}>
-                        <View style={[styles.splashRuleLine, { backgroundColor: themeColors.accent }]} />
+                        <View
+                          style={[styles.splashRuleLine, { backgroundColor: themeColors.accent }]}
+                        />
                       </View>
                       <Text style={[styles.splashSubtitle, { color: themeColors.textTertiary }]}>
                         Organize with AI

@@ -28,7 +28,15 @@ import { useAppStore } from '../stores/appStore';
 import { SearchStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
 import { useResolvedTikTokThumbnail } from '../hooks/useResolvedTikTokThumbnail';
-import { AnimatedPressable, AnimatedListItem, AnimatedText, Badge, LogoMark, WordReveal, RotatingLogo } from '../components';
+import {
+  AnimatedPressable,
+  AnimatedListItem,
+  AnimatedText,
+  Badge,
+  LogoMark,
+  WordReveal,
+  RotatingLogo,
+} from '../components';
 
 // -----------------------------------------------------------------------------
 // Types
@@ -106,16 +114,19 @@ export default function SearchScreen({ navigation }: Props) {
     }
   }, []);
 
-  const handleSearch = useCallback(async (query?: string) => {
-    const searchQuery = query || searchText;
-    if (!searchQuery.trim()) return;
+  const handleSearch = useCallback(
+    async (query?: string) => {
+      const searchQuery = query || searchText;
+      if (!searchQuery.trim()) return;
 
-    Keyboard.dismiss();
-    searchIdRef.current += 1;
-    const currentSearchId = searchIdRef.current;
-    await performSearch(searchQuery, searchMode, currentSearchId);
-    addRecentSearch(searchQuery);
-  }, [searchText, searchMode, performSearch, addRecentSearch]);
+      Keyboard.dismiss();
+      searchIdRef.current += 1;
+      const currentSearchId = searchIdRef.current;
+      await performSearch(searchQuery, searchMode, currentSearchId);
+      addRecentSearch(searchQuery);
+    },
+    [searchText, searchMode, performSearch, addRecentSearch],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -185,14 +196,20 @@ export default function SearchScreen({ navigation }: Props) {
   // --- Render -----------------------------------------------------------------
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View
+      style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
+    >
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.brandRow}>
           <LogoMark size={16} color={colors.accent} />
           <Text style={[styles.brandLabel, { color: colors.textTertiary }]}>TIKSAVE · SEARCH</Text>
         </View>
-        <WordReveal segments={searchHeadlineSegments} style={searchHeadlineTextStyle} stagger={45} />
+        <WordReveal
+          segments={searchHeadlineSegments}
+          style={searchHeadlineTextStyle}
+          stagger={45}
+        />
         <Text style={[styles.headerSub, { color: colors.textTertiary }]}>
           Semantic search reads transcripts, captions and tags.
         </Text>
@@ -255,9 +272,7 @@ export default function SearchScreen({ navigation }: Props) {
             accessibilityLabel="Cancel search"
             accessibilityRole="button"
           >
-            <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
-              Cancel
-            </Text>
+            <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</Text>
           </AnimatedPressable>
         )}
       </View>
@@ -271,10 +286,12 @@ export default function SearchScreen({ navigation }: Props) {
               style={styles.modeButton}
               onPress={() => handleModeChange(mode)}
             >
-              <Text style={[
-                styles.modeButtonText,
-                { color: searchMode === mode ? colors.text : colors.textTertiary },
-              ]}>
+              <Text
+                style={[
+                  styles.modeButtonText,
+                  { color: searchMode === mode ? colors.text : colors.textTertiary },
+                ]}
+              >
                 {mode === 'semantic' ? 'Semantic' : 'Keyword'}
               </Text>
               {searchMode === mode && (
@@ -372,7 +389,10 @@ export default function SearchScreen({ navigation }: Props) {
                 {SUGGESTIONS.map((suggestion) => (
                   <AnimatedPressable
                     key={suggestion}
-                    style={[styles.suggestionBadge, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                    style={[
+                      styles.suggestionBadge,
+                      { borderColor: colors.border, backgroundColor: colors.surface },
+                    ]}
                     onPress={() => {
                       setSearchText(suggestion);
                       handleSearch(suggestion);
@@ -395,7 +415,10 @@ export default function SearchScreen({ navigation }: Props) {
           <AnimatedText delay={100} style={[styles.noResultsTitle, { color: colors.text }]}>
             No results
           </AnimatedText>
-          <AnimatedText delay={200} style={[styles.noResultsSubtitle, { color: colors.textTertiary }]}>
+          <AnimatedText
+            delay={200}
+            style={[styles.noResultsSubtitle, { color: colors.textTertiary }]}
+          >
             Try different keywords
           </AnimatedText>
         </View>
@@ -466,11 +489,7 @@ function SearchResultRow({
 
   return (
     <View style={[styles.resultRow, { borderBottomColor: colors.border }]}>
-      <AnimatedPressable
-        style={styles.resultThumbnail}
-        onPress={openInTikTok}
-        scaleOnPress={0.97}
-      >
+      <AnimatedPressable style={styles.resultThumbnail} onPress={openInTikTok} scaleOnPress={0.97}>
         {thumbUri ? (
           <Image
             source={{ uri: thumbUri, cache: 'force-cache' }}
@@ -485,7 +504,8 @@ function SearchResultRow({
         {item.duration && (
           <View style={styles.durationBadge}>
             <Text style={styles.durationText}>
-              {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
+              {Math.floor(item.duration / 60)}:
+              {String(Math.floor(item.duration % 60)).padStart(2, '0')}
             </Text>
           </View>
         )}

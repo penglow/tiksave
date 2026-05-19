@@ -77,13 +77,15 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
       if (controller.signal.aborted) return;
 
       const categoryItems = allItems.filter((item) =>
-        itemBelongsToLibraryCategory(item, categoryName, subcategoryName)
+        itemBelongsToLibraryCategory(item, categoryName, subcategoryName),
       );
 
       if (subcategoryName) {
-        setItems(categoryItems.sort((a, b) =>
-          new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
-        ));
+        setItems(
+          categoryItems.sort(
+            (a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime(),
+          ),
+        );
       } else {
         const subcategoryMap = new Map<string, SaveItem[]>();
 
@@ -103,8 +105,8 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
         for (const [name, subItems] of subcategoryMap) {
           subcategoriesList.push({
             name,
-            items: subItems.sort((a, b) =>
-              new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
+            items: subItems.sort(
+              (a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime(),
             ),
           });
         }
@@ -132,7 +134,7 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       loadItems();
-    }, [loadItems])
+    }, [loadItems]),
   );
 
   const handleRefresh = useCallback(() => {
@@ -203,8 +205,7 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
         <Text style={[styles.headerSubtitle, { color: colors.textTertiary }]}>
           {subcategoryName
             ? `${items.length} video${items.length !== 1 ? 's' : ''}`
-            : `${items.length} video${items.length !== 1 ? 's' : ''} · ${subcategories.length} subcategories`
-          }
+            : `${items.length} video${items.length !== 1 ? 's' : ''} · ${subcategories.length} subcategories`}
         </Text>
       </Animated.View>
 
@@ -256,9 +257,7 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
             />
           }
           ListHeaderComponent={
-            <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
-              SUBCATEGORIES
-            </Text>
+            <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>SUBCATEGORIES</Text>
           }
           ListFooterComponent={
             directItems.length > 0 ? (
@@ -276,7 +275,10 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
           }
           ListEmptyComponent={
             items.length === 0 ? (
-              <CategoryEmptyView surfaceHoverColor={colors.surfaceHover} subtitleColor={colors.textTertiary} />
+              <CategoryEmptyView
+                surfaceHoverColor={colors.surfaceHover}
+                subtitleColor={colors.textTertiary}
+              />
             ) : null
           }
         />
@@ -382,13 +384,7 @@ function SubcategoryRow({
   );
 }
 
-function VideoRow({
-  item,
-  onPress
-}: {
-  item: SaveItem;
-  onPress: () => void;
-}) {
+function VideoRow({ item, onPress }: { item: SaveItem; onPress: () => void }) {
   const { colors } = useTheme();
   const thumbUri = useResolvedTikTokThumbnail(item.sourceURL, item.thumbnailURL);
 
@@ -421,7 +417,8 @@ function VideoRow({
         {item.duration && (
           <View style={styles.durationBadge}>
             <Text style={styles.durationText}>
-              {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
+              {Math.floor(item.duration / 60)}:
+              {String(Math.floor(item.duration % 60)).padStart(2, '0')}
             </Text>
           </View>
         )}

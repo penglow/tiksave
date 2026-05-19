@@ -30,7 +30,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { Spacing, BorderRadius, Typography, CategoryColors, Hairline, Gradients, Shadows, TAB_BAR_OVERLAP } from '../config';
+import {
+  Spacing,
+  BorderRadius,
+  Typography,
+  CategoryColors,
+  Hairline,
+  Gradients,
+  Shadows,
+  TAB_BAR_OVERLAP,
+} from '../config';
 import {
   SaveItem,
   getDisplayTitle,
@@ -43,7 +52,18 @@ import { LibraryStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
 import { usePaginatedItems } from '../hooks/usePaginatedItems';
 import { useResolvedTikTokThumbnail } from '../hooks/useResolvedTikTokThumbnail';
-import { AnimatedPressable, AnimatedListItem, Skeleton, SkeletonVideoCard, AnimatedText, Badge, LogoMark, NumberTicker, Pulse, RotatingLogo } from '../components';
+import {
+  AnimatedPressable,
+  AnimatedListItem,
+  Skeleton,
+  SkeletonVideoCard,
+  AnimatedText,
+  Badge,
+  LogoMark,
+  NumberTicker,
+  Pulse,
+  RotatingLogo,
+} from '../components';
 import { useAppStore } from '../stores/appStore';
 
 // -----------------------------------------------------------------------------
@@ -66,24 +86,63 @@ function getCategoryColor(topic: string): string {
   const lower = topic.toLowerCase();
 
   const colorMap: Record<string, keyof typeof CategoryColors> = {
-    food: 'food', recipe: 'food', cooking: 'food', restaurant: 'food',
-    travel: 'travel', trip: 'travel', vacation: 'travel', destination: 'travel',
-    fitness: 'fitness', workout: 'fitness', gym: 'fitness', exercise: 'fitness',
-    fashion: 'fashion', style: 'fashion', outfit: 'fashion',
-    beauty: 'beauty', makeup: 'beauty', skincare: 'beauty',
-    tech: 'tech', technology: 'tech', gadget: 'tech',
-    finance: 'finance', money: 'finance', investing: 'finance',
-    comedy: 'comedy', funny: 'comedy', humor: 'comedy',
-    music: 'music', song: 'music',
-    dance: 'dance', dancing: 'dance', choreography: 'dance',
-    pets: 'pets', dog: 'pets', cat: 'pets', animal: 'pets',
-    diy: 'diy', craft: 'diy', handmade: 'diy',
-    education: 'education', learn: 'education', tutorial: 'education',
-    gaming: 'gaming', game: 'gaming', esports: 'gaming',
-    sports: 'sports', athlete: 'sports', basketball: 'sports',
-    art: 'art', painting: 'art', artist: 'art',
-    nature: 'nature', outdoor: 'nature', wildlife: 'nature',
-    lifestyle: 'lifestyle', life: 'lifestyle', daily: 'lifestyle',
+    food: 'food',
+    recipe: 'food',
+    cooking: 'food',
+    restaurant: 'food',
+    travel: 'travel',
+    trip: 'travel',
+    vacation: 'travel',
+    destination: 'travel',
+    fitness: 'fitness',
+    workout: 'fitness',
+    gym: 'fitness',
+    exercise: 'fitness',
+    fashion: 'fashion',
+    style: 'fashion',
+    outfit: 'fashion',
+    beauty: 'beauty',
+    makeup: 'beauty',
+    skincare: 'beauty',
+    tech: 'tech',
+    technology: 'tech',
+    gadget: 'tech',
+    finance: 'finance',
+    money: 'finance',
+    investing: 'finance',
+    comedy: 'comedy',
+    funny: 'comedy',
+    humor: 'comedy',
+    music: 'music',
+    song: 'music',
+    dance: 'dance',
+    dancing: 'dance',
+    choreography: 'dance',
+    pets: 'pets',
+    dog: 'pets',
+    cat: 'pets',
+    animal: 'pets',
+    diy: 'diy',
+    craft: 'diy',
+    handmade: 'diy',
+    education: 'education',
+    learn: 'education',
+    tutorial: 'education',
+    gaming: 'gaming',
+    game: 'gaming',
+    esports: 'gaming',
+    sports: 'sports',
+    athlete: 'sports',
+    basketball: 'sports',
+    art: 'art',
+    painting: 'art',
+    artist: 'art',
+    nature: 'nature',
+    outdoor: 'nature',
+    wildlife: 'nature',
+    lifestyle: 'lifestyle',
+    life: 'lifestyle',
+    daily: 'lifestyle',
   };
 
   for (const [key, colorKey] of Object.entries(colorMap)) {
@@ -124,18 +183,11 @@ export default function LibraryScreen({ navigation }: Props) {
 
   // --- Paginated library data -------------------------------------------------
 
-  const {
-    items,
-    isLoading,
-    isLoadingMore,
-    hasMore,
-    error,
-    loadItems,
-    loadMore,
-  } = usePaginatedItems({
-    status: ['ready', 'needs_review'],
-    limit: 50,
-  });
+  const { items, isLoading, isLoadingMore, hasMore, error, loadItems, loadMore } =
+    usePaginatedItems({
+      status: ['ready', 'needs_review'],
+      limit: 50,
+    });
 
   // --- Effects ----------------------------------------------------------------
 
@@ -232,9 +284,7 @@ export default function LibraryScreen({ navigation }: Props) {
           style={[styles.loadMoreButton, { borderColor: colors.border }]}
           onPress={loadMore}
         >
-          <Text style={[styles.loadMoreText, { color: colors.text }]}>
-            Load more
-          </Text>
+          <Text style={[styles.loadMoreText, { color: colors.text }]}>Load more</Text>
         </AnimatedPressable>
       );
     }
@@ -300,7 +350,9 @@ export default function LibraryScreen({ navigation }: Props) {
 
   if (error && items.length === 0) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <View
+        style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
+      >
         <LibrarySimpleHeader titleColor={colors.text} />
         <LibraryErrorView
           errorSubtleColor={colors.errorSubtle}
@@ -317,7 +369,9 @@ export default function LibraryScreen({ navigation }: Props) {
 
   if (items.length === 0) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <View
+        style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
+      >
         <LibrarySimpleHeader titleColor={colors.text} />
         <LibraryEmptyView
           accentSubtleColor={colors.accentSubtle}
@@ -334,12 +388,16 @@ export default function LibraryScreen({ navigation }: Props) {
 
   return (
     <>
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <View
+        style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
+      >
         {/* Hero Header with gradient */}
         <LinearGradient colors={heroGradient} style={styles.heroHeader}>
           <View style={styles.brandRow}>
             <LogoMark size={18} color={colors.accent} />
-            <Text style={[styles.brandLabel, { color: colors.textTertiary }]}>TIKSAVE · LIBRARY</Text>
+            <Text style={[styles.brandLabel, { color: colors.textTertiary }]}>
+              TIKSAVE · LIBRARY
+            </Text>
             <View style={styles.brandLive}>
               <Pulse color={colors.success} size={6} />
               <Text style={[styles.brandLiveLabel, { color: colors.textQuaternary }]}>LIVE</Text>
@@ -362,7 +420,10 @@ export default function LibraryScreen({ navigation }: Props) {
             </View>
             <View style={styles.headerActions}>
               <TouchableOpacity
-                style={[styles.headerAction, { backgroundColor: colors.surfaceHover, borderColor: colors.border }]}
+                style={[
+                  styles.headerAction,
+                  { backgroundColor: colors.surfaceHover, borderColor: colors.border },
+                ]}
                 onPress={() => setSortModalOpen(true)}
                 accessibilityRole="button"
                 accessibilityLabel="Sort topics and clips"
@@ -370,7 +431,10 @@ export default function LibraryScreen({ navigation }: Props) {
                 <Ionicons name="swap-vertical-outline" size={20} color={colors.text} />
               </TouchableOpacity>
               <AnimatedPressable
-                style={[styles.headerAction, { backgroundColor: colors.surfaceHover, borderColor: colors.border }]}
+                style={[
+                  styles.headerAction,
+                  { backgroundColor: colors.surfaceHover, borderColor: colors.border },
+                ]}
                 onPress={() => navigation.navigate('AddVideo')}
                 haptic
                 accessibilityLabel="Import a video"
@@ -451,10 +515,17 @@ export default function LibraryScreen({ navigation }: Props) {
             onPress={() => setSortModalOpen(false)}
             accessibilityRole="button"
           />
-          <View style={[styles.sortSheet, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.sortSheet,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
             <Text style={[styles.sortSheetTitle, { color: colors.text }]}>Sort library</Text>
             <ScrollView style={styles.sortScroll} showsVerticalScrollIndicator={false}>
-              <Text style={[styles.sortSectionHeading, { color: colors.textTertiary }]}>TOPICS</Text>
+              <Text style={[styles.sortSectionHeading, { color: colors.textTertiary }]}>
+                TOPICS
+              </Text>
               {CATEGORY_SORT_ORDER.map((key) => (
                 <TouchableOpacity
                   key={key}
@@ -488,7 +559,9 @@ export default function LibraryScreen({ navigation }: Props) {
                   key={key}
                   style={[
                     styles.sortRow,
-                    libraryWithinTopicSort === key ? { backgroundColor: colors.accentSubtle } : null,
+                    libraryWithinTopicSort === key
+                      ? { backgroundColor: colors.accentSubtle }
+                      : null,
                   ]}
                   onPress={() => {
                     void updateUserSettings({ libraryWithinTopicSort: key });
@@ -666,11 +739,13 @@ const CategorySection = React.memo(function CategorySection({
         activeOpacity={0.92}
         delayPressIn={75}
         style={[styles.categoryHeader, { backgroundColor: colors.surface }]}
-        onPress={() => navigation.navigate('CategoryDetail', {
-          categoryName: category.name,
-          icon: '',
-          color: category.color,
-        })}
+        onPress={() =>
+          navigation.navigate('CategoryDetail', {
+            categoryName: category.name,
+            icon: '',
+            color: category.color,
+          })
+        }
         accessibilityRole="button"
         accessibilityLabel={`Open expanded view for topic ${category.name}`}
         accessibilityHint="Shows every clip grouped in this topic"
@@ -682,7 +757,10 @@ const CategorySection = React.memo(function CategorySection({
               {category.name}
             </Text>
           </View>
-          <Text style={[styles.categoryExpandHint, { color: colors.textQuaternary }]} numberOfLines={1}>
+          <Text
+            style={[styles.categoryExpandHint, { color: colors.textQuaternary }]}
+            numberOfLines={1}
+          >
             Tap for expanded topic · {category.items.length}{' '}
             {category.items.length === 1 ? 'clip' : 'clips'}
           </Text>
@@ -718,12 +796,17 @@ const CategorySection = React.memo(function CategorySection({
           <TouchableOpacity
             activeOpacity={0.9}
             delayPressIn={75}
-            style={[styles.seeMoreCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => navigation.navigate('CategoryDetail', {
-              categoryName: category.name,
-              icon: '',
-              color: category.color,
-            })}
+            style={[
+              styles.seeMoreCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+            onPress={() =>
+              navigation.navigate('CategoryDetail', {
+                categoryName: category.name,
+                icon: '',
+                color: category.color,
+              })
+            }
             accessibilityRole="button"
             accessibilityLabel={`See ${category.items.length - 6} more videos in ${category.name}`}
           >
@@ -731,9 +814,7 @@ const CategorySection = React.memo(function CategorySection({
             <Text style={[styles.seeMoreCount, { color: colors.text }]}>
               +{category.items.length - 6}
             </Text>
-            <Text style={[styles.seeMoreLabel, { color: colors.textTertiary }]}>
-              more
-            </Text>
+            <Text style={[styles.seeMoreLabel, { color: colors.textTertiary }]}>more</Text>
             <Ionicons name="arrow-forward" size={14} color={colors.textQuaternary} />
           </TouchableOpacity>
         )}
@@ -785,7 +866,8 @@ const VideoCard = React.memo(function VideoCard({
         {item.duration && (
           <View style={styles.durationBadge}>
             <Text style={styles.durationText}>
-              {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
+              {Math.floor(item.duration / 60)}:
+              {String(Math.floor(item.duration % 60)).padStart(2, '0')}
             </Text>
           </View>
         )}

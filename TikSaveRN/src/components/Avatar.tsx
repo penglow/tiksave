@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, Image, ViewStyle, ImageStyle } from 'react-native';
-import { BorderRadius, Typography } from '../config';
+import { Typography } from '../config';
 import { useTheme } from '../hooks/useTheme';
 
 // --- Types / props ---
@@ -44,11 +44,7 @@ export function Avatar({ uri, name, size = 'md', style }: AvatarProps) {
     return (
       <Image
         source={{ uri }}
-        style={[
-          styles.avatar,
-          { width: s, height: s, borderRadius: s / 2 },
-          style as any,
-        ]}
+        style={[styles.avatar, { width: s, height: s, borderRadius: s / 2 }, style as any]}
       />
     );
   }
@@ -66,9 +62,7 @@ export function Avatar({ uri, name, size = 'md', style }: AvatarProps) {
         style,
       ]}
     >
-      <Text style={[styles.initials, { color: colors.accent, fontSize }]}>
-        {initials}
-      </Text>
+      <Text style={[styles.initials, { color: colors.accent, fontSize }]}>{initials}</Text>
     </View>
   );
 }

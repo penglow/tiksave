@@ -4,17 +4,10 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Pressable,
-} from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withTiming,
   withSpring,
   FadeIn,
   FadeOut,
@@ -41,7 +34,15 @@ interface ProcessingProgressProps {
   pollInterval?: number;
 }
 
-const STAGE_ORDER = ['queued', 'downloading', 'analyzing', 'extracting_location', 'classifying', 'saving', 'ready'];
+const STAGE_ORDER = [
+  'queued',
+  'downloading',
+  'analyzing',
+  'extracting_location',
+  'classifying',
+  'saving',
+  'ready',
+];
 
 export function ProcessingProgress({
   itemId,
@@ -61,13 +62,8 @@ export function ProcessingProgress({
     const fetchProgress = async () => {
       try {
         const response = await apiService.getItemProgress(itemId);
-        
-        const isTerminal =
-          response.status === 'ready' ||
-          response.status === 'needs_review' ||
-          response.status === 'failed';
-        const isFailed =
-          response.status === 'failed' || response.processing?.stage === 'error';
+
+        const isFailed = response.status === 'failed' || response.processing?.stage === 'error';
 
         if (isFailed) {
           setError(response.processing?.message || 'Processing failed');
@@ -137,9 +133,7 @@ export function ProcessingProgress({
         style={[styles.container, { backgroundColor: colors.accentSubtle }]}
       >
         <ActivityIndicator size="small" color={colors.text} />
-        <Text style={[styles.message, { color: colors.textSecondary }]}>
-          Starting...
-        </Text>
+        <Text style={[styles.message, { color: colors.textSecondary }]}>Starting...</Text>
       </Animated.View>
     );
   }
@@ -153,19 +147,13 @@ export function ProcessingProgress({
       {/* Stage info */}
       <View style={styles.header}>
         <Text style={styles.emoji}>{stage.emoji}</Text>
-        <Text style={[styles.message, { color: colors.text }]}>
-          {stage.message}
-        </Text>
+        <Text style={[styles.message, { color: colors.text }]}>{stage.message}</Text>
       </View>
 
       {/* Progress bar */}
       <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
         <Animated.View
-          style={[
-            styles.progressBar,
-            { backgroundColor: colors.success },
-            progressBarStyle,
-          ]}
+          style={[styles.progressBar, { backgroundColor: colors.success }, progressBarStyle]}
         />
       </View>
 
@@ -175,7 +163,7 @@ export function ProcessingProgress({
           const currentIndex = STAGE_ORDER.indexOf(stage.stage);
           const isComplete = index < currentIndex;
           const isCurrent = stageName === stage.stage;
-          
+
           return (
             <View
               key={stageName}
@@ -185,8 +173,8 @@ export function ProcessingProgress({
                   backgroundColor: isComplete
                     ? colors.success
                     : isCurrent
-                    ? colors.text
-                    : colors.border,
+                      ? colors.text
+                      : colors.border,
                 },
               ]}
             />

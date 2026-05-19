@@ -43,9 +43,9 @@ export interface ClipboardDetectionResult {
  */
 export function extractTikTokUrls(text: string): string[] {
   if (!text || typeof text !== 'string') return [];
-  
+
   const urls: string[] = [];
-  
+
   for (const pattern of TIKTOK_PATTERNS) {
     // Reset lastIndex for global patterns
     pattern.lastIndex = 0;
@@ -54,7 +54,7 @@ export function extractTikTokUrls(text: string): string[] {
       urls.push(...matches);
     }
   }
-  
+
   // Deduplicate URLs
   return [...new Set(urls)];
 }
@@ -106,20 +106,20 @@ export async function checkClipboardForUrls(): Promise<ClipboardDetectionResult>
     if (!hasText) {
       return { hasUrls: false, urls: [], isNew: false };
     }
-    
+
     // Get clipboard content
     const content = await ExpoClipboard.getStringAsync();
     if (!content) {
       return { hasUrls: false, urls: [], isNew: false };
     }
-    
+
     // Check if this is new content
     const lastContent = await getLastClipboardContent();
     const isNew = content !== lastContent;
-    
+
     // Extract TikTok URLs
     const urls = extractTikTokUrls(content);
-    
+
     return {
       hasUrls: urls.length > 0,
       urls,
@@ -181,15 +181,12 @@ class ClipboardService {
    */
   startMonitoring() {
     if (this.isMonitoring) return;
-    
+
     this.isMonitoring = true;
     this.lastAppState = AppState.currentState;
-    
-    this.appStateSubscription = AppState.addEventListener(
-      'change',
-      this.handleAppStateChange
-    );
-    
+
+    this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
+
     // Also check immediately if app is active
     if (AppState.currentState === 'active') {
       this.checkAndNotify();
@@ -201,9 +198,9 @@ class ClipboardService {
    */
   stopMonitoring() {
     if (!this.isMonitoring) return;
-    
+
     this.isMonitoring = false;
-    
+
     if (this.appStateSubscription) {
       this.appStateSubscription.remove();
       this.appStateSubscription = null;
@@ -215,7 +212,7 @@ class ClipboardService {
    */
   addListener(callback: ClipboardCallback): () => void {
     this.listeners.add(callback);
-    
+
     // Return unsubscribe function
     return () => {
       this.listeners.delete(callback);
@@ -231,22 +228,19 @@ class ClipboardService {
 
   private handleAppStateChange = async (nextAppState: AppStateStatus) => {
     // Check clipboard when app comes to foreground
-    if (
-      this.lastAppState.match(/inactive|background/) &&
-      nextAppState === 'active'
-    ) {
+    if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
       await this.checkAndNotify();
     }
-    
+
     this.lastAppState = nextAppState;
   };
 
   private async checkAndNotify() {
     const result = await checkClipboardForUrls();
-    
+
     // Only notify if we found new URLs
     if (result.hasUrls && result.isNew) {
-      this.listeners.forEach(callback => {
+      this.listeners.forEach((callback) => {
         try {
           callback(result);
         } catch (error) {
