@@ -1,0 +1,134 @@
+name: Git Checks
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: git-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GITLEAKS_VERSION: "8.24.3"
+
+jobs:
+  secrets:
+    name: Detect hardcoded secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch PR comparison refs
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags origin \
+            "${{ github.event.pull_request.base.sha }}" \
+            "${{ github.event.pull_request.head.sha }}"
+
+      - name: Install Gitleaks
+        run: |
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp
+          sudo install -m 755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Gitleaks — git history
+        run: |
+          set -euo pipefail
+          ARGS=(detect --config .gitleaks.toml --source . --verbose --redact --report-path gitleaks-history.json)
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            ARGS+=(--log-opts="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}")
+          fi
+          gitleaks "${ARGS[@]}"
+
+      - name: Gitleaks — working tree
+        run: |
+          gitleaks detect \
+            --config .gitleaks.toml \
+            --source . \
+            --no-git \
+            --verbose \
+            --redact \
+            --report-path gitleaks-worktree.json
+
+      - name: Upload gitleaks reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-reports
+          path: |
+            gitleaks-history.json
+            gitleaks-worktree.json
+          if-no-files-found: ignore
+
+  hygiene:
+    name: Git repository hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch PR comparison refs
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags origin \
+            "${{ github.event.pull_request.base.sha }}" \
+            "${{ github.event.pull_request.head.sha }}"
+
+      - name: Run hygiene checks
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: bash .github/scripts/git-checks.sh
+
+  history:
+    name: Full history secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Gitleaks
+        run: |
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp
+          sudo install -m 755 /tmp/gitleaks /usr/local/bin/gitleaks
+
+      - name: Gitleaks — full repository history
+        run: |
+          gitleaks detect \
+            --config .gitleaks.toml \
+            --source . \
+            --verbose \
+            --redact \
+            --report-path gitleaks-full-history.json
+
+      - name: Upload gitleaks report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-full-history
+          path: gitleaks-full-history.json
+          if-no-files-found: ignore

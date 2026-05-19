@@ -1,0 +1,37 @@
+title = "TikSave gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Docs, templates, CI fixtures, and build artifacts"
+paths = [
+  '''(?:^|/)env\.template$''',
+  '''(?:^|/)backend/env\.template$''',
+  '''(?:^|/)docs/''',
+  '''(?:^|/)IMPROVEMENT_ROADMAP\.md$''',
+  '''(?:^|/)README\.md$''',
+  '''(?:^|/)TikSaveRN/README\.md$''',
+  '''(?:^|/)backend/README[^/]*\.md$''',
+  '''(?:^|/)backend/START-BACKEND\.md$''',
+  '''(?:^|/)security/gcp/''',
+  '''(?:^|/)\.github/workflows/''',
+  '''(?:^|/)\.run-logs/''',
+  '''(?:^|/)TikSaveRN/\.run-logs/''',
+  '''(?:^|/)test-results/''',
+  '''(?:^|/)node_modules/''',
+  '''(?:^|/)dist/''',
+  '''(?:^|/)build/''',
+  '''(?:^|/)coverage/''',
+  '''(?:^|/)_expo/''',
+  '''(?:^|/)TikSaveRN/\.run-logs/web-export-test/''',
+  '''(?:^|/)backend/src/tests/''',
+  '''(?:^|/)TikSaveRN/src/__tests__/''',
+  '''(?:^|/).*\.lock$''',
+]
+regexes = [
+  '''replace-with-''',
+  '''your_[a-z_]+_here''',
+  '''tiksave_password''',
+  '''tiksave_test''',
+]
