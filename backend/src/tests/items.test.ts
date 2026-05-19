@@ -2,6 +2,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
 import {
+  dbAvailable,
   getTestPool,
   cleanupTestConnections,
   resetTestDatabase,
@@ -14,7 +15,7 @@ import {
 process.env.JWT_SECRET = 'test-secret-key-for-testing';
 process.env.NODE_ENV = 'test';
 
-describe('Items API', () => {
+describe.skipIf(!dbAvailable)('Items API', () => {
   let testUser: { id: string; email: string; accessToken: string };
   
   beforeAll(async () => {

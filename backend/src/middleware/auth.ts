@@ -18,10 +18,13 @@ export interface AuthenticatedRequest extends Request {
 
 // --- constants ---
 
-const JWT_SECRET = process.env.JWT_SECRET || '';
-if (!JWT_SECRET) {
-  console.error('❌ FATAL: JWT_SECRET environment variable is not set');
-  process.exit(1);
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET || '';
+  if (!secret) {
+    console.error('❌ FATAL: JWT_SECRET environment variable is not set');
+    process.exit(1);
+  }
+  return secret;
 }
 
 // --- helpers ---
@@ -46,7 +49,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
   const token = authHeader.substring(7);
   
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
     if (!isAuthPayload(decoded)) {
       return res.status(401).json({ error: 'Invalid or expired token' });
     }

@@ -3,6 +3,29 @@
 import { Pool } from 'pg';
 import Redis from 'ioredis';
 
+const DEFAULT_TEST_DATABASE_URL =
+  process.env.TEST_DATABASE_URL ||
+  'postgresql://tiksave:tiksave_password@localhost:5432/tiksave_test';
+
+/** True when the configured test database accepts connections. */
+export async function isDatabaseAvailable(): Promise<boolean> {
+  const pool = new Pool({
+    connectionString: DEFAULT_TEST_DATABASE_URL,
+    max: 1,
+    connectionTimeoutMillis: 2000,
+  });
+  try {
+    await pool.query('SELECT 1');
+    await pool.end();
+    return true;
+  } catch {
+    await pool.end().catch(() => {});
+    return false;
+  }
+}
+
+export const dbAvailable = await isDatabaseAvailable();
+
 // Test database connection
 let testPool: Pool | null = null;
 let testRedis: Redis | null = null;
@@ -13,7 +36,7 @@ let testRedis: Redis | null = null;
 export function getTestPool(): Pool {
   if (!testPool) {
     testPool = new Pool({
-      connectionString: process.env.TEST_DATABASE_URL || 'postgresql://tiksave:tiksave_password@localhost:5432/tiksave_test',
+      connectionString: DEFAULT_TEST_DATABASE_URL,
       max: 5,
     });
   }

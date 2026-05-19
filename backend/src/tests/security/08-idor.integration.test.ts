@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
-import { Pool } from 'pg';
 import {
+  dbAvailable,
   getTestPool,
   cleanupTestConnections,
   resetTestDatabase,
@@ -14,26 +14,6 @@ import {
 } from '../setup';
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-for-testing';
-
-async function isDatabaseAvailable(): Promise<boolean> {
-  const pool = new Pool({
-    connectionString:
-      process.env.TEST_DATABASE_URL ||
-      'postgresql://tiksave:tiksave_password@localhost:5432/tiksave_test',
-    max: 1,
-    connectionTimeoutMillis: 2000,
-  });
-  try {
-    await pool.query('SELECT 1');
-    await pool.end();
-    return true;
-  } catch {
-    await pool.end().catch(() => {});
-    return false;
-  }
-}
-
-const dbAvailable = await isDatabaseAvailable();
 
 describe.skipIf(!dbAvailable)('security.idor — cross-user resource isolation', () => {
   beforeAll(() => {
