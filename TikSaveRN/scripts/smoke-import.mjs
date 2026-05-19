@@ -1,11 +1,8 @@
 import puppeteer from 'puppeteer-core';
-
-const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const PORT = process.env.PORT || '8099';
-const OUT = process.env.OUT || 'C:/Users/abdul/Music/tiksave/tiksave/.run-logs';
+import { OUT, PORT, resolveChromeExecutable } from './smoke-config.mjs';
 
 const browser = await puppeteer.launch({
-  executablePath: CHROME,
+  executablePath: resolveChromeExecutable(),
   headless: 'new',
   args: ['--no-sandbox', '--disable-dev-shm-usage'],
 });

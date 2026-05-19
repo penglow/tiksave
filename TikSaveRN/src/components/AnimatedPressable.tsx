@@ -16,9 +16,7 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  withTiming,
   interpolate,
-  Easing,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Animation } from '../config';
@@ -117,9 +115,5 @@ export function AnimatedPressable({
     </AnimatedPressableBase>
   );
 }
-
-// Suppress unused-import warnings for utilities consumers may need.
-void withTiming;
-void Easing;
 
 export default AnimatedPressable;
