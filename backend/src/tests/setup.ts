@@ -29,6 +29,11 @@ export let dbAvailable = false;
 /** Populated by test preload before suites are collected. */
 export async function initDbAvailability(): Promise<void> {
   dbAvailable = await isDatabaseAvailable();
+  if (!dbAvailable && process.env.REQUIRE_TEST_DB === 'true') {
+    throw new Error(
+      'Test database is required (REQUIRE_TEST_DB=true) but TEST_DATABASE_URL is unreachable.',
+    );
+  }
 }
 
 // Test database connection

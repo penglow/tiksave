@@ -11,11 +11,11 @@
     "format": "bunx prettier --write \"src/**/*.{ts,tsx}\" App.tsx index.js index.share.js",
     "format:check": "bunx prettier --check \"src/**/*.{ts,tsx}\" App.tsx index.js index.share.js",
     "typecheck": "bunx tsc --noEmit",
-    "test": "bun test src/__tests__/**/*.test.ts",
-    "test:unit": "bun test src/__tests__",
-    "test:scenarios": "bun test src/__tests__/scenarios",
-    "test:mega": "bun test src/__tests__/mega.suite.test.ts src/__tests__/mega2.suite.test.ts",
-    "test:watch": "bun test --watch src/__tests__"
+    "test": "bun test ./src/__tests__",
+    "test:unit": "bun test ./src/__tests__",
+    "test:scenarios": "bun test ./src/__tests__/scenarios",
+    "test:mega": "bun test ./src/__tests__/mega.suite.test.ts ./src/__tests__/mega2.suite.test.ts",
+    "test:watch": "bun test --watch ./src/__tests__"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

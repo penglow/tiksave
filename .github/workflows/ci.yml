@@ -64,14 +64,18 @@ jobs:
         run: bun run typecheck
 
       - name: Unit tests
-        run: bun run test:unit
+        run: bun run test:unit 2>&1 | tee ../mobile-unit.log
+
+      - name: Verify unit tests ran
+        working-directory: ${{ github.workspace }}
+        run: bash .github/scripts/verify-test-output.sh mobile-unit.log "Mobile unit tests"
 
   backend:
     name: Backend API
     needs: changes
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: backend
@@ -83,6 +87,7 @@ jobs:
       TEST_REDIS_URL: redis://localhost:6379/1
       JWT_SECRET: ci-test-jwt-secret-do-not-use-in-production
       NODE_ENV: test
+      REQUIRE_TEST_DB: "true"
 
     services:
       postgres:
@@ -125,16 +130,32 @@ jobs:
         run: bun run migrate
 
       - name: Unit tests
-        run: bun run test:unit
+        run: bun run test:unit 2>&1 | tee ../backend-unit.log
+
+      - name: Verify unit tests ran
+        working-directory: ${{ github.workspace }}
+        run: bash .github/scripts/verify-test-output.sh backend-unit.log "Backend unit tests"
 
       - name: Scenario tests
-        run: bun run test:scenarios
+        run: bun run test:scenarios 2>&1 | tee ../backend-scenarios.log
+
+      - name: Verify scenario tests ran
+        working-directory: ${{ github.workspace }}
+        run: bash .github/scripts/verify-test-output.sh backend-scenarios.log "Backend scenario tests"
 
       - name: Security tests (fast)
-        run: bun run test:security:fast
+        run: bun run test:security:fast 2>&1 | tee ../backend-security.log
+
+      - name: Verify security tests ran
+        working-directory: ${{ github.workspace }}
+        run: bash .github/scripts/verify-test-output.sh backend-security.log "Backend security tests"
 
       - name: Integration tests
-        run: bun run test:integration
+        run: bun run test:integration 2>&1 | tee ../backend-integration.log
+
+      - name: Verify integration tests ran
+        working-directory: ${{ github.workspace }}
+        run: bash .github/scripts/verify-test-output.sh backend-integration.log "Backend integration tests"
 
       - name: Build
         run: bun run build
