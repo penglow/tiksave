@@ -1,6 +1,20 @@
 # TikSave
 
-TikSave is a full-stack app for saving TikTok links, classifying them into folders, and searching them later.
+TikSave is a personal library for TikTok videos you want to keep. Instead of losing links in your camera roll, DMs, or an endless “Saved” list, you paste or share a URL and TikSave does the organizing work for you.
+
+## What It Does
+
+When you save a TikTok link, the backend fetches metadata (title, thumbnail, creator, hashtags) and runs AI analysis on the content—topics, labels, transcript-style text, and optional deeper video indexing when Azure is configured. Each item is **automatically classified** into folders based on what the video is about, with confidence scores and alternatives you can override. You can also import in **batch**, move items between folders, and watch **live processing progress** while a video is queued and analyzed.
+
+On the client (Expo for **iOS, Android, and web**), you get:
+
+- **Library** — browse saved videos by folder and category
+- **Import** — paste URLs, use clipboard detection, or share from TikTok via the native share extension
+- **Search** — keyword and **semantic search** (embeddings in PostgreSQL/pgvector) so queries like “chicken recipes” or “Tokyo travel” match intent, not just exact words
+- **Map** — videos with detected locations appear on a map (Google Maps on supported platforms)
+- **Settings** — account and app preferences behind JWT auth
+
+The stack is built for real use: Bun + Express API, BullMQ workers for async processing, Redis for queues/cache, and a React Native app with Zustand for state. Learning from your folder choices improves future classification over time.
 
 ## Repository Layout
 
