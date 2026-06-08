@@ -5,7 +5,7 @@
  * iOS/Android; requests location permission and navigates to `VideoDetail` on selection.
  */
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -33,10 +33,17 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Linking from 'expo-linking';
 
 import { SaveItem, getDisplayTitle } from '../types';
+import { itemBelongsToLibraryCategory } from '../utils/libraryTopicFilter';
 import { apiService } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing, BorderRadius, Typography } from '../config';
-import { AnimatedPressable, Skeleton } from '../components';
+import {
+  AnimatedPressable,
+  Skeleton,
+  ScreenHeader,
+  GlassSearchBar,
+  FilterChipsRow,
+} from '../components';
 import { useResolvedTikTokThumbnail } from '../hooks/useResolvedTikTokThumbnail';
 
 const { width } = Dimensions.get('window');
@@ -44,6 +51,16 @@ const { width } = Dimensions.get('window');
 // -----------------------------------------------------------------------------
 // Constants — dark map style
 // -----------------------------------------------------------------------------
+
+const lightMapStyle = [
+  { elementType: 'geometry', stylers: [{ color: '#f5f7fa' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#6b7280' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f7fa' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#dbeafe' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca3af' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#e8f5e9' }] },
+];
 
 const darkMapStyle = [
   { elementType: 'geometry', stylers: [{ color: '#1d1d1d' }] },
@@ -141,6 +158,8 @@ export default function MapScreen({ navigation }: any) {
 
   // Map Region State for Scaling
   const [regionDelta, setRegionDelta] = useState(0.01);
+  const [mapSearch, setMapSearch] = useState('');
+  const [mapFilter, setMapFilter] = useState('all');
 
   // Card Animation State
   const cardY = useSharedValue(150); // Start off-screen (reduced from 200)
@@ -280,8 +299,26 @@ export default function MapScreen({ navigation }: any) {
     }, [loadItems]),
   );
 
-  const lastSelectedIdRef = useRef<string | null>(null);
   const markerTouchTimestamp = useRef<number>(0);
+
+  const visibleItems = useMemo(() => {
+    let list = items;
+    if (mapFilter !== 'all') {
+      const category =
+        mapFilter.charAt(0).toUpperCase() + mapFilter.slice(1);
+      list = list.filter((item) => itemBelongsToLibraryCategory(item, category));
+    }
+    const q = mapSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter((item) => {
+        const loc = (item.locationName ?? '').toLowerCase();
+        const addr = (item.address ?? '').toLowerCase();
+        const title = getDisplayTitle(item).toLowerCase();
+        return loc.includes(q) || addr.includes(q) || title.includes(q);
+      });
+    }
+    return list;
+  }, [items, mapFilter, mapSearch]);
 
   const handleMarkerPress = (item: SaveItem) => {
     markerTouchTimestamp.current = Date.now();
@@ -333,7 +370,7 @@ export default function MapScreen({ navigation }: any) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: insets.top }]}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Discover</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Map</Text>
         </View>
         <View style={styles.loadingContainer}>
           <Skeleton width={width - 32} height={200} style={{ borderRadius: 12 }} />
@@ -357,7 +394,7 @@ export default function MapScreen({ navigation }: any) {
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
         mapType="standard"
         userInterfaceStyle={isDark ? 'dark' : 'light'}
-        customMapStyle={isDark ? darkMapStyle : []}
+        customMapStyle={isDark ? darkMapStyle : lightMapStyle}
         showsUserLocation={false}
         showsMyLocationButton={false}
         showsCompass={false}
@@ -381,7 +418,7 @@ export default function MapScreen({ navigation }: any) {
           </Marker>
         )}
 
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <Marker
             key={`${item.id}-${item.locationId || ''}`}
             coordinate={{
@@ -404,10 +441,27 @@ export default function MapScreen({ navigation }: any) {
       </MapView>
 
       {/* Header Overlay */}
-      <View style={[styles.headerOverlay, { paddingTop: insets.top }]}>
-        <View style={[styles.headerBlur, { backgroundColor: colors.background + 'CC' }]}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Discover</Text>
-        </View>
+      <View style={[styles.headerOverlay, { paddingTop: insets.top }]} pointerEvents="box-none">
+        <ScreenHeader
+          title="Map"
+          subtitle="Explore where your saved videos are from"
+        />
+        <GlassSearchBar
+          value={mapSearch}
+          onChangeText={setMapSearch}
+          placeholder="Search places, cities, countries..."
+        />
+        <FilterChipsRow
+          options={[
+            { id: 'all', label: 'All' },
+            { id: 'food', label: 'Food', icon: 'restaurant-outline' },
+            { id: 'travel', label: 'Travel', icon: 'airplane-outline' },
+            { id: 'study', label: 'Study', icon: 'book-outline' },
+            { id: 'fitness', label: 'Fitness', icon: 'barbell-outline' },
+          ]}
+          selectedId={mapFilter}
+          onSelect={setMapFilter}
+        />
       </View>
 
       {/* Selected Item Card */}
@@ -557,7 +611,8 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: Spacing.md,
+    zIndex: 10,
+    maxHeight: '42%',
   },
   headerBlur: {
     padding: Spacing.sm,

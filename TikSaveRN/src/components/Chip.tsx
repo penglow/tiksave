@@ -24,6 +24,8 @@ interface ChipProps {
 // --- Main component ---
 export function Chip({ label, icon, selected, onPress, onRemove, style, disabled }: ChipProps) {
   const { colors } = useTheme();
+  const selectedFg = selected ? colors.tabActiveIcon : colors.text;
+  const selectedIconFg = selected ? colors.tabActiveIcon : colors.textSecondary;
 
   const isInteractive = !!onPress || !!onRemove;
 
@@ -32,8 +34,8 @@ export function Chip({ label, icon, selected, onPress, onRemove, style, disabled
       style={[
         styles.chip,
         {
-          backgroundColor: selected ? colors.text : colors.accentSubtle,
-          borderColor: selected ? colors.text : colors.border,
+          backgroundColor: selected ? colors.tabActive : colors.glassStrong,
+          borderColor: selected ? colors.tabActive : colors.glassBorder,
         },
         !isInteractive && styles.chipStatic,
         style,
@@ -43,11 +45,11 @@ export function Chip({ label, icon, selected, onPress, onRemove, style, disabled
         <Ionicons
           name={icon}
           size={13}
-          color={selected ? colors.background : colors.textSecondary}
+          color={selectedIconFg}
           style={styles.icon}
         />
       )}
-      <Text style={[styles.label, { color: selected ? colors.background : colors.textSecondary }]}>
+      <Text style={[styles.label, { color: selectedFg }]}>
         {label}
       </Text>
       {onRemove && (

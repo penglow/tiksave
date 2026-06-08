@@ -37,8 +37,8 @@ describe('user settings contract scenarios', () => {
     }
   });
 
-  it('default theme is system to respect OS appearance', () => {
-    expect(DEFAULT_USER_SETTINGS.theme).toBe('system');
+  it('default theme is light to match the glass UI design', () => {
+    expect(DEFAULT_USER_SETTINGS.theme).toBe('light');
   });
 
   it('retention default is positive number of days', () => {

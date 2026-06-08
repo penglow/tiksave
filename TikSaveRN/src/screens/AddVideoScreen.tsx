@@ -7,14 +7,21 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Platform, ScrollView, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  Platform,
+  ScrollView,
+  Alert,
+  Switch,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
-  FadeIn,
   FadeInDown,
-  FadeOut,
-  Layout,
   useSharedValue,
   useAnimatedStyle,
   withSequence,
@@ -31,6 +38,7 @@ import {
   Shadows,
   TAB_BAR_OVERLAP,
   Animation,
+  Gradients,
 } from '../config';
 import { apiService } from '../services/api';
 import { useAppStore } from '../stores/appStore';
@@ -39,12 +47,13 @@ import { useTheme } from '../hooks/useTheme';
 import { useClipboard } from '../hooks/useClipboard';
 import {
   AnimatedPressable,
-  LogoMark,
-  WordReveal,
   MorphButton,
   type MorphState,
   UrlPreviewChip,
   ProcessingProgress,
+  ScreenBackground,
+  ScreenHeader,
+  GlassSurface,
 } from '../components';
 import { fetchTikTokOEmbedPreview, type TikTokOEmbedPreview } from '../utils/tiktokOEmbed';
 import { usePaginationCacheStore } from '../stores/paginationCacheStore';
@@ -105,6 +114,7 @@ export default function AddVideoScreen({ navigation }: Props) {
     Record<string, { loading: boolean; data?: TikTokOEmbedPreview }>
   >({});
   const [howToOpen, setHowToOpen] = useState(false);
+  const [smartImport, setSmartImport] = useState(true);
   const [cancellingItemIds, setCancellingItemIds] = useState<Set<string>>(new Set());
 
   // --- Refs (import session bookkeeping) ----------------------------------------
@@ -125,7 +135,7 @@ export default function AddVideoScreen({ navigation }: Props) {
     dismissUrls,
     clearUrls,
   } = useClipboard({
-    autoCheck: true,
+    autoCheck: smartImport,
     onlyNew: true,
   });
 
@@ -496,224 +506,230 @@ export default function AddVideoScreen({ navigation }: Props) {
 
   // --- Render -----------------------------------------------------------------
 
+  const queueItems = importingItems;
+
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.md }]}
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* Header */}
-      <Animated.View entering={FadeIn.duration(180)} style={styles.header}>
-        <View style={styles.brandRow}>
-          <LogoMark size={16} color={colors.accent} />
-          <Text style={[styles.brandLabel, { color: colors.textTertiary }]}>TIKSAVE · IMPORT</Text>
-        </View>
-        <WordReveal
-          segments={[
-            { text: 'Save it for' },
-            { text: 'later.', style: { color: colors.accent, fontStyle: 'italic' } },
-          ]}
-          style={{ ...(styles.title as any), color: colors.text }}
-          stagger={45}
+    <ScreenBackground>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <ScreenHeader
+          title="Import"
+          subtitle="Save any TikTok link to your library"
         />
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Paste a TikTok link — or eight. We'll transcribe, tag and file each one.
-        </Text>
-      </Animated.View>
 
-      {/* Clipboard chip */}
-      {hasClipboardUrls && manualUrl.length === 0 && !isImporting && importStatus === 'idle' && (
-        <Animated.View
-          entering={FadeInDown.duration(180)}
-          exiting={FadeOut.duration(120)}
-          style={[
-            styles.clipboardChip,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <Ionicons name="clipboard-outline" size={16} color={colors.accent} />
-          <AnimatedPressable
-            onPress={() => {
-              setManualUrl(clipboardUrls.join('\n'));
-              clearUrls();
-            }}
-            style={styles.clipboardChipMain}
-            accessibilityLabel={`Use ${clipboardUrls.length} clipboard link${clipboardUrls.length > 1 ? 's' : ''}`}
-          >
-            <Text style={[styles.clipboardChipText, { color: colors.text }]} numberOfLines={1}>
-              {clipboardUrls.length === 1
-                ? 'Use clipboard link'
-                : `Use ${clipboardUrls.length} clipboard links`}
+        <GlassSurface borderRadius="xl" padding="lg" style={styles.pasteCard}>
+            <Text style={[styles.pasteTitle, { color: colors.text }]}>Paste a TikTok link</Text>
+            <Text style={[styles.pasteDesc, { color: colors.textSecondary }]}>
+              We'll fetch metadata, transcript, and folder suggestions automatically.
             </Text>
-            <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} />
-          </AnimatedPressable>
-          <AnimatedPressable
-            onPress={dismissUrls}
-            style={styles.clipboardChipDismiss}
-            accessibilityLabel="Dismiss clipboard suggestion"
-          >
-            <Ionicons name="close" size={14} color={colors.textTertiary} />
-          </AnimatedPressable>
-        </Animated.View>
-      )}
-
-      {/* Input */}
-      {!isImporting && (
-        <View style={styles.inputBlock}>
-          <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>PASTE TIKTOK URLS</Text>
-          <Animated.View
-            style={[
-              styles.inputWrapper,
-              { borderColor: colors.border, backgroundColor: colors.surface },
-              inputShakeStyle,
-            ]}
-          >
-            <TextInput
-              style={[styles.input, { color: colors.text }]}
-              placeholder={'https://tiktok.com/...\nhttps://tiktok.com/...'}
-              placeholderTextColor={colors.textQuaternary}
-              value={manualUrl}
-              onChangeText={setManualUrl}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-              accessibilityLabel="TikTok URLs"
-            />
-            {manualUrl.length > 0 && (
+            <Animated.View
+              style={[
+                styles.linkField,
+                { borderColor: colors.glassBorder, backgroundColor: colors.inputBackground },
+                inputShakeStyle,
+              ]}
+            >
+              <Ionicons name="link-outline" size={18} color={colors.textTertiary} />
+              <TextInput
+                style={[styles.linkInput, { color: colors.text }]}
+                placeholder="https://www.tiktok.com/..."
+                placeholderTextColor={colors.textQuaternary}
+                value={manualUrl}
+                onChangeText={setManualUrl}
+                editable={!isImporting}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                multiline
+                accessibilityLabel="TikTok URL"
+              />
+            </Animated.View>
+            {hasClipboardUrls && manualUrl.length === 0 && (
               <AnimatedPressable
-                onPress={() => setManualUrl('')}
-                style={styles.clearButton}
-                accessibilityLabel="Clear input"
+                onPress={() => {
+                  setManualUrl(clipboardUrls.join('\n'));
+                  clearUrls();
+                }}
+                style={styles.clipboardHint}
               >
-                <Ionicons name="close-circle" size={18} color={colors.textQuaternary} />
+                <Text style={[styles.clipboardHintText, { color: colors.processing }]}>
+                  Clipboard link detected — tap to use
+                </Text>
               </AnimatedPressable>
             )}
-          </Animated.View>
-
-          {parsedUrls.length > 0 && (
-            <Text style={[styles.urlCount, { color: colors.textTertiary }]}>
-              {parsedUrls.length} URL{parsedUrls.length === 1 ? '' : 's'} detected
-              {parsedUrls.length !== validUrls.length
-                ? ` · ${parsedUrls.length - validUrls.length} not TikTok`
-                : ''}
-            </Text>
-          )}
-
-          {validUrls.slice(0, 8).map((url) => (
-            <Animated.View
-              key={url}
-              entering={FadeInDown.duration(160)}
-              exiting={FadeOut.duration(120)}
-              layout={Layout.springify().damping(20).stiffness(220)}
-              style={styles.previewRow}
+            <AnimatedPressable
+              onPress={validUrls.length === 0 ? handleEmptyPress : handlePrimaryPress}
+              style={styles.importBtnWrap}
+              haptic
             >
+              <LinearGradient
+                colors={Gradients.importButton}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.importBtn}
+              >
+                <Ionicons name="download-outline" size={18} color="#fff" />
+                <Text style={styles.importBtnText}>
+                  {validUrls.length === 0 ? 'Import' : `Import ${validUrls.length}`}
+                </Text>
+              </LinearGradient>
+            </AnimatedPressable>
+            {validUrls.slice(0, 4).map((url) => (
               <UrlPreviewChip
+                key={url}
                 url={url}
                 preview={previews[url]?.data}
                 loading={previews[url]?.loading ?? true}
                 onRemove={() => handleRemoveUrl(url)}
               />
-            </Animated.View>
-          ))}
+            ))}
+          </GlassSurface>
+
+        <Text style={[styles.sectionLabel, { color: colors.text }]}>Import from TikTok</Text>
+        <View style={styles.methodRow}>
+          <ImportMethodCard
+            icon="share-outline"
+            iconColor={colors.pastelPurple}
+            title="Share to TikSave"
+            lines={['Open TikTok → Share', 'Choose TikSave']}
+            onPress={() => setHowToOpen(true)}
+          />
+          <ImportMethodCard
+            icon="link-outline"
+            iconColor={colors.pastelBlue}
+            title="Copy Link"
+            lines={['Copy video link', 'Paste above']}
+            onPress={() => {}}
+          />
+          <ImportMethodCard
+            icon="qr-code-outline"
+            iconColor={colors.pastelPurple}
+            title="Scan QR"
+            lines={['Scan TikTok QR', 'Import instantly']}
+            onPress={() => {}}
+          />
         </View>
-      )}
 
-      {/* In-progress list (replaces input area while importing) */}
-      {isImporting && importingItems.length > 0 && (
-        <View style={styles.inputBlock}>
-          <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>
-            IMPORTING {importingItems.length} VIDEO{importingItems.length === 1 ? '' : 'S'}
-          </Text>
-          {importingItems.map((item) => (
-            <Animated.View
-              key={item.id}
-              entering={FadeIn.duration(180)}
-              style={styles.importingRow}
-            >
-              <ImportingItemRow
-                item={item}
-                isCancelling={cancellingItemIds.has(item.id)}
-                onComplete={() => updateItemStatus(item.id, 'complete')}
-                onError={(msg) => {
-                  console.error(`Import ${item.id}:`, msg);
-                  updateItemStatus(item.id, 'error');
-                }}
-                onCancel={() => handleCancelImport(item.id)}
-              />
-            </Animated.View>
-          ))}
-        </View>
-      )}
+        {(queueItems.length > 0 || isImporting) && (
+          <View style={styles.queueSection}>
+            <View style={styles.queueHeader}>
+              <Text style={[styles.queueTitle, { color: colors.text }]}>Import Queue</Text>
+              <Text style={[styles.queueAction, { color: colors.textSecondary }]}>View All</Text>
+            </View>
+            <GlassSurface borderRadius="lg" padding="md">
+              {queueItems.map((item) => (
+                <ImportingItemRow
+                  key={item.id}
+                  item={item}
+                  isCancelling={cancellingItemIds.has(item.id)}
+                  onComplete={() => updateItemStatus(item.id, 'complete')}
+                  onError={(msg) => {
+                    console.error(`Import ${item.id}:`, msg);
+                    updateItemStatus(item.id, 'error');
+                  }}
+                  onCancel={() => handleCancelImport(item.id)}
+                />
+              ))}
+            </GlassSurface>
+          </View>
+        )}
 
-      {/* Inline error chip */}
-      {errorMessage && (
-        <Animated.View
-          entering={FadeInDown.duration(160)}
-          exiting={FadeOut.duration(120)}
-          style={[
-            styles.errorChip,
-            { backgroundColor: colors.errorSubtle, borderColor: colors.error },
-          ]}
-        >
-          <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
-          <Text style={[styles.errorText, { color: colors.error }]} numberOfLines={2}>
-            {errorMessage}
-          </Text>
-        </Animated.View>
-      )}
-
-      {/* Primary CTA */}
-      <View style={styles.ctaRow}>
-        <MorphButton
-          label={morphLabel}
-          state={morphState}
-          variant={morphVariant}
-          onPress={handlePrimaryPress}
-          onPressGhost={handleEmptyPress}
-          onPressProgress={handleProgressPress}
-          onPressRetry={handlePrimaryPress}
-          haptic
-        />
-      </View>
-
-      {/* Collapsed "How to share" accordion */}
-      {showHowTo && (
-        <Animated.View entering={FadeIn.duration(160)} style={styles.howTo}>
-          <AnimatedPressable
-            onPress={() => setHowToOpen((v) => !v)}
-            style={[styles.howToHeader, { borderColor: colors.border }]}
-            accessibilityRole="button"
-            accessibilityLabel={howToOpen ? 'Hide how-to' : 'Show how to share from TikTok'}
+        {errorMessage && (
+          <View
+            style={[
+              styles.errorChip,
+              { backgroundColor: colors.errorSubtle, borderColor: colors.error },
+            ]}
           >
-            <Ionicons
-              name={howToOpen ? 'chevron-down' : 'chevron-forward'}
-              size={14}
-              color={colors.textTertiary}
-            />
-            <Text style={[styles.howToHeaderText, { color: colors.textSecondary }]}>
-              How to share from TikTok
+            <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
+            <Text style={[styles.errorText, { color: colors.error }]} numberOfLines={2}>
+              {errorMessage}
             </Text>
-          </AnimatedPressable>
-          {howToOpen && (
-            <Animated.View entering={FadeInDown.duration(160)} style={styles.howToBody}>
-              <StepItem number={1} text="Open TikTok app" />
-              <StepItem number={2} text="Tap share on a video" />
-              <StepItem number={3} text="Select TikSave" />
-              <StepItem number={4} text="Automatically organized" />
-            </Animated.View>
-          )}
-        </Animated.View>
-      )}
-    </ScrollView>
+          </View>
+        )}
+
+        {isImporting && (
+          <MorphButton
+            label={morphLabel}
+            state={morphState}
+            variant={morphVariant}
+            onPress={handlePrimaryPress}
+            onPressGhost={handleEmptyPress}
+            onPressProgress={handleProgressPress}
+            onPressRetry={handlePrimaryPress}
+            haptic
+          />
+        )}
+
+        <GlassSurface borderRadius="lg" padding="md" style={styles.smartCard}>
+          <View style={styles.smartRow}>
+            <View style={[styles.smartIcon, { backgroundColor: colors.accentSubtle }]}>
+              <Ionicons name="sparkles" size={22} color={colors.text} />
+            </View>
+            <View style={styles.smartText}>
+              <Text style={[styles.smartTitle, { color: colors.text }]}>Smart Import</Text>
+              <Text style={[styles.smartDesc, { color: colors.textSecondary }]}>
+                Detect TikTok links when you copy them to the clipboard.
+              </Text>
+            </View>
+            <Switch
+              value={smartImport}
+              onValueChange={setSmartImport}
+              trackColor={{ false: colors.border, true: colors.pastelTeal }}
+              thumbColor="#ffffff"
+            />
+          </View>
+        </GlassSurface>
+
+        {showHowTo && howToOpen && (
+          <Animated.View entering={FadeInDown.duration(160)} style={styles.howToBody}>
+            <StepItem number={1} text="Open TikTok app" />
+            <StepItem number={2} text="Tap share on a video" />
+            <StepItem number={3} text="Select TikSave" />
+            <StepItem number={4} text="Automatically organized" />
+          </Animated.View>
+        )}
+      </ScrollView>
+    </ScreenBackground>
   );
 }
 
 // -----------------------------------------------------------------------------
 // Subcomponents — how-to steps & importing rows
 // -----------------------------------------------------------------------------
+
+function ImportMethodCard({
+  icon,
+  iconColor,
+  title,
+  lines,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  iconColor: string;
+  title: string;
+  lines: [string, string];
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      style={[styles.methodCard, { backgroundColor: colors.glassStrong, borderColor: colors.glassBorder }]}
+    >
+      <View style={[styles.methodIcon, { backgroundColor: `${iconColor}33` }]}>
+        <Ionicons name={icon} size={22} color={iconColor} />
+      </View>
+      <Text style={[styles.methodTitle, { color: colors.text }]}>{title}</Text>
+      <Text style={[styles.methodLine, { color: colors.textSecondary }]}>{lines[0]}</Text>
+      <Text style={[styles.methodLine, { color: colors.textSecondary }]}>{lines[1]}</Text>
+    </AnimatedPressable>
+  );
+}
 
 function StepItem({ number, text }: { number: number; text: string }) {
   const { colors } = useTheme();
@@ -793,9 +809,142 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   content: {
-    padding: Spacing.md,
-    paddingBottom: Spacing.xxl + TAB_BAR_OVERLAP,
+    paddingHorizontal: Spacing.screen,
+    paddingBottom: Spacing.xxxl + TAB_BAR_OVERLAP + Spacing.lg,
     gap: Spacing.md,
+  },
+  pasteCard: {
+    marginBottom: Spacing.sm,
+  },
+  pasteTitle: {
+    ...Typography.headingSm,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  pasteDesc: {
+    ...Typography.bodySm,
+    marginBottom: Spacing.md,
+  },
+  linkField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+    marginBottom: Spacing.md,
+  },
+  linkInput: {
+    flex: 1,
+    ...Typography.body,
+    fontSize: 15,
+    padding: 0,
+  },
+  clipboardHint: {
+    marginBottom: Spacing.sm,
+  },
+  clipboardHintText: {
+    ...Typography.captionStrong,
+    fontSize: 13,
+  },
+  importBtnWrap: {
+    alignSelf: 'flex-end',
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+    ...Shadows.md,
+  },
+  importBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.full,
+  },
+  importBtnText: {
+    color: '#fff',
+    ...Typography.bodyStrong,
+    fontSize: 15,
+  },
+  sectionLabel: {
+    ...Typography.headingSm,
+    fontWeight: '700',
+    marginTop: Spacing.sm,
+  },
+  methodRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  methodCard: {
+    flex: 1,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    padding: Spacing.sm,
+    alignItems: 'flex-start',
+    gap: 4,
+    ...Shadows.glass,
+  },
+  methodIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  methodTitle: {
+    ...Typography.captionStrong,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  methodLine: {
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  queueSection: {
+    marginTop: Spacing.sm,
+  },
+  queueHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+  },
+  queueTitle: {
+    ...Typography.headingSm,
+    fontWeight: '700',
+  },
+  queueAction: {
+    ...Typography.captionStrong,
+    fontSize: 13,
+  },
+  smartCard: {
+    marginTop: Spacing.md,
+  },
+  smartRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  smartIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  smartText: {
+    flex: 1,
+    gap: 2,
+  },
+  smartTitle: {
+    ...Typography.bodyStrong,
+  },
+  smartDesc: {
+    ...Typography.caption,
+    fontSize: 12,
   },
 
   // Header

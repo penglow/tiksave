@@ -5,16 +5,24 @@
  * config or `/config/public`, then navigates to `VideoDetail` from marker info windows.
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, StyleSheet, Text, Platform } from 'react-native';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { View, StyleSheet, Text, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { SaveItem, getDisplayTitle } from '../types';
 import { apiService } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
-import { Config, Spacing, BorderRadius, Typography } from '../config';
-import { Skeleton } from '../components';
+import { Config, Spacing, BorderRadius, Typography, Shadows, TAB_BAR_OVERLAP } from '../config';
+import {
+  Skeleton,
+  ScreenBackground,
+  ScreenHeader,
+  GlassSearchBar,
+  FilterChipsRow,
+  AnimatedPressable,
+} from '../components';
+import { itemBelongsToLibraryCategory } from '../utils/libraryTopicFilter';
 
 // -----------------------------------------------------------------------------
 // Types & globals
@@ -35,6 +43,13 @@ declare global {
 
 const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-js';
 let googleMapsPromise: Promise<GoogleMapsNamespace> | null = null;
+
+const googleLightMapStyle = [
+  { elementType: 'geometry', stylers: [{ color: '#f5f7fa' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#6b7280' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#dbeafe' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+];
 
 const googleDarkMapStyle = [
   { elementType: 'geometry', stylers: [{ color: '#1d1d1d' }] },
@@ -144,6 +159,8 @@ export default function MapScreen({ navigation }: any) {
   const [isLoading, setIsLoading] = useState(true);
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [mapSearch, setMapSearch] = useState('');
+  const [mapFilter, setMapFilter] = useState('all');
 
   // --- Data loading ---------------------------------------------------------
 
@@ -174,6 +191,22 @@ export default function MapScreen({ navigation }: any) {
   );
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    (window as any).gm_authFailure = () => {
+      setMapError('Google Maps billing is not enabled for this API key.');
+    };
+    return () => {
+      delete (window as any).gm_authFailure;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (items.length === 0) {
+      setIsMapReady(false);
+      setMapError(null);
+      return;
+    }
+
     let isCancelled = false;
 
     const initMap = async () => {
@@ -196,7 +229,7 @@ export default function MapScreen({ navigation }: any) {
           fullscreenControl: false,
           mapTypeControl: false,
           streetViewControl: false,
-          styles: isDark ? googleDarkMapStyle : undefined,
+          styles: isDark ? googleDarkMapStyle : googleLightMapStyle,
           zoomControlOptions: {
             position: maps.ControlPosition.RIGHT_BOTTOM,
           },
@@ -205,6 +238,16 @@ export default function MapScreen({ navigation }: any) {
         infoWindowRef.current = new maps.InfoWindow();
         setIsMapReady(true);
         setMapError(null);
+
+        // Billing / key issues still paint a broken map — detect watermark text.
+        setTimeout(() => {
+          if (isCancelled || !mapElementRef.current) return;
+          const text = mapElementRef.current.innerText || '';
+          if (text.includes('development purposes only') || text.includes("can't load Google Maps")) {
+            setMapError('Google Maps billing is not enabled for this API key.');
+            setIsMapReady(false);
+          }
+        }, 1200);
       } catch (error) {
         console.error('Failed to initialize Google Maps:', error);
         if (!isCancelled) setMapError('Google Maps could not be loaded.');
@@ -216,16 +259,34 @@ export default function MapScreen({ navigation }: any) {
     return () => {
       isCancelled = true;
     };
-  }, [colors.background, isDark]);
+  }, [colors.background, isDark, items.length]);
 
   useEffect(() => {
     if (!mapRef.current || !window.google?.maps) return;
 
     mapRef.current.setOptions({
       backgroundColor: colors.background,
-      styles: isDark ? googleDarkMapStyle : null,
+      styles: isDark ? googleDarkMapStyle : googleLightMapStyle,
     });
   }, [colors.background, isDark]);
+
+  const visibleItems = useMemo(() => {
+    let list = items;
+    if (mapFilter !== 'all') {
+      const category = mapFilter.charAt(0).toUpperCase() + mapFilter.slice(1);
+      list = list.filter((item) => itemBelongsToLibraryCategory(item, category));
+    }
+    const q = mapSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter((item) => {
+        const loc = (item.locationName ?? '').toLowerCase();
+        const addr = (item.address ?? '').toLowerCase();
+        const title = getDisplayTitle(item).toLowerCase();
+        return loc.includes(q) || addr.includes(q) || title.includes(q);
+      });
+    }
+    return list;
+  }, [items, mapFilter, mapSearch]);
 
   useEffect(() => {
     if (!isMapReady || !mapRef.current || !window.google?.maps) return;
@@ -234,7 +295,7 @@ export default function MapScreen({ navigation }: any) {
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
 
-    if (items.length === 0) {
+    if (visibleItems.length === 0) {
       mapRef.current.setCenter({ lat: 30, lng: 0 });
       mapRef.current.setZoom(2);
       return;
@@ -242,7 +303,7 @@ export default function MapScreen({ navigation }: any) {
 
     const bounds = new maps.LatLngBounds();
 
-    items.forEach((item) => {
+    visibleItems.forEach((item) => {
       const lat = Number(item.latitude);
       const lng = Number(item.longitude);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
@@ -277,18 +338,18 @@ export default function MapScreen({ navigation }: any) {
       bounds.extend({ lat, lng });
     });
 
-    if (items.length === 1) {
+    if (visibleItems.length === 1) {
       mapRef.current.setCenter(bounds.getCenter());
       mapRef.current.setZoom(13);
     } else {
       mapRef.current.fitBounds(bounds, {
-        top: 112,
+        top: 220,
         right: 40,
-        bottom: 40,
+        bottom: TAB_BAR_OVERLAP + 40,
         left: 40,
       });
     }
-  }, [colors.accent, isMapReady, items, navigation]);
+  }, [colors.accent, isMapReady, visibleItems, navigation]);
 
   const openInMaps = (lat: number, lng: number) => {
     window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
@@ -397,46 +458,107 @@ export default function MapScreen({ navigation }: any) {
 
   // --- Render -----------------------------------------------------------------
 
+  const mapChrome = (
+    <>
+      <ScreenHeader title="Map" subtitle="Explore where your saved videos are from" />
+      <GlassSearchBar
+        value={mapSearch}
+        onChangeText={setMapSearch}
+        placeholder="Search places, cities, countries..."
+      />
+      <FilterChipsRow
+        options={[
+          { id: 'all', label: 'All' },
+          { id: 'food', label: 'Food', icon: 'restaurant-outline' },
+          { id: 'travel', label: 'Travel', icon: 'airplane-outline' },
+          { id: 'study', label: 'Study', icon: 'book-outline' },
+          { id: 'fitness', label: 'Fitness', icon: 'barbell-outline' },
+        ]}
+        selectedId={mapFilter}
+        onSelect={setMapFilter}
+      />
+    </>
+  );
+
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { paddingTop: insets.top }]}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Discover</Text>
+      <ScreenBackground>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+          {mapChrome}
+          <View style={styles.loadingContainer}>
+            <Skeleton width="100%" height={200} />
+          </View>
         </View>
-        <View style={styles.loadingContainer}>
-          <Skeleton width="100%" height={400} />
-        </View>
-      </View>
+      </ScreenBackground>
+    );
+  }
+
+  const useMapFallback = mapError || items.length === 0;
+
+  if (useMapFallback) {
+    return (
+      <ScreenBackground>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={{
+            paddingTop: insets.top,
+            paddingBottom: TAB_BAR_OVERLAP + Spacing.xl,
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          {mapChrome}
+          <View
+            style={[
+              styles.mapMessageInline,
+              { backgroundColor: colors.glassStrong, borderColor: colors.glassBorder },
+            ]}
+          >
+            <Text style={[styles.mapMessageTitle, { color: colors.text }]}>
+              {mapError ? 'Map unavailable' : 'No locations yet'}
+            </Text>
+            <Text style={[styles.mapMessageBody, { color: colors.textSecondary }]}>
+              {mapError
+                ? `${mapError} Enable billing on your Google Maps API key, or set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY for local development.`
+                : 'Import videos with detected places to see them on the map.'}
+            </Text>
+          </View>
+          {visibleItems.length > 0
+            ? visibleItems.slice(0, 8).map((item) => (
+                <AnimatedPressable
+                  key={item.id}
+                  style={[
+                    styles.locationRow,
+                    { backgroundColor: colors.glassStrong, borderColor: colors.glassBorder },
+                  ]}
+                  onPress={() => navigation.navigate('VideoDetail', { item })}
+                >
+                  <Text style={[styles.locationTitle, { color: colors.text }]} numberOfLines={1}>
+                    {getDisplayTitle(item)}
+                  </Text>
+                  <Text
+                    style={[styles.locationMeta, { color: colors.textSecondary }]}
+                    numberOfLines={1}
+                  >
+                    {item.locationName || item.address || 'Saved location'}
+                  </Text>
+                </AnimatedPressable>
+              ))
+            : null}
+        </ScrollView>
+      </ScreenBackground>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View ref={mapElementRef as any} style={styles.mapContainer} />
+    <ScreenBackground>
+      <View style={styles.container}>
+        <View ref={mapElementRef as any} style={styles.mapContainer} />
 
-      {mapError && (
-        <View
-          style={[
-            styles.mapMessage,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <Text style={[styles.mapMessageTitle, { color: colors.text }]}>Map unavailable</Text>
-          <Text style={[styles.mapMessageBody, { color: colors.textSecondary }]}>{mapError}</Text>
-        </View>
-      )}
-
-      <View style={[styles.headerOverlay, { paddingTop: insets.top + 16 }]}>
-        <View
-          style={[
-            styles.headerBlur,
-            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-          ]}
-        >
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Discover</Text>
+        <View style={[styles.headerOverlay, { paddingTop: insets.top }]} pointerEvents="box-none">
+          {mapChrome}
         </View>
       </View>
-    </View>
+    </ScreenBackground>
   );
 }
 
@@ -452,6 +574,7 @@ const styles = StyleSheet.create({
   mapContainer: {
     ...StyleSheet.absoluteFillObject,
     width: '100%',
+    zIndex: 0,
   },
   header: {
     paddingHorizontal: Spacing.md,
@@ -462,9 +585,8 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: Spacing.md,
-    pointerEvents: 'none',
-    zIndex: 1000,
+    pointerEvents: 'box-none',
+    zIndex: 2000,
   },
   headerBlur: {
     paddingHorizontal: Spacing.md,
@@ -485,13 +607,40 @@ const styles = StyleSheet.create({
   },
   mapMessage: {
     position: 'absolute',
-    left: Spacing.md,
-    right: Spacing.md,
-    top: '42%',
+    left: Spacing.screen,
+    right: Spacing.screen,
     borderWidth: 1,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    zIndex: 1001,
+    zIndex: 15,
+    ...Shadows.glass,
+  },
+  mapMessageInline: {
+    marginHorizontal: Spacing.screen,
+    marginTop: Spacing.md,
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+  },
+  mapEmptyHint: {
+    ...Typography.bodySm,
+    textAlign: 'center',
+    marginTop: Spacing.lg,
+    paddingHorizontal: Spacing.screen,
+  },
+  locationRow: {
+    marginHorizontal: Spacing.screen,
+    marginTop: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  locationTitle: {
+    ...Typography.bodyStrong,
+    marginBottom: 4,
+  },
+  locationMeta: {
+    ...Typography.caption,
   },
   mapMessageTitle: {
     ...Typography.bodyStrong,

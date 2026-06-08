@@ -24,7 +24,7 @@ interface GlassSurfaceProps {
 export function GlassSurface({
   children,
   intensity = 40,
-  tint = 'dark',
+  tint = 'default',
   padding = 'md',
   borderRadius = 'lg',
   style,
