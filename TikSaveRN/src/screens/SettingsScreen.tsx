@@ -33,8 +33,9 @@ import {
   AnimatedPressable,
   AnimatedListItem,
   Badge,
-  LogoMark,
   Avatar,
+  ScreenBackground,
+  ScreenHeader,
   Wordmark,
 } from '../components';
 
@@ -194,20 +195,16 @@ export default function SettingsScreen() {
   // --- Render -----------------------------------------------------------------
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.md }]}
-    >
-      {/* Header */}
-      <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
-        <View style={styles.brandRow}>
-          <LogoMark size={16} color={colors.accent} />
-          <Text style={[styles.brandLabel, { color: colors.textTertiary }]}>
-            TIKSAVE · SETTINGS
-          </Text>
-        </View>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Settings</Text>
-      </Animated.View>
+    <ScreenBackground>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top, paddingBottom: TAB_BAR_OVERLAP + Spacing.xxxl },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <ScreenHeader title="Settings" subtitle="Account and preferences" />
 
       {/* Profile card */}
       <AnimatedListItem index={0} direction="fade">
@@ -227,7 +224,7 @@ export default function SettingsScreen() {
             </Text>
           </View>
           <View style={[styles.profilePlanPill, { backgroundColor: colors.accentSubtle }]}>
-            <Text style={[styles.profilePlan, { color: colors.accent }]}>Beta</Text>
+            <Text style={[styles.profilePlan, { color: colors.pastelTeal }]}>Beta</Text>
           </View>
         </View>
       </AnimatedListItem>
@@ -285,7 +282,7 @@ export default function SettingsScreen() {
             <Switch
               value={userSettings.notificationsEnabled}
               onValueChange={(value) => updateUserSettings({ notificationsEnabled: value })}
-              trackColor={{ false: colors.surfaceHover, true: colors.accent }}
+              trackColor={{ false: colors.surfaceHover, true: colors.pastelTeal }}
               thumbColor={colors.background}
               style={styles.switch}
             />
@@ -346,8 +343,8 @@ export default function SettingsScreen() {
           </View>
         </View>
       </AnimatedListItem>
+      </ScrollView>
 
-      {/* Folders Modal */}
       <FoldersModal
         visible={showFoldersModal}
         folders={folders}
@@ -358,14 +355,13 @@ export default function SettingsScreen() {
         onDeletePress={handleDeleteFolder}
       />
 
-      {/* Create Folder Modal */}
       <CreateFolderModal
         visible={showCreateModal}
         folders={folders}
         onClose={closeCreateModal}
         onCreate={handleCreateFolder}
       />
-    </ScrollView>
+    </ScreenBackground>
   );
 }
 

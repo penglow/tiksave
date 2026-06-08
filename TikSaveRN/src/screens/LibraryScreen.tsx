@@ -28,15 +28,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-
 import {
   Spacing,
   BorderRadius,
   Typography,
   CategoryColors,
   Hairline,
-  Gradients,
   Shadows,
   TAB_BAR_OVERLAP,
 } from '../config';
@@ -59,11 +56,14 @@ import {
   SkeletonVideoCard,
   AnimatedText,
   Badge,
-  LogoMark,
-  NumberTicker,
-  Pulse,
   RotatingLogo,
+  ScreenBackground,
+  ScreenHeader,
+  GlassSearchBar,
+  FilterChipsRow,
+  GridVideoCard,
 } from '../components';
+import { itemBelongsToLibraryCategory } from '../utils/libraryTopicFilter';
 import { useAppStore } from '../stores/appStore';
 
 // -----------------------------------------------------------------------------
@@ -169,13 +169,15 @@ const WITHIN_TOPIC_ORDER: LibraryWithinTopicSort[] = ['newest_first', 'oldest_fi
 // -----------------------------------------------------------------------------
 
 export default function LibraryScreen({ navigation }: Props) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
   // --- UI state -------------------------------------------------------------
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [sortModalOpen, setSortModalOpen] = useState(false);
+  const [librarySearch, setLibrarySearch] = useState('');
+  const [topicFilter, setTopicFilter] = useState('all');
 
   const categorySortMode = useAppStore((s) => s.userSettings.libraryCategorySort);
   const libraryWithinTopicSort = useAppStore((s) => s.userSettings.libraryWithinTopicSort);
@@ -326,35 +328,113 @@ export default function LibraryScreen({ navigation }: Props) {
     [hasMore, isLoadingMore, loadMore],
   );
 
-  const heroGradient = isDark ? Gradients.heroDark : Gradients.heroLight;
+  const filterChips = useMemo(() => {
+    const topics = new Set<string>();
+    for (const item of items) {
+      const t = item.detectedTopics?.[0]?.split(' > ')[0]?.trim();
+      if (t) topics.add(t.charAt(0).toUpperCase() + t.slice(1));
+    }
+    const sorted = [...topics].sort((a, b) => a.localeCompare(b));
+    return [
+      { id: 'all', label: 'All' },
+      ...sorted.slice(0, 5).map((name) => ({
+        id: name.toLowerCase(),
+        label: name,
+        icon: topicIcon(name) as keyof typeof Ionicons.glyphMap,
+      })),
+    ];
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    let list = items;
+    if (topicFilter !== 'all') {
+      const label = filterChips.find((c) => c.id === topicFilter)?.label ?? topicFilter;
+      list = list.filter((item) => itemBelongsToLibraryCategory(item, label));
+    }
+    const q = librarySearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter((item) => {
+        const title = getDisplayTitle(item).toLowerCase();
+        const user = (item.creatorUsername ?? '').toLowerCase();
+        const topics = (item.detectedTopics ?? []).join(' ').toLowerCase();
+        return title.includes(q) || user.includes(q) || topics.includes(q);
+      });
+    }
+    return list;
+  }, [items, topicFilter, librarySearch, filterChips]);
+
+  const recentItems = useMemo(() => filteredItems.slice(0, 4), [filteredItems]);
+
+  const filteredCategories = useMemo(() => {
+    if (topicFilter === 'all' && !librarySearch.trim()) return categories;
+    const ids = new Set(filteredItems.map((i) => i.id));
+    return categories
+      .map((c) => ({ ...c, items: c.items.filter((i) => ids.has(i.id)) }))
+      .filter((c) => c.items.length > 0);
+  }, [categories, filteredItems, topicFilter, librarySearch]);
 
   const handleRetryLoad = useCallback(() => {
     void loadItems();
   }, [loadItems]);
 
   const navigateToAddVideo = useCallback(() => {
-    navigation.navigate('AddVideo');
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.navigate('Add' as never);
+    } else {
+      navigation.navigate('AddVideo');
+    }
   }, [navigation]);
 
   // --- Render -----------------------------------------------------------------
 
+  const ListHeader = useCallback(
+    () => (
+      <View>
+        {recentItems.length > 0 ? (
+          <View style={styles.recentSection}>
+            <View style={styles.sectionRow}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Recently Saved</Text>
+              <AnimatedPressable onPress={() => setSortModalOpen(true)}>
+                <Text style={[styles.sortLink, { color: colors.textSecondary }]}>
+                  Sort: {LIBRARY_CATEGORY_SORT_LABELS[categorySortMode]}
+                </Text>
+              </AnimatedPressable>
+            </View>
+            <View style={styles.recentGrid}>
+              {recentItems.map((item, idx) => (
+                <View key={item.id} style={styles.gridCell}>
+                  <GridVideoCard
+                    item={item}
+                    onPress={() => navigation.navigate('VideoDetail', { item })}
+                    featureLabel={
+                      item.locationName ? 'Map detected' : item.detectedTopics?.[1] ? 'Recipe' : undefined
+                    }
+                  />
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+      </View>
+    ),
+    [recentItems, colors, categorySortMode, navigation],
+  );
+
   if (isLoading && items.length === 0) {
     return (
-      <LibraryLoadingView
-        backgroundColor={colors.background}
-        paddingTop={insets.top}
-        titleColor={colors.text}
-      />
+      <ScreenBackground>
+        <LibraryLoadingView paddingTop={insets.top} titleColor={colors.text} />
+      </ScreenBackground>
     );
   }
 
   if (error && items.length === 0) {
     return (
-      <View
-        style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
-      >
-        <LibrarySimpleHeader titleColor={colors.text} />
-        <LibraryErrorView
+      <ScreenBackground>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+          <ScreenHeader title="Library" subtitle="Your saved videos" />
+          <LibraryErrorView
           errorSubtleColor={colors.errorSubtle}
           errorColor={colors.error}
           textColor={colors.text}
@@ -363,17 +443,17 @@ export default function LibraryScreen({ navigation }: Props) {
           message={error}
           onRetry={handleRetryLoad}
         />
-      </View>
+        </View>
+      </ScreenBackground>
     );
   }
 
   if (items.length === 0) {
     return (
-      <View
-        style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
-      >
-        <LibrarySimpleHeader titleColor={colors.text} />
-        <LibraryEmptyView
+      <ScreenBackground>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+          <ScreenHeader title="Library" subtitle="0 saved videos" />
+          <LibraryEmptyView
           accentSubtleColor={colors.accentSubtle}
           accentColor={colors.accent}
           textColor={colors.text}
@@ -382,126 +462,95 @@ export default function LibraryScreen({ navigation }: Props) {
           buttonForegroundColor={colors.background}
           onImportPress={navigateToAddVideo}
         />
-      </View>
+        </View>
+      </ScreenBackground>
     );
   }
 
   return (
     <>
-      <View
-        style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
-      >
-        {/* Hero Header with gradient */}
-        <LinearGradient colors={heroGradient} style={styles.heroHeader}>
-          <View style={styles.brandRow}>
-            <LogoMark size={18} color={colors.accent} />
-            <Text style={[styles.brandLabel, { color: colors.textTertiary }]}>
-              TIKSAVE · LIBRARY
-            </Text>
-            <View style={styles.brandLive}>
-              <Pulse color={colors.success} size={6} />
-              <Text style={[styles.brandLiveLabel, { color: colors.textQuaternary }]}>LIVE</Text>
-            </View>
-          </View>
-          <View style={styles.headerContent}>
-            <View style={styles.headerTitleWrap}>
-              <Text style={[styles.headerTitle, { color: colors.text }]}>Your library</Text>
-              <View style={styles.headerMeta}>
-                <View style={[styles.headerCountDot, { backgroundColor: colors.accent }]} />
-                <NumberTicker
-                  value={items.length}
-                  style={[styles.headerCountNumber, { color: colors.text }]}
-                />
-                <Text style={[styles.headerCount, { color: colors.textSecondary }]}>
-                  {items.length === 1 ? 'video' : 'videos'} · {categories.length}{' '}
-                  {categories.length === 1 ? 'topic' : 'topics'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-                style={[
-                  styles.headerAction,
-                  { backgroundColor: colors.surfaceHover, borderColor: colors.border },
-                ]}
-                onPress={() => setSortModalOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Sort topics and clips"
-              >
-                <Ionicons name="swap-vertical-outline" size={20} color={colors.text} />
-              </TouchableOpacity>
-              <AnimatedPressable
-                style={[
-                  styles.headerAction,
-                  { backgroundColor: colors.surfaceHover, borderColor: colors.border },
-                ]}
-                onPress={() => navigation.navigate('AddVideo')}
-                haptic
-                accessibilityLabel="Import a video"
-              >
-                <Ionicons name="add" size={20} color={colors.text} />
-              </AnimatedPressable>
-            </View>
-          </View>
-        </LinearGradient>
+      <ScreenBackground>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+          <ScreenHeader
+            title="Library"
+            subtitle={`${items.length} saved video${items.length === 1 ? '' : 's'}`}
+          />
+          <GlassSearchBar
+            value={librarySearch}
+            onChangeText={setLibrarySearch}
+            placeholder="Search recipes, trips, edits..."
+            onFilterPress={() => setSortModalOpen(true)}
+            filterAccessibilityLabel="Sort library"
+          />
+          <FilterChipsRow
+            options={filterChips}
+            selectedId={topicFilter}
+            onSelect={setTopicFilter}
+          />
 
-        {/* Web: RN VirtualizedList + nested horizontal strips breaks wheel/trackpad scroll (#1042). Use ScrollView vertically; native keeps FlatList. */}
-        <View style={styles.listRegion}>
-          {Platform.OS === 'web' ? (
-            <ScrollView
-              style={styles.categoryFlatList}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled
-              keyboardShouldPersistTaps="handled"
-              refreshControl={
-                <RefreshControl
-                  refreshing={isRefreshing}
-                  onRefresh={handleRefresh}
-                  tintColor={colors.text}
-                />
-              }
-              scrollEventThrottle={32}
-              onScroll={onLibraryWebScroll}
-              onLayout={(e) => {
-                webViewportHeight.current = e.nativeEvent.layout.height;
-              }}
-              onContentSizeChange={maybeFillWebLibraryViewport}
-            >
-              {categories.map((category) => (
-                <CategorySection key={category.name} category={category} navigation={navigation} />
-              ))}
-              {ListFooter()}
-            </ScrollView>
-          ) : (
-            <FlatList
-              data={categories}
-              renderItem={renderCategory}
-              keyExtractor={(item) => item.name}
-              onEndReached={loadMore}
-              onEndReachedThreshold={0.3}
-              refreshControl={
-                <RefreshControl
-                  refreshing={isRefreshing}
-                  onRefresh={handleRefresh}
-                  tintColor={colors.text}
-                />
-              }
-              ListFooterComponent={ListFooter}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.listContent}
-              style={styles.categoryFlatList}
-              nestedScrollEnabled
-              removeClippedSubviews={false}
-              keyboardShouldPersistTaps="handled"
-              windowSize={7}
-              initialNumToRender={8}
-              maxToRenderPerBatch={4}
-              updateCellsBatchingPeriod={50}
-            />
-          )}
+          <View style={styles.listRegion}>
+            {Platform.OS === 'web' ? (
+              <ScrollView
+                style={styles.categoryFlatList}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+                refreshControl={
+                  <RefreshControl
+                    refreshing={isRefreshing}
+                    onRefresh={handleRefresh}
+                    tintColor={colors.text}
+                  />
+                }
+                scrollEventThrottle={32}
+                onScroll={onLibraryWebScroll}
+                onLayout={(e) => {
+                  webViewportHeight.current = e.nativeEvent.layout.height;
+                }}
+                onContentSizeChange={maybeFillWebLibraryViewport}
+              >
+                <ListHeader />
+                {filteredCategories.map((category) => (
+                  <CategorySection
+                    key={category.name}
+                    category={category}
+                    navigation={navigation}
+                  />
+                ))}
+                {ListFooter()}
+              </ScrollView>
+            ) : (
+              <FlatList
+                data={filteredCategories}
+                renderItem={renderCategory}
+                keyExtractor={(item) => item.name}
+                onEndReached={loadMore}
+                onEndReachedThreshold={0.3}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={isRefreshing}
+                    onRefresh={handleRefresh}
+                    tintColor={colors.text}
+                  />
+                }
+                ListHeaderComponent={ListHeader}
+                ListFooterComponent={ListFooter}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.listContent}
+                style={styles.categoryFlatList}
+                nestedScrollEnabled
+                removeClippedSubviews={false}
+                keyboardShouldPersistTaps="handled"
+                windowSize={7}
+                initialNumToRender={8}
+                maxToRenderPerBatch={4}
+                updateCellsBatchingPeriod={50}
+              />
+            )}
+          </View>
         </View>
-      </View>
+      </ScreenBackground>
 
       <Modal
         transparent
@@ -596,26 +645,19 @@ export default function LibraryScreen({ navigation }: Props) {
 // Presentational subviews (loading / error / empty / header)
 // -----------------------------------------------------------------------------
 
-function LibrarySimpleHeader({ titleColor }: { titleColor: string }) {
-  return (
-    <View style={styles.header}>
-      <Text style={[styles.headerTitle, { color: titleColor }]}>Library</Text>
-    </View>
-  );
+function topicIcon(name: string): keyof typeof Ionicons.glyphMap | undefined {
+  const n = name.toLowerCase();
+  if (n.includes('food')) return 'restaurant-outline';
+  if (n.includes('travel')) return 'airplane-outline';
+  if (n.includes('study') || n.includes('education')) return 'book-outline';
+  if (n.includes('fitness')) return 'barbell-outline';
+  return undefined;
 }
 
-function LibraryLoadingView({
-  backgroundColor,
-  paddingTop,
-  titleColor,
-}: {
-  backgroundColor: string;
-  paddingTop: number;
-  titleColor: string;
-}) {
+function LibraryLoadingView({ paddingTop, titleColor }: { paddingTop: number; titleColor: string }) {
   return (
-    <View style={[styles.container, { backgroundColor, paddingTop }]}>
-      <LibrarySimpleHeader titleColor={titleColor} />
+    <View style={[styles.container, { paddingTop }]}>
+      <ScreenHeader title="Library" subtitle="Loading..." />
       <View style={styles.skeletonContainer}>
         {[0, 1, 2].map((i) => (
           <View key={i} style={styles.skeletonCategory}>
@@ -1058,6 +1100,35 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: Spacing.xl + TAB_BAR_OVERLAP,
+  },
+  recentSection: {
+    paddingHorizontal: Spacing.screen,
+    marginBottom: Spacing.lg,
+  },
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    ...Typography.headingSm,
+    fontWeight: '700',
+  },
+  sortLink: {
+    ...Typography.caption,
+    fontSize: 13,
+  },
+  recentGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  gridCell: {
+    flex: 1,
+    flexBasis: '48%',
+    maxWidth: '48%',
+    minWidth: 140,
   },
 
   // Loading more

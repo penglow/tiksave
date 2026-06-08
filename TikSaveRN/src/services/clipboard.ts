@@ -3,7 +3,7 @@
  * Persists last-seen content to avoid duplicate prompts.
  */
 
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 import * as ExpoClipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -126,7 +126,10 @@ export async function checkClipboardForUrls(): Promise<ClipboardDetectionResult>
       isNew,
     };
   } catch (error) {
-    console.error('Failed to check clipboard:', error);
+    // Browsers block clipboard without a user gesture — expected on web.
+    if (__DEV__ && Platform.OS !== 'web') {
+      console.warn('Failed to check clipboard:', error);
+    }
     return { hasUrls: false, urls: [], isNew: false };
   }
 }

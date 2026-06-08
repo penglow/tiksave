@@ -57,25 +57,30 @@ export const Config = {
 };
 
 // =============================================================================
-// DESIGN SYSTEM v3 — "Obsidian Luxe"
+// DESIGN SYSTEM v4 — "Glass Pastel"
 // =============================================================================
-// A refined, premium aesthetic evolution with:
-// - Deeper obsidian backgrounds with subtle warmth
-// - Warm coral-salmon accent with gold undertones
-// - Glassmorphism-ready surfaces with controlled opacity
-// - Editorial typography with tighter tracking
-// - Cinematic shadows with warm color casts
-// - Smooth organic motion curves
+// Light-first glassmorphism: soft pastel mesh backgrounds, frosted cards,
+// charcoal primary actions, and teal-to-pink accent gradients.
 // =============================================================================
 
 const DarkColors = {
-  // Backgrounds — deep obsidian with warmth
-  background: '#0c0c0e',
-  surface: '#141416',
-  surfaceHover: '#1c1c1f',
-  surfaceElevated: '#222226',
-  glass: 'rgba(20, 20, 22, 0.72)',
-  glassBorder: 'rgba(245, 245, 240, 0.06)',
+  // Backgrounds — glass pastel dark (not pure black)
+  background: '#0f1118',
+  surface: '#181b24',
+  surfaceHover: '#1f2430',
+  surfaceElevated: '#252a36',
+  glass: 'rgba(24, 27, 36, 0.72)',
+  glassBorder: 'rgba(245, 245, 240, 0.08)',
+  glassStrong: 'rgba(30, 34, 44, 0.92)',
+  inputBackground: 'rgba(255, 255, 255, 0.06)',
+  tabActive: '#1a1a1e',
+  tabActiveIcon: '#ffffff',
+  processing: '#818cf8',
+  processingSubtle: 'rgba(129, 140, 248, 0.14)',
+  pastelTeal: '#80eed3',
+  pastelPink: '#fdb4f4',
+  pastelBlue: '#a8d4ff',
+  pastelPurple: '#c4b5fd',
 
   // Text — warm off-white hierarchy
   text: '#f5f5f0',
@@ -83,12 +88,12 @@ const DarkColors = {
   textTertiary: 'rgba(245, 245, 240, 0.45)',
   textQuaternary: 'rgba(245, 245, 240, 0.25)',
 
-  // Accent — warm coral-salmon with gold undertone
-  accent: '#e8705a',
-  accentLight: '#f28b78',
-  accentDark: '#c45a46',
-  accentSubtle: 'rgba(232, 112, 90, 0.12)',
-  accentMuted: 'rgba(232, 112, 90, 0.05)',
+  // Accent — charcoal CTAs (match light glass UI)
+  accent: '#f5f5f0',
+  accentLight: '#ffffff',
+  accentDark: '#e2e2dc',
+  accentSubtle: 'rgba(245, 245, 240, 0.08)',
+  accentMuted: 'rgba(245, 245, 240, 0.04)',
 
   // Primary — warm white for dark mode
   primary: '#f5f5f0',
@@ -116,26 +121,36 @@ const DarkColors = {
 };
 
 const LightColors = {
-  // Backgrounds — warm off-white
-  background: '#f7f6f3',
+  // Backgrounds — airy off-white with pastel mesh
+  background: '#f2f4f8',
   surface: '#ffffff',
-  surfaceHover: '#f0eeea',
+  surfaceHover: '#f5f6fa',
   surfaceElevated: '#ffffff',
-  glass: 'rgba(255, 255, 255, 0.80)',
-  glassBorder: 'rgba(26, 26, 30, 0.06)',
+  glass: 'rgba(255, 255, 255, 0.72)',
+  glassBorder: 'rgba(15, 23, 42, 0.06)',
+  glassStrong: 'rgba(255, 255, 255, 0.88)',
+  inputBackground: 'rgba(255, 255, 255, 0.85)',
+  tabActive: '#1a1a1e',
+  tabActiveIcon: '#ffffff',
+  processing: '#818cf8',
+  processingSubtle: 'rgba(129, 140, 248, 0.12)',
+  pastelTeal: '#80eed3',
+  pastelPink: '#fdb4f4',
+  pastelBlue: '#a8d4ff',
+  pastelPurple: '#c4b5fd',
 
   // Text — deep ink
-  text: '#1a1a1e',
-  textSecondary: 'rgba(26, 26, 30, 0.65)',
-  textTertiary: 'rgba(26, 26, 30, 0.42)',
-  textQuaternary: 'rgba(26, 26, 30, 0.25)',
+  text: '#0f172a',
+  textSecondary: '#6b7280',
+  textTertiary: 'rgba(15, 23, 42, 0.45)',
+  textQuaternary: 'rgba(15, 23, 42, 0.28)',
 
-  // Accent — coral-salmon
-  accent: '#d45a44',
-  accentLight: '#e8705a',
-  accentDark: '#b34834',
-  accentSubtle: 'rgba(212, 90, 68, 0.08)',
-  accentMuted: 'rgba(212, 90, 68, 0.04)',
+  // Accent — charcoal CTAs with pastel gradient highlights
+  accent: '#1a1a1e',
+  accentLight: '#334155',
+  accentDark: '#0f172a',
+  accentSubtle: 'rgba(15, 23, 42, 0.06)',
+  accentMuted: 'rgba(15, 23, 42, 0.03)',
 
   // Primary
   primary: '#1a1a1e',
@@ -172,14 +187,31 @@ export const getThemeColors = (isDark: boolean) => {
 // Gradient presets
 export const Gradients = {
   heroDark: ['#141416', '#0c0c0e'] as const,
-  heroLight: ['#ffffff', '#f7f6f3'] as const,
+  heroLight: ['#ffffff', '#f2f4f8'] as const,
   accentDark: ['#e8705a', '#c45a46'] as const,
-  accentLight: ['#f28b78', '#d45a44'] as const,
+  accentLight: ['#1a1a1e', '#334155'] as const,
   surfaceDark: ['#222226', '#141416'] as const,
-  surfaceLight: ['#ffffff', '#f0eeea'] as const,
+  surfaceLight: ['#ffffff', '#f5f6fa'] as const,
   goldDark: ['#fbbf24', '#e8705a'] as const,
   goldLight: ['#fbbf24', '#d45a44'] as const,
+  pastel: ['#80eed3', '#fdb4f4'] as const,
+  smartCard: ['rgba(168, 212, 255, 0.35)', 'rgba(253, 180, 244, 0.28)'] as const,
+  importButton: ['#1e293b', '#0f172a'] as const,
 };
+
+/** Decorative mesh blobs for screen backgrounds (cx/cy/r are 0–1 fractions). */
+export const MeshBlobs = {
+  light: [
+    { cx: 0.15, cy: 0.08, r: 0.42, color: '#a8d4ff', opacity: 0.45 },
+    { cx: 0.85, cy: 0.12, r: 0.38, color: '#fdb4f4', opacity: 0.4 },
+    { cx: 0.55, cy: 0.35, r: 0.5, color: '#c4b5fd', opacity: 0.28 },
+    { cx: 0.2, cy: 0.55, r: 0.35, color: '#80eed3', opacity: 0.22 },
+  ],
+  dark: [
+    { cx: 0.2, cy: 0.1, r: 0.45, color: '#6366f1', opacity: 0.2 },
+    { cx: 0.8, cy: 0.15, r: 0.4, color: '#ec4899', opacity: 0.15 },
+  ],
+} as const;
 
 // Category Colors — contextual, sophisticated jewel tones
 export const CategoryColors = {
@@ -216,10 +248,10 @@ export const CategoryColors = {
 // ---------------------------------------------------------------------------
 
 const displayFontFamily = Platform.select({
-  web: '"Fraunces", "Times New Roman", Georgia, serif',
-  ios: 'Georgia',
-  android: 'serif',
-  default: 'serif',
+  web: '"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  ios: 'System',
+  android: 'sans-serif',
+  default: 'sans-serif',
 });
 
 const bodyFontFamily = Platform.select({
@@ -246,24 +278,24 @@ export const Typography = {
   // Display — editorial serif with tight tracking, italic optical settings on web
   displayLg: {
     fontFamily: displayFontFamily,
-    fontSize: 44,
+    fontSize: 34,
     fontWeight: '700' as const,
-    letterSpacing: -1.6,
-    lineHeight: 48,
+    letterSpacing: -0.8,
+    lineHeight: 40,
   },
   displayMd: {
     fontFamily: displayFontFamily,
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '700' as const,
-    letterSpacing: -1.1,
-    lineHeight: 36,
+    letterSpacing: -0.6,
+    lineHeight: 34,
   },
   displaySm: {
     fontFamily: displayFontFamily,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700' as const,
-    letterSpacing: -0.6,
-    lineHeight: 30,
+    letterSpacing: -0.4,
+    lineHeight: 28,
   },
 
   // Headings — sans for UI labels and section headers
@@ -495,13 +527,23 @@ export const Shadows = {
   }),
   glow: Platform.select({
     ios: {
-      shadowColor: '#e8705a',
+      shadowColor: '#80eed3',
       shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.3,
-      shadowRadius: 20,
+      shadowOpacity: 0.35,
+      shadowRadius: 18,
     },
     android: { elevation: 8 },
-    default: { boxShadow: '0 0 24px rgba(232, 112, 90, 0.30)' },
+    default: { boxShadow: '0 0 20px rgba(128, 238, 211, 0.35)' },
+  }),
+  glass: Platform.select({
+    ios: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.05,
+      shadowRadius: 30,
+    },
+    android: { elevation: 4 },
+    default: { boxShadow: '0 10px 30px rgba(0, 0, 0, 0.05)' },
   }),
   warm: Platform.select({
     ios: {
@@ -522,4 +564,4 @@ export const Shadows = {
 export const Hairline = StyleSheet.hairlineWidth || 1;
 
 // Extra bottom padding for screens with floating tab bar
-export const TAB_BAR_OVERLAP = 100;
+export const TAB_BAR_OVERLAP = 120;

@@ -65,9 +65,6 @@ services:
   frontend:
     build:
       context: ./TikSaveRN
-    env_file:
-      - path: ./backend/.env
-        required: false
     environment:
       EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-http://localhost:3000/api}
       EXPO_PUBLIC_GOOGLE_MAPS_API_KEY: ${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY:-}
@@ -81,6 +78,9 @@ services:
     volumes:
       - ./TikSaveRN:/app
       - frontend_node_modules:/app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
     command: ["bunx", "expo", "start", "--web", "--host", "lan", "--port", "8081"]
     restart: unless-stopped
 

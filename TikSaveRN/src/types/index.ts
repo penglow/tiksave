@@ -267,7 +267,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   notificationsEnabled: true,
   confidenceThreshold: 0.85,
   defaultInboxRetention: 30,
-  theme: 'system',
+  theme: 'light',
   libraryCategorySort: 'videos_desc',
   libraryWithinTopicSort: 'newest_first',
 };
