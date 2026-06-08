@@ -1,15 +1,13 @@
+/**
+ * Live processing status card for a single saved item (polls /items/:id/progress).
+ * Shows stage message, animated bar, pipeline dots, and optional cancel control.
+ */
+
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Pressable,
-} from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withTiming,
   withSpring,
   FadeIn,
   FadeOut,
@@ -19,6 +17,7 @@ import { Spacing, BorderRadius, Typography } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { apiService } from '../services/api';
 
+// --- Types / props ---
 interface ProcessingStage {
   stage: string;
   progress: number;
@@ -35,7 +34,15 @@ interface ProcessingProgressProps {
   pollInterval?: number;
 }
 
-const STAGE_ORDER = ['queued', 'downloading', 'analyzing', 'extracting_location', 'classifying', 'saving', 'ready'];
+const STAGE_ORDER = [
+  'queued',
+  'downloading',
+  'analyzing',
+  'extracting_location',
+  'classifying',
+  'saving',
+  'ready',
+];
 
 export function ProcessingProgress({
   itemId,
@@ -55,20 +62,26 @@ export function ProcessingProgress({
     const fetchProgress = async () => {
       try {
         const response = await apiService.getItemProgress(itemId);
-        
-        if (response.status === 'error') {
+
+        const isFailed = response.status === 'failed' || response.processing?.stage === 'error';
+
+        if (isFailed) {
           setError(response.processing?.message || 'Processing failed');
           onError?.(response.processing?.message || 'Processing failed');
+          if (pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
           return;
         }
-        
+
         setStage(response.processing);
         progressWidth.value = withSpring(response.processing?.progress || 0, {
           damping: 15,
           stiffness: 100,
         });
-        
-        if (response.status === 'ready') {
+
+        if (response.status === 'ready' || response.status === 'needs_review') {
           onComplete?.();
           if (pollRef.current) {
             clearInterval(pollRef.current);
@@ -92,7 +105,7 @@ export function ProcessingProgress({
         pollRef.current = null;
       }
     };
-  }, [itemId, pollInterval, onComplete, onError]);
+  }, [itemId, pollInterval]);
 
   const progressBarStyle = useAnimatedStyle(() => ({
     width: `${progressWidth.value}%`,
@@ -120,9 +133,7 @@ export function ProcessingProgress({
         style={[styles.container, { backgroundColor: colors.accentSubtle }]}
       >
         <ActivityIndicator size="small" color={colors.text} />
-        <Text style={[styles.message, { color: colors.textSecondary }]}>
-          Starting...
-        </Text>
+        <Text style={[styles.message, { color: colors.textSecondary }]}>Starting...</Text>
       </Animated.View>
     );
   }
@@ -136,19 +147,13 @@ export function ProcessingProgress({
       {/* Stage info */}
       <View style={styles.header}>
         <Text style={styles.emoji}>{stage.emoji}</Text>
-        <Text style={[styles.message, { color: colors.text }]}>
-          {stage.message}
-        </Text>
+        <Text style={[styles.message, { color: colors.text }]}>{stage.message}</Text>
       </View>
 
       {/* Progress bar */}
       <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
         <Animated.View
-          style={[
-            styles.progressBar,
-            { backgroundColor: colors.success },
-            progressBarStyle,
-          ]}
+          style={[styles.progressBar, { backgroundColor: colors.success }, progressBarStyle]}
         />
       </View>
 
@@ -158,7 +163,7 @@ export function ProcessingProgress({
           const currentIndex = STAGE_ORDER.indexOf(stage.stage);
           const isComplete = index < currentIndex;
           const isCurrent = stageName === stage.stage;
-          
+
           return (
             <View
               key={stageName}
@@ -168,8 +173,8 @@ export function ProcessingProgress({
                   backgroundColor: isComplete
                     ? colors.success
                     : isCurrent
-                    ? colors.text
-                    : colors.border,
+                      ? colors.text
+                      : colors.border,
                 },
               ]}
             />
@@ -201,6 +206,7 @@ export function ProcessingProgress({
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   container: {
     padding: Spacing.md,

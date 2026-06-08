@@ -1,17 +1,25 @@
+/**
+ * Root navigator: auth gate and loading splash before Main tab shell.
+ */
+
 import React, { useEffect } from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createStackNavigator } from '@react-navigation/stack';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
 import { RootStackParamList } from './types';
-import { Colors } from '../config';
 import { useAuthStore } from '../stores/authStore';
 import { useTheme } from '../hooks/useTheme';
 
 import AuthScreen from '../screens/AuthScreen';
 import MainNavigator from './MainNavigator';
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+// ---------------------------------------------------------------------------
+// Navigator
+// ---------------------------------------------------------------------------
 
+const Stack = createStackNavigator<RootStackParamList>();
+
+/** Top-level stack that switches between Auth and Main based on session state. */
 export default function RootNavigator() {
   const { isAuthenticated, isInitialized, initialize } = useAuthStore();
   const { colors: themeColors } = useTheme();
@@ -32,8 +40,7 @@ export default function RootNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: themeColors.background },
-        animation: 'fade',
+        cardStyle: { backgroundColor: themeColors.background },
       }}
     >
       {isAuthenticated ? (
@@ -45,6 +52,10 @@ export default function RootNavigator() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
@@ -52,4 +63,3 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
-

@@ -1,5 +1,13 @@
+/**
+ * User preference learning from folder correction training examples.
+ */
+
+// --- imports ---
+
 import { query } from '../database/init.js';
 import { invalidateUserFolderCache } from './folderCache.js';
+
+// --- types ---
 
 interface TrainingFeatures {
   topics: string[];
@@ -17,8 +25,10 @@ interface RecordTrainingInput {
   features: TrainingFeatures;
 }
 
+// --- handlers ---
+
 /**
- * Record a training example when user corrects AI classification
+ * Record a training example when user corrects AI classification.
  */
 export async function recordTrainingExample(input: RecordTrainingInput): Promise<void> {
   await query(
@@ -56,6 +66,8 @@ export async function updateUserPreferences(
     await updateFolderWeights(userId, wrongFolderId, features, false);
   }
 }
+
+// --- helpers ---
 
 async function updateFolderWeights(
   userId: string,

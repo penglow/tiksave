@@ -1,4 +1,11 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+/**
+ * SearchScreen
+ *
+ * Semantic and keyword search across saved videos in the Search tab. Debounces input,
+ * shows recent searches and suggestions, and navigates to `VideoDetail` from results.
+ */
+
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,20 +16,37 @@ import {
   Keyboard,
   Image,
   Linking,
+  TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
-import { Spacing, BorderRadius, Typography, Hairline } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline, Shadows, TAB_BAR_OVERLAP } from '../config';
 import { SaveItem, SearchMode, getDisplayTitle } from '../types';
 import { apiService, APIError } from '../services/api';
 import { useAppStore } from '../stores/appStore';
 import { SearchStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
-import { AnimatedPressable, AnimatedListItem, AnimatedText } from '../components';
+import { useResolvedTikTokThumbnail } from '../hooks/useResolvedTikTokThumbnail';
+import {
+  AnimatedPressable,
+  AnimatedListItem,
+  AnimatedText,
+  Badge,
+  LogoMark,
+  WordReveal,
+  RotatingLogo,
+} from '../components';
+
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
 
 type Props = SearchStackScreenProps<'SearchMain'>;
+
+// -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
 
 const SUGGESTIONS = [
   'ramen tokyo',
@@ -33,9 +57,16 @@ const SUGGESTIONS = [
   'travel vlog',
 ];
 
+// -----------------------------------------------------------------------------
+// Main screen
+// -----------------------------------------------------------------------------
+
 export default function SearchScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+
+  // --- Search state -----------------------------------------------------------
+
   const [searchText, setSearchText] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('semantic');
   const [results, setResults] = useState<SaveItem[]>([]);
@@ -44,11 +75,12 @@ export default function SearchScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
-  const searchIdRef = useRef(0); // Track search requests to handle race conditions
+  const searchIdRef = useRef(0);
 
   const { recentSearches, addRecentSearch, clearRecentSearches } = useAppStore();
 
-  // Memoized search function to prevent stale closures
+  // --- Data loading -----------------------------------------------------------
+
   const performSearch = useCallback(async (query: string, mode: SearchMode, searchId: number) => {
     if (!query.trim()) {
       setResults([]);
@@ -61,13 +93,11 @@ export default function SearchScreen({ navigation }: Props) {
 
     try {
       const data = await apiService.search(query, mode === 'semantic');
-      // Only update results if this is still the latest search
       if (searchId === searchIdRef.current) {
         setResults(data);
       }
     } catch (err) {
       console.error('Search failed:', err);
-      // Only update error if this is still the latest search
       if (searchId === searchIdRef.current) {
         if (err instanceof APIError) {
           setError(err.message);
@@ -84,33 +114,33 @@ export default function SearchScreen({ navigation }: Props) {
     }
   }, []);
 
-  const handleSearch = useCallback(async (query?: string) => {
-    const searchQuery = query || searchText;
-    if (!searchQuery.trim()) return;
+  const handleSearch = useCallback(
+    async (query?: string) => {
+      const searchQuery = query || searchText;
+      if (!searchQuery.trim()) return;
 
-    Keyboard.dismiss();
-    searchIdRef.current += 1;
-    const currentSearchId = searchIdRef.current;
-    // Immediate search on submit
-    await performSearch(searchQuery, searchMode, currentSearchId);
-    addRecentSearch(searchQuery);
-  }, [searchText, searchMode, performSearch, addRecentSearch]);
+      Keyboard.dismiss();
+      searchIdRef.current += 1;
+      const currentSearchId = searchIdRef.current;
+      await performSearch(searchQuery, searchMode, currentSearchId);
+      addRecentSearch(searchQuery);
+    },
+    [searchText, searchMode, performSearch, addRecentSearch],
+  );
 
-  // Debounced search effect with proper cleanup
   useEffect(() => {
     let isMounted = true;
-    
-    // Show typing indicator immediately
+
     if (searchText.trim()) {
       setIsTyping(true);
     }
 
     const timer = setTimeout(() => {
       if (!isMounted) return;
-      
+
       searchIdRef.current += 1;
       const currentSearchId = searchIdRef.current;
-      
+
       if (searchText.trim()) {
         performSearch(searchText, searchMode, currentSearchId);
       } else {
@@ -118,13 +148,15 @@ export default function SearchScreen({ navigation }: Props) {
         setError(null);
         setIsTyping(false);
       }
-    }, 300); // Reduced from 500ms for better responsiveness
+    }, 300);
 
     return () => {
       isMounted = false;
       clearTimeout(timer);
     };
   }, [searchText, searchMode, performSearch]);
+
+  // --- Handlers ---------------------------------------------------------------
 
   const handleClear = useCallback(() => {
     setSearchText('');
@@ -136,28 +168,69 @@ export default function SearchScreen({ navigation }: Props) {
   const handleModeChange = useCallback((mode: SearchMode) => {
     setSearchMode(mode);
     setError(null);
-    // Effect will trigger search
   }, []);
+
+  // --- Derived ----------------------------------------------------------------
 
   const showInitialState = !searchText && results.length === 0 && !isLoading && !error;
   const showNoResults = searchText && results.length === 0 && !isLoading && !error;
   const showError = error && !isLoading;
 
+  const searchHeadlineSegments = useMemo(
+    (): { text: string; style?: TextStyle }[] => [
+      { text: 'Find anything' },
+      { text: 'fast.', style: { color: colors.accent, fontStyle: 'italic' } },
+    ],
+    [colors.accent],
+  );
+
+  const searchHeadlineTextStyle = useMemo(
+    () =>
+      ({
+        ...StyleSheet.flatten(styles.headerTitle),
+        color: colors.text,
+      }) as TextStyle,
+    [colors.text],
+  );
+
+  // --- Render -----------------------------------------------------------------
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View
+      style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
+    >
       {/* Header */}
       <View style={styles.header}>
-        <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>Search</AnimatedText>
+        <View style={styles.brandRow}>
+          <LogoMark size={16} color={colors.accent} />
+          <Text style={[styles.brandLabel, { color: colors.textTertiary }]}>TIKSAVE · SEARCH</Text>
+        </View>
+        <WordReveal
+          segments={searchHeadlineSegments}
+          style={searchHeadlineTextStyle}
+          stagger={45}
+        />
+        <Text style={[styles.headerSub, { color: colors.textTertiary }]}>
+          Semantic search reads transcripts, captions and tags.
+        </Text>
       </View>
 
       {/* Search Bar */}
       <View style={styles.searchBarContainer}>
-        <View style={[styles.searchInputContainer, { borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.searchInputContainer,
+            {
+              borderColor: isSearchFocused ? colors.textQuaternary : colors.border,
+              backgroundColor: colors.surface,
+            },
+          ]}
+        >
           {isLoading ? (
-            <ActivityIndicator size="small" color={colors.textQuaternary} />
+            <RotatingLogo size={18} color={colors.accent} />
           ) : isTyping ? (
             <View style={styles.typingIndicator}>
-              <View style={[styles.typingDot, { backgroundColor: colors.textQuaternary }]} />
+              <View style={[styles.typingDot, { backgroundColor: colors.accent }]} />
             </View>
           ) : (
             <Ionicons name="search" size={16} color={colors.textQuaternary} />
@@ -179,12 +252,12 @@ export default function SearchScreen({ navigation }: Props) {
             accessibilityHint="Enter keywords to search your saved videos"
           />
           {searchText.length > 0 && (
-            <AnimatedPressable 
+            <AnimatedPressable
               onPress={handleClear}
               accessibilityLabel="Clear search"
               accessibilityRole="button"
             >
-              <Ionicons name="close-circle" size={16} color={colors.textQuaternary} />
+              <Ionicons name="close-circle" size={18} color={colors.textQuaternary} />
             </AnimatedPressable>
           )}
         </View>
@@ -199,9 +272,7 @@ export default function SearchScreen({ navigation }: Props) {
             accessibilityLabel="Cancel search"
             accessibilityRole="button"
           >
-            <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
-              Cancel
-            </Text>
+            <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</Text>
           </AnimatedPressable>
         )}
       </View>
@@ -215,14 +286,16 @@ export default function SearchScreen({ navigation }: Props) {
               style={styles.modeButton}
               onPress={() => handleModeChange(mode)}
             >
-              <Text style={[
-                styles.modeButtonText,
-                { color: searchMode === mode ? colors.text : colors.textTertiary },
-              ]}>
+              <Text
+                style={[
+                  styles.modeButtonText,
+                  { color: searchMode === mode ? colors.text : colors.textTertiary },
+                ]}
+              >
                 {mode === 'semantic' ? 'Semantic' : 'Keyword'}
               </Text>
               {searchMode === mode && (
-                <View style={[styles.modeIndicator, { backgroundColor: colors.text }]} />
+                <View style={[styles.modeIndicator, { backgroundColor: colors.accent }]} />
               )}
             </AnimatedPressable>
           ))}
@@ -239,7 +312,9 @@ export default function SearchScreen({ navigation }: Props) {
         </View>
       ) : showError ? (
         <View style={styles.centerContainer}>
-          <Ionicons name="cloud-offline-outline" size={32} color={colors.error} />
+          <View style={[styles.emptyIconWrapper, { backgroundColor: colors.errorSubtle }]}>
+            <Ionicons name="cloud-offline-outline" size={28} color={colors.error} />
+          </View>
           <AnimatedText delay={100} style={[styles.errorTitle, { color: colors.text }]}>
             Search failed
           </AnimatedText>
@@ -264,19 +339,22 @@ export default function SearchScreen({ navigation }: Props) {
         >
           {/* Recent Searches */}
           {recentSearches.length > 0 && (
-            <AnimatedListItem index={0} direction="fade">
+            <AnimatedListItem index={0} direction="fade" disableExitAnimation>
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
-                    RECENT
-                  </Text>
+                  <View style={styles.sectionLabelRow}>
+                    <View style={[styles.sectionLabelDot, { backgroundColor: colors.accent }]} />
+                    <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
+                      RECENT
+                    </Text>
+                  </View>
                   <AnimatedPressable onPress={clearRecentSearches}>
                     <Text style={[styles.clearButton, { color: colors.textQuaternary }]}>
                       Clear
                     </Text>
                   </AnimatedPressable>
                 </View>
-                {recentSearches.map((query, index) => (
+                {recentSearches.map((query) => (
                   <AnimatedPressable
                     key={query}
                     style={[styles.recentItem, { borderBottomColor: colors.border }]}
@@ -295,22 +373,32 @@ export default function SearchScreen({ navigation }: Props) {
           )}
 
           {/* Suggestions */}
-          <AnimatedListItem index={1} direction="fade">
+          <AnimatedListItem
+            index={recentSearches.length > 0 ? 1 : 0}
+            direction="fade"
+            disableExitAnimation
+          >
             <View style={styles.section}>
-              <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
-                TRY SEARCHING
-              </Text>
+              <View style={styles.sectionLabelRow}>
+                <View style={[styles.sectionLabelDot, { backgroundColor: colors.accent }]} />
+                <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
+                  TRY SEARCHING
+                </Text>
+              </View>
               <View style={styles.suggestionsContainer}>
                 {SUGGESTIONS.map((suggestion) => (
                   <AnimatedPressable
                     key={suggestion}
-                    style={[styles.suggestionBadge, { borderColor: colors.border }]}
+                    style={[
+                      styles.suggestionBadge,
+                      { borderColor: colors.border, backgroundColor: colors.surface },
+                    ]}
                     onPress={() => {
                       setSearchText(suggestion);
                       handleSearch(suggestion);
                     }}
                   >
-                    <Text style={[styles.suggestionText, { color: colors.text }]}>
+                    <Text style={[styles.suggestionText, { color: colors.textSecondary }]}>
                       {suggestion}
                     </Text>
                   </AnimatedPressable>
@@ -321,11 +409,16 @@ export default function SearchScreen({ navigation }: Props) {
         </ScrollView>
       ) : showNoResults ? (
         <View style={styles.centerContainer}>
-          <Ionicons name="search-outline" size={32} color={colors.textQuaternary} />
+          <View style={[styles.emptyIconWrapper, { backgroundColor: colors.surfaceHover }]}>
+            <Ionicons name="search-outline" size={28} color={colors.textTertiary} />
+          </View>
           <AnimatedText delay={100} style={[styles.noResultsTitle, { color: colors.text }]}>
             No results
           </AnimatedText>
-          <AnimatedText delay={200} style={[styles.noResultsSubtitle, { color: colors.textTertiary }]}>
+          <AnimatedText
+            delay={200}
+            style={[styles.noResultsSubtitle, { color: colors.textTertiary }]}
+          >
             Try different keywords
           </AnimatedText>
         </View>
@@ -336,7 +429,7 @@ export default function SearchScreen({ navigation }: Props) {
           showsVerticalScrollIndicator={false}
         >
           {results.map((item, index) => (
-            <AnimatedListItem key={item.id} index={index} direction="fade">
+            <AnimatedListItem key={item.id} index={index} direction="fade" disableExitAnimation>
               <SearchResultRow
                 item={item}
                 searchQuery={searchText}
@@ -350,6 +443,10 @@ export default function SearchScreen({ navigation }: Props) {
   );
 }
 
+// -----------------------------------------------------------------------------
+// Subcomponents — search result row
+// -----------------------------------------------------------------------------
+
 function SearchResultRow({
   item,
   searchQuery,
@@ -360,6 +457,8 @@ function SearchResultRow({
   onNavigateToDetail: () => void;
 }) {
   const { colors } = useTheme();
+
+  const thumbUri = useResolvedTikTokThumbnail(item.sourceURL, item.thumbnailURL);
 
   const findMatchContext = (): string | null => {
     if (!item.transcriptText) return null;
@@ -389,81 +488,109 @@ function SearchResultRow({
   };
 
   return (
-    <AnimatedPressable
-      style={[styles.resultRow, { borderBottomColor: colors.border }]}
-      onPress={onNavigateToDetail}
-    >
-      {/* Thumbnail */}
-      <AnimatedPressable
-        style={styles.resultThumbnail}
-        onPress={openInTikTok}
-        scaleOnPress={0.98}
-      >
-        {item.thumbnailURL ? (
+    <View style={[styles.resultRow, { borderBottomColor: colors.border }]}>
+      <AnimatedPressable style={styles.resultThumbnail} onPress={openInTikTok} scaleOnPress={0.97}>
+        {thumbUri ? (
           <Image
-            source={{ uri: item.thumbnailURL, cache: 'force-cache' }}
+            source={{ uri: thumbUri, cache: 'force-cache' }}
             style={styles.thumbnailImage}
             resizeMode="cover"
           />
         ) : (
-          <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.accentSubtle }]}>
+          <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.surfaceHover }]}>
             <Ionicons name="play" size={16} color={colors.textTertiary} />
           </View>
         )}
         {item.duration && (
           <View style={styles.durationBadge}>
             <Text style={styles.durationText}>
-              {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
+              {Math.floor(item.duration / 60)}:
+              {String(Math.floor(item.duration % 60)).padStart(2, '0')}
             </Text>
           </View>
         )}
       </AnimatedPressable>
 
-      {/* Info */}
-      <View style={styles.resultInfo}>
-        <Text style={[styles.resultTitle, { color: colors.text }]} numberOfLines={2}>
-          {getDisplayTitle(item)}
-        </Text>
-
-        {item.creatorUsername && (
-          <Text style={[styles.resultCreator, { color: colors.textTertiary }]}>
-            @{item.creatorUsername}
+      <AnimatedPressable
+        style={styles.resultMain}
+        onPress={onNavigateToDetail}
+        noScale
+        opacityOnPress={0.6}
+        accessibilityLabel={`View details for ${getDisplayTitle(item)}`}
+        accessibilityRole="button"
+      >
+        <View style={styles.resultInfo}>
+          <Text style={[styles.resultTitle, { color: colors.text }]} numberOfLines={2}>
+            {getDisplayTitle(item)}
           </Text>
-        )}
 
-        {matchContext && (
-          <Text style={[styles.matchContext, { color: colors.textQuaternary }]} numberOfLines={1}>
-            {matchContext}
-          </Text>
-        )}
+          {item.creatorUsername && (
+            <Text style={[styles.resultCreator, { color: colors.textTertiary }]}>
+              @{item.creatorUsername}
+            </Text>
+          )}
 
-        {item.detectedTopics.length > 0 && (
-          <View style={styles.topicsRow}>
-            {item.detectedTopics.slice(0, 2).map((topic) => (
-              <Text key={topic} style={[styles.topicText, { color: colors.textQuaternary }]}>
-                {topic}
-              </Text>
-            ))}
-          </View>
-        )}
-      </View>
+          {matchContext && (
+            <Text style={[styles.matchContext, { color: colors.textQuaternary }]} numberOfLines={1}>
+              {matchContext}
+            </Text>
+          )}
 
-      <Ionicons name="chevron-forward" size={14} color={colors.textQuaternary} />
-    </AnimatedPressable>
+          {item.detectedTopics.length > 0 && (
+            <View style={styles.topicsRow}>
+              {item.detectedTopics.slice(0, 2).map((topic) => (
+                <Badge key={topic} label={topic} variant="ghost" size="sm" />
+              ))}
+            </View>
+          )}
+        </View>
+
+        <Ionicons name="chevron-forward" size={14} color={colors.textQuaternary} />
+      </AnimatedPressable>
+    </View>
   );
 }
+
+// -----------------------------------------------------------------------------
+// Styles
+// -----------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 0,
   },
   header: {
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.sm,
     paddingBottom: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  brandLabel: {
+    ...Typography.label,
+    fontSize: 10,
+    letterSpacing: 1.6,
   },
   headerTitle: {
     ...Typography.displayMd,
+    fontSize: 32,
+    lineHeight: 36,
+  },
+  headerTitleAccent: {
+    ...Typography.displayMd,
+    fontSize: 32,
+    lineHeight: 36,
+    fontStyle: 'italic',
+  },
+  headerSub: {
+    ...Typography.caption,
+    marginTop: Spacing.xs,
   },
   searchBarContainer: {
     flexDirection: 'row',
@@ -477,14 +604,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.sm,
-    gap: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
+    height: 48,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: Spacing.sm,
     ...Typography.body,
+    paddingVertical: 0,
   },
   cancelButton: {
     paddingVertical: Spacing.xs,
@@ -496,11 +624,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: Spacing.md,
     borderBottomWidth: Hairline,
+    gap: Spacing.lg,
   },
   modeButton: {
     alignItems: 'center',
     paddingVertical: Spacing.sm,
-    marginRight: Spacing.lg,
   },
   modeButtonText: {
     ...Typography.captionStrong,
@@ -516,6 +644,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: Spacing.xl,
+  },
+  emptyIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
   },
   loadingText: {
     ...Typography.caption,
@@ -565,13 +701,15 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    minHeight: 0,
   },
   scrollContent: {
     padding: Spacing.md,
+    paddingBottom: Spacing.md + TAB_BAR_OVERLAP,
     gap: Spacing.lg,
   },
   resultsContent: {
-    paddingBottom: Spacing.xl,
+    paddingBottom: Spacing.xl + TAB_BAR_OVERLAP,
   },
   section: {
     gap: Spacing.sm,
@@ -580,6 +718,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  sectionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  sectionLabelDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
   },
   sectionLabel: {
     ...Typography.label,
@@ -591,8 +739,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     borderBottomWidth: Hairline,
+    borderRadius: BorderRadius.sm,
   },
   recentText: {
     ...Typography.body,
@@ -605,12 +755,15 @@ const styles = StyleSheet.create({
   },
   suggestionBadge: {
     borderWidth: 1,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 9,
+    borderRadius: BorderRadius.full,
+    ...Shadows.xs,
   },
   suggestionText: {
     ...Typography.caption,
+    fontWeight: '500',
+    fontSize: 13,
   },
   resultRow: {
     flexDirection: 'row',
@@ -621,10 +774,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: Hairline,
   },
   resultThumbnail: {
-    width: 60,
-    height: 80,
-    borderRadius: BorderRadius.xs,
+    width: 64,
+    height: 86,
+    borderRadius: BorderRadius.sm,
     overflow: 'hidden',
+    backgroundColor: '#000',
+    ...Shadows.xs,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 128, 128, 0.12)',
   },
   thumbnailImage: {
     width: '100%',
@@ -639,23 +796,29 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 4,
     right: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: BorderRadius.xs,
   },
   durationText: {
     fontSize: 10,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#ffffff',
   },
   resultInfo: {
     flex: 1,
     gap: 2,
   },
+  resultMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   resultTitle: {
     ...Typography.captionStrong,
-    lineHeight: 16,
+    lineHeight: 17,
   },
   resultCreator: {
     fontSize: 12,
@@ -667,8 +830,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.xs,
     marginTop: 2,
-  },
-  topicText: {
-    fontSize: 10,
   },
 });

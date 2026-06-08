@@ -1,3 +1,8 @@
+/**
+ * React hook for detecting TikTok URLs copied to the system clipboard.
+ * Monitors app foreground events and exposes manual check/dismiss helpers.
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { AppState } from 'react-native';
 import {
@@ -6,6 +11,10 @@ import {
   markClipboardProcessed,
   ClipboardDetectionResult,
 } from '../services/clipboard';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface UseClipboardOptions {
   /** Whether to automatically check on app foreground */
@@ -29,13 +38,18 @@ interface UseClipboardReturn {
   clearUrls: () => void;
 }
 
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
 /**
- * Hook to detect TikTok URLs from clipboard
- * Automatically checks when app comes to foreground
+ * Detect TikTok URLs from the clipboard and react to foreground changes.
+ *
+ * @param options - Auto-check and deduplication behavior.
  */
 export function useClipboard(options: UseClipboardOptions = {}): UseClipboardReturn {
   const { autoCheck = true, onlyNew = true } = options;
-  
+
   const [detection, setDetection] = useState<ClipboardDetectionResult>({
     hasUrls: false,
     urls: [],
@@ -44,7 +58,7 @@ export function useClipboard(options: UseClipboardOptions = {}): UseClipboardRet
 
   const checkClipboard = useCallback(async () => {
     const result = await checkClipboardForUrls();
-    
+
     // Only update state if we should show this
     if (!onlyNew || result.isNew) {
       setDetection(result);

@@ -1,8 +1,16 @@
+/**
+ * Development seed script — creates a test user, folders, and sample save items.
+ */
+
+// --- imports ---
+
 import { pool, query } from './init.js';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+// --- handlers ---
 
 async function seed() {
   console.log('Seeding database...');

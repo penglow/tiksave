@@ -1,3 +1,11 @@
+/**
+ * FolderDetailScreen
+ *
+ * Shows all saved videos assigned to a single user folder. Supports pull-to-refresh,
+ * navigation to video detail on tap, move-to-folder via long-press, and folder deletion
+ * from the stack header.
+ */
+
 import React, { useState, useCallback, useLayoutEffect } from 'react';
 import {
   View,
@@ -14,35 +22,75 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Spacing, BorderRadius, Typography, Hairline } from '../config';
+import { Spacing, BorderRadius, Typography, Shadows } from '../config';
 import { SaveItem, getDisplayTitle, needsUserReview } from '../types';
 import { apiService } from '../services/api';
 import { LibraryStackScreenProps } from '../navigation/types';
 import { useTheme } from '../hooks/useTheme';
-import { AnimatedPressable, AnimatedListItem, AnimatedText } from '../components';
-import MoveFolderModal from '../components/MoveFolderModal';
+import { useResolvedTikTokThumbnail } from '../hooks/useResolvedTikTokThumbnail';
+import { AnimatedPressable, AnimatedListItem, AnimatedText, MoveFolderModal } from '../components';
 import { formatDuration } from '../utils/date';
 
-const { width } = Dimensions.get('window');
-const COLUMN_GAP = 8;
-const PADDING = 16;
-const CARD_WIDTH = (width - PADDING * 2 - COLUMN_GAP) / 2;
+// -----------------------------------------------------------------------------
+// Layout constants — two-column grid sized from screen width
+// -----------------------------------------------------------------------------
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const COLUMN_GAP = 12;
+const HORIZONTAL_PADDING = 16;
+const CARD_WIDTH = (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - COLUMN_GAP) / 2;
 
 type Props = LibraryStackScreenProps<'FolderDetail'>;
+
+// -----------------------------------------------------------------------------
+// Main screen
+// -----------------------------------------------------------------------------
 
 export default function FolderDetailScreen({ route, navigation }: Props) {
   const { folder } = route.params;
   const { colors } = useTheme();
-  const [isDeleting, setIsDeleting] = useState(false);
+
+  // --- List & UI state --------------------------------------------------------
+
   const [items, setItems] = useState<SaveItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Move modal: which item is being relocated (set on long-press)
   const [selectedItem, setSelectedItem] = useState<SaveItem | null>(null);
   const [showMoveModal, setShowMoveModal] = useState(false);
 
-  const performDelete = async () => {
+  // --- Data loading -----------------------------------------------------------
+
+  const loadItems = useCallback(async () => {
+    try {
+      const data = await apiService.getItems({ folderId: folder.id });
+      setItems(data);
+    } catch (error) {
+      console.error('Failed to load items:', error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [folder.id]);
+
+  /** Refetch whenever this screen gains focus (e.g. after moving an item elsewhere). */
+  useFocusEffect(
+    useCallback(() => {
+      loadItems();
+    }, [loadItems]),
+  );
+
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    loadItems();
+  }, [loadItems]);
+
+  // --- Folder deletion (header trash action) ----------------------------------
+
+  const performDelete = useCallback(async () => {
     setIsDeleting(true);
     try {
       await apiService.deleteFolder(folder.id);
@@ -56,7 +104,7 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
       }
       setIsDeleting(false);
     }
-  };
+  }, [folder.id, navigation]);
 
   const handleDeleteFolder = useCallback(() => {
     const message = `Delete "${folder.name}"?`;
@@ -71,7 +119,7 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
         { text: 'Delete', style: 'destructive', onPress: performDelete },
       ]);
     }
-  }, [folder.id, folder.name, navigation]);
+  }, [folder.name, performDelete]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -91,66 +139,60 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
     });
   }, [navigation, handleDeleteFolder, isDeleting, colors]);
 
-  const loadItems = useCallback(async () => {
-    try {
-      const data = await apiService.getItems({ folderId: folder.id });
-      setItems(data);
-    } catch (error) {
-      console.error('Failed to load items:', error);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [folder.id]);
+  // --- Item actions -----------------------------------------------------------
 
-  useFocusEffect(
-    useCallback(() => {
-      loadItems();
-    }, [loadItems])
+  const handleMoveItem = useCallback(
+    async (folderId: string | null) => {
+      if (!selectedItem) return;
+      try {
+        await apiService.moveItemToFolder(selectedItem.id, folderId);
+        setShowMoveModal(false);
+        setSelectedItem(null);
+        loadItems();
+      } catch (error) {
+        console.error('Failed to move item:', error);
+      }
+    },
+    [selectedItem, loadItems],
   );
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    loadItems();
-  };
+  const openMoveModalForItem = useCallback((item: SaveItem) => {
+    setSelectedItem(item);
+    setShowMoveModal(true);
+  }, []);
 
-  const handleMoveItem = async (folderId: string | null) => {
-    if (!selectedItem) return;
-    try {
-      await apiService.moveItemToFolder(selectedItem.id, folderId);
-      setShowMoveModal(false);
-      setSelectedItem(null);
-      loadItems();
-    } catch (error) {
-      console.error('Failed to move item:', error);
-    }
-  };
+  const closeMoveModal = useCallback(() => {
+    setShowMoveModal(false);
+    setSelectedItem(null);
+  }, []);
 
-  const openInTikTok = (url: string) => {
+  const openInTikTok = useCallback((url: string) => {
     Linking.openURL(url);
-  };
+  }, []);
+
+  const navigateToVideoDetail = useCallback(
+    (item: SaveItem) => {
+      navigation.navigate('VideoDetail', { item });
+    },
+    [navigation],
+  );
+
+  // --- Render -----------------------------------------------------------------
 
   if (isLoading) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="small" color={colors.text} />
-      </View>
-    );
+    return <FolderLoadingView backgroundColor={colors.background} />;
   }
 
   if (items.length === 0) {
     return (
-      <View style={[styles.emptyContainer, { backgroundColor: colors.background }]}>
-        <View style={[styles.emptyIconWrapper, { backgroundColor: colors.accentSubtle }]}>
-          <Ionicons name="folder-open-outline" size={32} color={colors.textTertiary} />
-        </View>
-        <AnimatedText delay={100} style={[styles.emptyTitle, { color: colors.text }]}>
-          No videos in {folder.name}
-        </AnimatedText>
-        <AnimatedText delay={200} style={[styles.emptySubtitle, { color: colors.textTertiary }]}>
-          Videos will appear here when{'\n'}they're filed into this folder
-        </AnimatedText>
-      </View>
+      <FolderEmptyView
+        folderName={folder.name}
+        backgroundColor={colors.background}
+        accentColor={colors.accent}
+        accentSubtleColor={colors.accentSubtle}
+        textColor={colors.text}
+        subtitleColor={colors.textTertiary}
+      />
     );
   }
 
@@ -173,17 +215,11 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
             <AnimatedListItem key={item.id} index={index} direction="fade">
               <AnimatedPressable
                 style={styles.card}
-                onPress={() => navigation.navigate('VideoDetail', { item })}
-                onLongPress={() => {
-                  setSelectedItem(item);
-                  setShowMoveModal(true);
-                }}
-                scaleOnPress={0.98}
+                onPress={() => navigateToVideoDetail(item)}
+                onLongPress={() => openMoveModalForItem(item)}
+                scaleOnPress={0.97}
               >
-                <VideoThumbnailCard
-                  item={item}
-                  onOpenTikTok={() => openInTikTok(item.sourceURL)}
-                />
+                <VideoThumbnailCard item={item} onOpenTikTok={() => openInTikTok(item.sourceURL)} />
               </AnimatedPressable>
             </AnimatedListItem>
           ))}
@@ -193,50 +229,104 @@ export default function FolderDetailScreen({ route, navigation }: Props) {
       <MoveFolderModal
         visible={showMoveModal}
         item={selectedItem}
-        onClose={() => {
-          setShowMoveModal(false);
-          setSelectedItem(null);
-        }}
+        onClose={closeMoveModal}
         onMove={handleMoveItem}
       />
     </View>
   );
 }
 
-function VideoThumbnailCard({
-  item,
-  onOpenTikTok,
+// -----------------------------------------------------------------------------
+// Presentational subviews (loading / empty)
+// -----------------------------------------------------------------------------
+
+/** Centered spinner shown on first load before items are known. */
+function FolderLoadingView({ backgroundColor }: { backgroundColor: string }) {
+  const { colors } = useTheme();
+
+  return (
+    <View style={[styles.loadingContainer, { backgroundColor }]}>
+      <ActivityIndicator size="small" color={colors.text} />
+    </View>
+  );
+}
+
+/** Shown when the folder exists but has no assigned videos yet. */
+function FolderEmptyView({
+  folderName,
+  backgroundColor,
+  accentColor,
+  accentSubtleColor,
+  textColor,
+  subtitleColor,
 }: {
-  item: SaveItem;
-  onOpenTikTok: () => void;
+  folderName: string;
+  backgroundColor: string;
+  accentColor: string;
+  accentSubtleColor: string;
+  textColor: string;
+  subtitleColor: string;
 }) {
+  return (
+    <View style={[styles.emptyContainer, { backgroundColor }]}>
+      <View style={[styles.emptyIconWrapper, { backgroundColor: accentSubtleColor }]}>
+        <Ionicons name="folder-open-outline" size={32} color={accentColor} />
+      </View>
+      <AnimatedText delay={100} style={[styles.emptyTitle, { color: textColor }]}>
+        No videos in {folderName}
+      </AnimatedText>
+      <AnimatedText delay={200} style={[styles.emptySubtitle, { color: subtitleColor }]}>
+        Videos will appear here when{'\n'}they're filed into this folder
+      </AnimatedText>
+    </View>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Grid card — thumbnail, metadata, and status overlays
+// -----------------------------------------------------------------------------
+
+type VideoThumbnailCardProps = {
+  item: SaveItem;
+  /** Reserved for future quick-open affordance; parent passes TikTok URL handler. */
+  onOpenTikTok: () => void;
+};
+
+function VideoThumbnailCard({ item, onOpenTikTok: _onOpenTikTok }: VideoThumbnailCardProps) {
   const { colors } = useTheme();
   const showsNeedsReview = needsUserReview(item);
+  const thumbUri = useResolvedTikTokThumbnail(item.sourceURL, item.thumbnailURL);
 
   return (
     <View style={styles.cardContent}>
-      {/* Thumbnail */}
+      {/* 9:16 preview — resolved via oEmbed when stored thumbnail is missing */}
       <View style={styles.thumbnailContainer}>
-        {item.thumbnailURL ? (
+        {thumbUri ? (
           <Image
-            source={{ uri: item.thumbnailURL, cache: 'force-cache' }}
+            source={{ uri: thumbUri, cache: 'force-cache' }}
             style={styles.thumbnail}
             resizeMode="cover"
           />
         ) : (
-          <View style={[styles.thumbnail, styles.thumbnailPlaceholder, { backgroundColor: colors.accentSubtle }]}>
+          <View
+            style={[
+              styles.thumbnail,
+              styles.thumbnailPlaceholder,
+              { backgroundColor: colors.surfaceHover },
+            ]}
+          >
             <Ionicons name="play" size={24} color={colors.textTertiary} />
           </View>
         )}
 
-        {/* Duration badge */}
-        {item.duration && (
+        {/* Bottom-right overlay when indexer provided a duration */}
+        {item.duration ? (
           <View style={styles.durationBadge}>
             <Text style={styles.durationText}>{formatDuration(item.duration)}</Text>
           </View>
-        )}
+        ) : null}
 
-        {/* Needs review indicator */}
+        {/* Top-left warning when metadata still needs user confirmation */}
         {showsNeedsReview && (
           <View style={[styles.reviewBadge, { backgroundColor: colors.warningSubtle }]}>
             <Ionicons name="alert-circle" size={12} color={colors.warning} />
@@ -244,23 +334,28 @@ function VideoThumbnailCard({
         )}
       </View>
 
-      {/* Info */}
+      {/* Title falls back to URL or placeholder via getDisplayTitle */}
       <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>
         {getDisplayTitle(item)}
       </Text>
 
-      {item.creatorUsername && (
+      {item.creatorUsername ? (
         <Text style={[styles.creatorName, { color: colors.textTertiary }]} numberOfLines={1}>
           @{item.creatorUsername}
         </Text>
-      )}
+      ) : null}
     </View>
   );
 }
 
+// -----------------------------------------------------------------------------
+// Styles
+// -----------------------------------------------------------------------------
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 0,
   },
   headerButton: {
     paddingHorizontal: Spacing.md,
@@ -268,9 +363,10 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    minHeight: 0,
   },
   scrollContent: {
-    padding: PADDING,
+    padding: HORIZONTAL_PADDING,
   },
   loadingContainer: {
     flex: 1,
@@ -284,9 +380,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   emptyIconWrapper: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.md,
+    width: 72,
+    height: 72,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.lg,
@@ -313,12 +409,16 @@ const styles = StyleSheet.create({
   },
   thumbnailContainer: {
     position: 'relative',
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.sm,
   },
   thumbnail: {
     aspectRatio: 9 / 16,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.md,
     width: '100%',
+    backgroundColor: '#000',
+    ...Shadows.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 128, 128, 0.12)',
   },
   thumbnailPlaceholder: {
     justifyContent: 'center',
@@ -326,31 +426,31 @@ const styles = StyleSheet.create({
   },
   durationBadge: {
     position: 'absolute',
-    bottom: 6,
-    right: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingHorizontal: 5,
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: BorderRadius.xs,
   },
   durationText: {
     color: '#ffffff',
     fontSize: 10,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   reviewBadge: {
     position: 'absolute',
-    top: 6,
-    left: 6,
+    top: 8,
+    left: 8,
     padding: 4,
     borderRadius: 10,
   },
   cardTitle: {
     ...Typography.captionStrong,
-    lineHeight: 16,
+    lineHeight: 17,
   },
   creatorName: {
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
   },
 });

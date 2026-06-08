@@ -2,58 +2,108 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
   workflow_dispatch:
 
-jobs:
-  mobile-app:
-    name: Mobile App Checks
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
-    - name: Setup Bun
-      uses: oven-sh/setup-bun@v2
-      with:
-        bun-version: latest
-        
-    - name: Install dependencies
-      working-directory: ./TikSaveRN
-      run: bun install --frozen-lockfile
-      
-    - name: Run ESLint
-      working-directory: ./TikSaveRN
-      run: bun run lint
-      continue-on-error: true
-      
-    - name: Run TypeScript type check
-      working-directory: ./TikSaveRN
-      run: bun run typecheck
-      continue-on-error: true
-      
-  backend:
-    name: Backend Checks
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect changed areas
     runs-on: ubuntu-latest
-    
+    outputs:
+      mobile: ${{ steps.detect.outputs.mobile }}
+      backend: ${{ steps.detect.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed paths
+        id: detect
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: bash .github/scripts/detect-changes.sh
+
+  mobile:
+    name: Mobile app
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: TikSaveRN
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: ESLint
+        run: bun run lint
+
+      - name: Prettier
+        run: bun run format:check
+
+      - name: TypeScript
+        run: bun run typecheck
+
+      - name: Unit tests
+        run: bun run test:unit 2>&1 | tee ../mobile-unit.log
+
+      - name: Verify unit tests ran
+        working-directory: ${{ github.workspace }}
+        run: bash .github/scripts/verify-test-output.sh mobile-unit.log "Mobile unit tests"
+
+  backend:
+    name: Backend API
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      DATABASE_URL: postgresql://tiksave:tiksave_password@localhost:5432/tiksave_test
+      TEST_DATABASE_URL: postgresql://tiksave:tiksave_password@localhost:5432/tiksave_test
+      REDIS_URL: redis://localhost:6379
+      TEST_REDIS_URL: redis://localhost:6379/1
+      JWT_SECRET: ci-test-jwt-secret-do-not-use-in-production
+      NODE_ENV: test
+      REQUIRE_TEST_DB: "true"
+
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: tiksave
           POSTGRES_PASSWORD: tiksave_password
           POSTGRES_DB: tiksave_test
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U tiksave -d tiksave_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
         ports:
           - 5432:5432
-      
+
       redis:
         image: redis:7-alpine
         options: >-
@@ -63,34 +113,53 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Bun
-      uses: oven-sh/setup-bun@v2
-      with:
-        bun-version: latest
-        
-    - name: Install dependencies
-      working-directory: ./backend
-      run: bun install --frozen-lockfile
-      
-    - name: Run TypeScript type check
-      working-directory: ./backend
-      run: bunx tsc --noEmit
-      continue-on-error: true
-      
-    - name: Build backend
-      working-directory: ./backend
-      run: bun run build
-      
-    - name: Verify build output
-      run: |
-        if [ ! -f "backend/dist/index.js" ]; then
-          echo "Build failed - dist/index.js not found"
-          exit 1
-        fi
-        echo "Build successful"
 
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: TypeScript
+        run: bun run typecheck
+
+      - name: Database migrations
+        run: bun run migrate
+
+      - name: Unit tests
+        run: bun run test:unit 2>&1 | tee ../backend-unit.log
+
+      - name: Verify unit tests ran
+        working-directory: ${{ github.workspace }}
+        run: bash .github/scripts/verify-test-output.sh backend-unit.log "Backend unit tests"
+
+      - name: Scenario tests
+        run: bun run test:scenarios 2>&1 | tee ../backend-scenarios.log
+
+      - name: Verify scenario tests ran
+        working-directory: ${{ github.workspace }}
+        run: bash .github/scripts/verify-test-output.sh backend-scenarios.log "Backend scenario tests"
+
+      - name: Security tests (fast)
+        run: bun run test:security:fast 2>&1 | tee ../backend-security.log
+
+      - name: Verify security tests ran
+        working-directory: ${{ github.workspace }}
+        run: bash .github/scripts/verify-test-output.sh backend-security.log "Backend security tests"
+
+      - name: Integration tests
+        run: bun run test:integration 2>&1 | tee ../backend-integration.log
+
+      - name: Verify integration tests ran
+        working-directory: ${{ github.workspace }}
+        run: bash .github/scripts/verify-test-output.sh backend-integration.log "Backend integration tests"
+
+      - name: Build
+        run: bun run build
+
+      - name: Verify build output
+        working-directory: ${{ github.workspace }}
+        run: test -f backend/dist/index.js

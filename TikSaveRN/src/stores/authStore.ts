@@ -1,6 +1,14 @@
+/**
+ * Authentication state and sign-in/sign-up/sign-out actions backed by the API service.
+ */
+
 import { create } from 'zustand';
 import { apiService, APIError } from '../services/api';
 import { User } from '../types';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -9,7 +17,6 @@ interface AuthState {
   user: User | null;
   error: string | null;
 
-  // Actions
   initialize: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<boolean>;
   signUp: (email: string, password: string) => Promise<boolean>;
@@ -17,6 +24,11 @@ interface AuthState {
   clearError: () => void;
 }
 
+// ---------------------------------------------------------------------------
+// Store
+// ---------------------------------------------------------------------------
+
+/** Zustand store for session lifecycle and auth errors. */
 export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   isLoading: false,
@@ -25,13 +37,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   error: null,
 
   initialize: async () => {
-
     try {
       const hasToken = await apiService.init();
 
       set({ isAuthenticated: hasToken, isInitialized: true });
-    } catch (error) {
-
+    } catch {
       set({ isAuthenticated: false, isInitialized: true });
     }
   },
@@ -69,4 +79,3 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   clearError: () => set({ error: null }),
 }));
-

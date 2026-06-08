@@ -1,11 +1,8 @@
-/**
- * Authentication API Tests
- * 
- * Tests for signup, signin, token refresh, and password reset flows.
- */
+/** Authentication API tests. */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
 import {
+  dbAvailable,
   getTestPool,
   cleanupTestConnections,
   resetTestDatabase,
@@ -16,7 +13,7 @@ import {
 process.env.JWT_SECRET = 'test-secret-key-for-testing';
 process.env.NODE_ENV = 'test';
 
-describe('Auth API', () => {
+describe.skipIf(!dbAvailable)('Auth API', () => {
   beforeAll(async () => {
     // Initialize test database connection
     getTestPool();

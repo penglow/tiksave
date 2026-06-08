@@ -1,4 +1,11 @@
-import React, { useState } from 'react';
+/**
+ * SettingsScreen
+ *
+ * Account, theme, library sort preferences, collections management, and app info
+ * on the Settings tab. Modals for folder CRUD complement the Folders tab.
+ */
+
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,22 +23,40 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Spacing, BorderRadius, Typography, Hairline } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline, TAB_BAR_OVERLAP } from '../config';
 import { AppTheme, Folder, getDisplayIcon } from '../types';
 import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
 import { apiService } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
-import { AnimatedPressable, AnimatedListItem, AnimatedSection, AnimatedText } from '../components';
+import {
+  AnimatedPressable,
+  AnimatedListItem,
+  Badge,
+  LogoMark,
+  Avatar,
+  Wordmark,
+} from '../components';
+
+// -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
 
 const APP_VERSION = '1.0.0';
 
+// -----------------------------------------------------------------------------
+// Main screen
+// -----------------------------------------------------------------------------
+
 export default function SettingsScreen() {
   const signOut = useAuthStore((state) => state.signOut);
+  const user = useAuthStore((state) => state.user);
   const { userSettings, updateUserSettings } = useAppStore();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+
+  // --- Modal & folders state --------------------------------------------------
 
   const [thumbnailCacheSize] = useState('0.0 MB');
   const [showFoldersModal, setShowFoldersModal] = useState(false);
@@ -39,7 +64,9 @@ export default function SettingsScreen() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [foldersLoading, setFoldersLoading] = useState(false);
 
-  const loadFolders = async () => {
+  // --- Data loading -----------------------------------------------------------
+
+  const loadFolders = useCallback(async () => {
     setFoldersLoading(true);
     try {
       const data = await apiService.getFolders();
@@ -49,60 +76,68 @@ export default function SettingsScreen() {
     } finally {
       setFoldersLoading(false);
     }
-  };
+  }, []);
 
-  const handleOpenFolders = () => {
+  // --- Handlers ---------------------------------------------------------------
+
+  const handleOpenFolders = useCallback(() => {
     loadFolders();
     setShowFoldersModal(true);
-  };
+  }, [loadFolders]);
 
-  const handleCreateFolder = async (name: string, parentId?: string, iconName?: string) => {
-    try {
-      await apiService.createFolder(name, parentId, iconName);
-      loadFolders();
-      setShowCreateModal(false);
-    } catch (error) {
-      console.error('Failed to create folder:', error);
-      if (Platform.OS === 'web') {
-        window.alert('Failed to create collection.');
-      } else {
-        Alert.alert('Error', 'Failed to create collection.');
-      }
-    }
-  };
-
-  const handleDeleteFolder = async (folder: Folder) => {
-    const message = `Delete "${folder.name}"? Videos will move back to library.`;
-
-    if (Platform.OS === 'web') {
-      if (window.confirm(message)) {
-        try {
-          await apiService.deleteFolder(folder.id);
-          loadFolders();
-        } catch (error) {
-          window.alert('Failed to delete folder.');
+  const handleCreateFolder = useCallback(
+    async (name: string, parentId?: string, iconName?: string) => {
+      try {
+        await apiService.createFolder(name, parentId, iconName);
+        loadFolders();
+        setShowCreateModal(false);
+      } catch (error) {
+        console.error('Failed to create folder:', error);
+        if (Platform.OS === 'web') {
+          window.alert('Failed to create collection.');
+        } else {
+          Alert.alert('Error', 'Failed to create collection.');
         }
       }
-    } else {
-      Alert.alert('Delete Folder', message, [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await apiService.deleteFolder(folder.id);
-              loadFolders();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete folder.');
-            }
-          },
-        },
-      ]);
-    }
-  };
+    },
+    [loadFolders],
+  );
 
-  const handleSignOut = async () => {
+  const handleDeleteFolder = useCallback(
+    async (folder: Folder) => {
+      const message = `Delete "${folder.name}"? Videos will move back to library.`;
+
+      if (Platform.OS === 'web') {
+        if (window.confirm(message)) {
+          try {
+            await apiService.deleteFolder(folder.id);
+            loadFolders();
+          } catch (error) {
+            window.alert('Failed to delete folder.');
+          }
+        }
+      } else {
+        Alert.alert('Delete Folder', message, [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await apiService.deleteFolder(folder.id);
+                loadFolders();
+              } catch (error) {
+                Alert.alert('Error', 'Failed to delete folder.');
+              }
+            },
+          },
+        ]);
+      }
+    },
+    [loadFolders],
+  );
+
+  const handleSignOut = useCallback(async () => {
     if (Platform.OS === 'web') {
       if (window.confirm('Sign out?')) {
         await signOut();
@@ -113,9 +148,9 @@ export default function SettingsScreen() {
         { text: 'Sign Out', style: 'destructive', onPress: signOut },
       ]);
     }
-  };
+  }, [signOut]);
 
-  const handleDeleteData = () => {
+  const handleDeleteData = useCallback(() => {
     const message = 'Delete all data? This cannot be undone.';
     if (Platform.OS === 'web') {
       if (window.confirm(message)) {
@@ -127,17 +162,36 @@ export default function SettingsScreen() {
         { text: 'Delete', style: 'destructive', onPress: () => Alert.alert('Deleted') },
       ]);
     }
-  };
+  }, []);
 
-  const handleClearCache = () => {
+  const handleClearCache = useCallback(() => {
     if (Platform.OS === 'web') {
       window.alert('Cache cleared.');
     } else {
       Alert.alert('Success', 'Cache cleared.');
     }
-  };
+  }, []);
 
-  const openLink = (url: string) => Linking.openURL(url);
+  const openLink = useCallback((url: string) => {
+    Linking.openURL(url);
+  }, []);
+
+  const closeFoldersModal = useCallback(() => setShowFoldersModal(false), []);
+  const openCreateModal = useCallback(() => setShowCreateModal(true), []);
+  const closeCreateModal = useCallback(() => setShowCreateModal(false), []);
+
+  const navigateToFolderDetail = useCallback(
+    (folder: Folder) => {
+      setShowFoldersModal(false);
+      navigation.navigate('Library', {
+        screen: 'FolderDetail',
+        params: { folder },
+      });
+    },
+    [navigation],
+  );
+
+  // --- Render -----------------------------------------------------------------
 
   return (
     <ScrollView
@@ -146,16 +200,45 @@ export default function SettingsScreen() {
     >
       {/* Header */}
       <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
-        <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>
-          Settings
-        </AnimatedText>
+        <View style={styles.brandRow}>
+          <LogoMark size={16} color={colors.accent} />
+          <Text style={[styles.brandLabel, { color: colors.textTertiary }]}>
+            TIKSAVE · SETTINGS
+          </Text>
+        </View>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Settings</Text>
       </Animated.View>
 
-      {/* Organization Section */}
+      {/* Profile card */}
       <AnimatedListItem index={0} direction="fade">
+        <View
+          style={[
+            styles.profileCard,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <Avatar name={user?.email?.split('@')[0] || 'TS'} size="lg" />
+          <View style={styles.profileInfo}>
+            <Text style={[styles.profileName, { color: colors.text }]} numberOfLines={1}>
+              {user?.email?.split('@')[0] || 'Welcome'}
+            </Text>
+            <Text style={[styles.profileEmail, { color: colors.textTertiary }]} numberOfLines={1}>
+              {user?.email || 'Signed in'}
+            </Text>
+          </View>
+          <View style={[styles.profilePlanPill, { backgroundColor: colors.accentSubtle }]}>
+            <Text style={[styles.profilePlan, { color: colors.accent }]}>Beta</Text>
+          </View>
+        </View>
+      </AnimatedListItem>
+
+      {/* Organization Section */}
+      <AnimatedListItem index={1} direction="fade">
         <SettingSection label="ORGANIZATION">
           <SettingRow
             icon="folder-outline"
+            iconColor={colors.accent}
+            iconBgColor={colors.accentSubtle}
             title="Collections"
             subtitle="Create custom folders"
             onPress={handleOpenFolders}
@@ -165,7 +248,7 @@ export default function SettingsScreen() {
       </AnimatedListItem>
 
       {/* Appearance Section */}
-      <AnimatedListItem index={1} direction="fade">
+      <AnimatedListItem index={2} direction="fade">
         <SettingSection label="APPEARANCE">
           <View style={[styles.row, { borderBottomColor: colors.border }]}>
             <Text style={[styles.rowTitle, { color: colors.text }]}>Theme</Text>
@@ -175,15 +258,21 @@ export default function SettingsScreen() {
                   key={theme}
                   style={[
                     styles.themeOption,
-                    { borderColor: userSettings.theme === theme ? colors.text : colors.border },
+                    {
+                      borderColor: userSettings.theme === theme ? colors.text : colors.border,
+                      backgroundColor:
+                        userSettings.theme === theme ? colors.surfaceHover : 'transparent',
+                    },
                   ]}
                   onPress={() => updateUserSettings({ theme })}
                   haptic
                 >
-                  <Text style={[
-                    styles.themeOptionText,
-                    { color: userSettings.theme === theme ? colors.text : colors.textTertiary },
-                  ]}>
+                  <Text
+                    style={[
+                      styles.themeOptionText,
+                      { color: userSettings.theme === theme ? colors.text : colors.textTertiary },
+                    ]}
+                  >
                     {theme.charAt(0).toUpperCase() + theme.slice(1)}
                   </Text>
                 </AnimatedPressable>
@@ -196,7 +285,7 @@ export default function SettingsScreen() {
             <Switch
               value={userSettings.notificationsEnabled}
               onValueChange={(value) => updateUserSettings({ notificationsEnabled: value })}
-              trackColor={{ false: colors.accentSubtle, true: colors.text }}
+              trackColor={{ false: colors.surfaceHover, true: colors.accent }}
               thumbColor={colors.background}
               style={styles.switch}
             />
@@ -205,58 +294,56 @@ export default function SettingsScreen() {
       </AnimatedListItem>
 
       {/* Storage Section */}
-      <AnimatedListItem index={2} direction="fade">
+      <AnimatedListItem index={3} direction="fade">
         <SettingSection label="STORAGE">
           <View style={[styles.row, { borderBottomColor: colors.border }]}>
             <Text style={[styles.rowTitle, { color: colors.text }]}>Cached Thumbnails</Text>
-            <Text style={[styles.rowValue, { color: colors.textTertiary }]}>{thumbnailCacheSize}</Text>
+            <Text style={[styles.rowValue, { color: colors.textTertiary }]}>
+              {thumbnailCacheSize}
+            </Text>
           </View>
-          <SettingRow
-            title="Clear Cache"
-            onPress={handleClearCache}
-            titleColor={colors.warning}
-          />
+          <SettingRow title="Clear Cache" onPress={handleClearCache} titleColor={colors.warning} />
         </SettingSection>
       </AnimatedListItem>
 
       {/* Privacy Section */}
-      <AnimatedListItem index={3} direction="fade">
+      <AnimatedListItem index={4} direction="fade">
         <SettingSection label="PRIVACY">
           <SettingRow
             title="Privacy Policy"
             onPress={() => openLink('https://yourapp.com/privacy')}
             showChevron
           />
-          <SettingRow
-            title="Export Data"
-            onPress={() => { }}
-            showChevron
-          />
+          <SettingRow title="Export Data" onPress={() => {}} showChevron />
         </SettingSection>
       </AnimatedListItem>
 
       {/* Danger Zone */}
-      <AnimatedListItem index={4} direction="fade">
+      <AnimatedListItem index={5} direction="fade">
         <SettingSection label="DANGER ZONE" labelColor={colors.error}>
           <SettingRow
             title="Delete All Data"
             onPress={handleDeleteData}
             titleColor={colors.error}
           />
-          <SettingRow
-            title="Sign Out"
-            onPress={handleSignOut}
-            titleColor={colors.error}
-          />
+          <SettingRow title="Sign Out" onPress={handleSignOut} titleColor={colors.error} />
         </SettingSection>
       </AnimatedListItem>
 
-      {/* Version */}
-      <AnimatedListItem index={5} direction="fade">
-        <View style={styles.versionContainer}>
-          <Text style={[styles.versionText, { color: colors.textQuaternary }]}>
-            Version {APP_VERSION}
+      {/* Brand footer */}
+      <AnimatedListItem index={6} direction="fade">
+        <View style={styles.brandFooter}>
+          <Wordmark height={30} color={colors.textSecondary} />
+          <Text style={[styles.brandFooterTagline, { color: colors.textQuaternary }]}>
+            Your TikToks, organized by AI.
           </Text>
+          <View style={styles.brandFooterMeta}>
+            <Badge label={`v${APP_VERSION}`} variant="ghost" size="sm" />
+            <Text style={[styles.brandFooterDot, { color: colors.textQuaternary }]}>·</Text>
+            <Text style={[styles.brandFooterMade, { color: colors.textQuaternary }]}>
+              Built for creators
+            </Text>
+          </View>
         </View>
       </AnimatedListItem>
 
@@ -265,15 +352,9 @@ export default function SettingsScreen() {
         visible={showFoldersModal}
         folders={folders}
         loading={foldersLoading}
-        onClose={() => setShowFoldersModal(false)}
-        onCreatePress={() => setShowCreateModal(true)}
-        onFolderPress={(folder) => {
-          setShowFoldersModal(false);
-          navigation.navigate('Library', {
-            screen: 'FolderDetail',
-            params: { folder },
-          });
-        }}
+        onClose={closeFoldersModal}
+        onCreatePress={openCreateModal}
+        onFolderPress={navigateToFolderDetail}
         onDeletePress={handleDeleteFolder}
       />
 
@@ -281,18 +362,21 @@ export default function SettingsScreen() {
       <CreateFolderModal
         visible={showCreateModal}
         folders={folders}
-        onClose={() => setShowCreateModal(false)}
+        onClose={closeCreateModal}
         onCreate={handleCreateFolder}
       />
     </ScrollView>
   );
 }
 
-// Setting Section wrapper
+// -----------------------------------------------------------------------------
+// Subcomponents — settings rows & folder modals
+// -----------------------------------------------------------------------------
+
 function SettingSection({
   label,
   labelColor,
-  children
+  children,
 }: {
   label: string;
   labelColor?: string;
@@ -305,16 +389,22 @@ function SettingSection({
       <Text style={[styles.sectionLabel, { color: labelColor || colors.textTertiary }]}>
         {label}
       </Text>
-      <View style={[styles.sectionContent, { borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.sectionContent,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
         {children}
       </View>
     </View>
   );
 }
 
-// Setting Row
 function SettingRow({
   icon,
+  iconColor,
+  iconBgColor,
   title,
   subtitle,
   onPress,
@@ -322,6 +412,8 @@ function SettingRow({
   titleColor,
 }: {
   icon?: keyof typeof Ionicons.glyphMap;
+  iconColor?: string;
+  iconBgColor?: string;
   title: string;
   subtitle?: string;
   onPress?: () => void;
@@ -335,9 +427,14 @@ function SettingRow({
       style={[styles.row, { borderBottomColor: colors.border }]}
       onPress={onPress}
       disabled={!onPress}
+      opacityOnPress={0.6}
     >
       {icon && (
-        <Ionicons name={icon} size={18} color={colors.textSecondary} style={styles.rowIcon} />
+        <View
+          style={[styles.rowIconWrapper, { backgroundColor: iconBgColor || colors.surfaceHover }]}
+        >
+          <Ionicons name={icon} size={16} color={iconColor || colors.textSecondary} />
+        </View>
       )}
       <View style={styles.rowContent}>
         <Text style={[styles.rowTitle, { color: titleColor || colors.text }]}>{title}</Text>
@@ -345,14 +442,11 @@ function SettingRow({
           <Text style={[styles.rowSubtitle, { color: colors.textTertiary }]}>{subtitle}</Text>
         )}
       </View>
-      {showChevron && (
-        <Ionicons name="chevron-forward" size={16} color={colors.textQuaternary} />
-      )}
+      {showChevron && <Ionicons name="chevron-forward" size={16} color={colors.textQuaternary} />}
     </AnimatedPressable>
   );
 }
 
-// Folders Modal
 function FoldersModal({
   visible,
   folders,
@@ -391,10 +485,10 @@ function FoldersModal({
             </View>
           ) : folders.length === 0 ? (
             <View style={styles.modalEmpty}>
-              <Ionicons name="folder-open-outline" size={32} color={colors.textQuaternary} />
-              <Text style={[styles.modalEmptyTitle, { color: colors.text }]}>
-                No collections
-              </Text>
+              <View style={[styles.emptyIconWrapper, { backgroundColor: colors.accentSubtle }]}>
+                <Ionicons name="folder-open-outline" size={28} color={colors.accent} />
+              </View>
+              <Text style={[styles.modalEmptyTitle, { color: colors.text }]}>No collections</Text>
               <Text style={[styles.modalEmptySubtitle, { color: colors.textTertiary }]}>
                 Create folders for custom organization
               </Text>
@@ -407,7 +501,11 @@ function FoldersModal({
                   style={[styles.folderItem, { borderBottomColor: colors.border }]}
                   onPress={() => onFolderPress(folder)}
                 >
-                  <Text style={styles.folderIcon}>{getDisplayIcon(folder) || '📁'}</Text>
+                  <View
+                    style={[styles.folderIconWrapper, { backgroundColor: colors.accentSubtle }]}
+                  >
+                    <Ionicons name="folder-open-outline" size={18} color={colors.accent} />
+                  </View>
                   <View style={styles.folderInfo}>
                     <Text style={[styles.folderName, { color: colors.text }]}>{folder.name}</Text>
                     <Text style={[styles.folderCount, { color: colors.textTertiary }]}>
@@ -429,12 +527,12 @@ function FoldersModal({
           )}
 
           <AnimatedPressable
-            style={[styles.createButton, { borderColor: colors.border }]}
+            style={[styles.createButton, { backgroundColor: colors.text }]}
             onPress={onCreatePress}
             haptic
           >
-            <Ionicons name="add" size={18} color={colors.text} />
-            <Text style={[styles.createButtonText, { color: colors.text }]}>
+            <Ionicons name="add" size={18} color={colors.background} />
+            <Text style={[styles.createButtonText, { color: colors.background }]}>
               Create Collection
             </Text>
           </AnimatedPressable>
@@ -444,7 +542,6 @@ function FoldersModal({
   );
 }
 
-// Create Folder Modal
 function CreateFolderModal({
   visible,
   folders,
@@ -490,7 +587,7 @@ function CreateFolderModal({
                   styles.iconOption,
                   {
                     backgroundColor: selectedIcon === icon ? colors.accentSubtle : 'transparent',
-                    borderColor: selectedIcon === icon ? colors.text : colors.border,
+                    borderColor: selectedIcon === icon ? colors.accent : colors.border,
                   },
                 ]}
                 onPress={() => setSelectedIcon(icon)}
@@ -502,7 +599,10 @@ function CreateFolderModal({
 
           <Text style={[styles.inputLabel, { color: colors.textTertiary }]}>NAME</Text>
           <TextInput
-            style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+            style={[
+              styles.textInput,
+              { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface },
+            ]}
             placeholder="Collection name"
             placeholderTextColor={colors.textQuaternary}
             value={name}
@@ -511,13 +611,8 @@ function CreateFolderModal({
           />
 
           <View style={styles.modalActions}>
-            <AnimatedPressable
-              style={styles.cancelButton}
-              onPress={onClose}
-            >
-              <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>
-                Cancel
-              </Text>
+            <AnimatedPressable style={styles.cancelButton} onPress={onClose}>
+              <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</Text>
             </AnimatedPressable>
             <AnimatedPressable
               style={[
@@ -529,9 +624,7 @@ function CreateFolderModal({
               disabled={!name.trim()}
               haptic
             >
-              <Text style={[styles.saveButtonText, { color: colors.background }]}>
-                Create
-              </Text>
+              <Text style={[styles.saveButtonText, { color: colors.background }]}>Create</Text>
             </AnimatedPressable>
           </View>
         </View>
@@ -540,19 +633,94 @@ function CreateFolderModal({
   );
 }
 
+// -----------------------------------------------------------------------------
+// Styles
+// -----------------------------------------------------------------------------
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 0,
   },
   content: {
     padding: Spacing.md,
-    paddingBottom: Spacing.xxl,
+    paddingBottom: Spacing.xxl + TAB_BAR_OVERLAP,
   },
   header: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
+    gap: Spacing.xs,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  brandLabel: {
+    ...Typography.label,
+    fontSize: 10,
+    letterSpacing: 1.6,
   },
   headerTitle: {
     ...Typography.displayMd,
+    fontSize: 34,
+    lineHeight: 38,
+  },
+
+  // Profile card
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    marginBottom: Spacing.lg,
+  },
+  profileInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  profileName: {
+    ...Typography.bodyStrong,
+  },
+  profileEmail: {
+    ...Typography.caption,
+  },
+  profilePlanPill: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  profilePlan: {
+    ...Typography.label,
+    fontSize: 10,
+  },
+
+  // Brand footer
+  brandFooter: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+    gap: Spacing.sm,
+  },
+  brandFooterTagline: {
+    ...Typography.caption,
+    opacity: 0.85,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  brandFooterMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  brandFooterDot: {
+    ...Typography.caption,
+  },
+  brandFooterMade: {
+    ...Typography.caption,
+    fontSize: 11,
+    letterSpacing: 0.4,
   },
 
   // Section
@@ -565,8 +733,9 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.xs,
   },
   sectionContent: {
-    borderTopWidth: Hairline,
-    borderBottomWidth: Hairline,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
 
   // Row
@@ -574,10 +743,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
     borderBottomWidth: Hairline,
+    gap: Spacing.sm,
   },
-  rowIcon: {
-    marginRight: Spacing.sm,
+  rowIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.xs,
   },
   rowContent: {
     flex: 1,
@@ -611,26 +787,17 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.85 }],
   },
 
-  // Version
-  versionContainer: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xl,
-  },
-  versionText: {
-    ...Typography.caption,
-  },
-
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    borderTopLeftRadius: BorderRadius.lg,
-    borderTopRightRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    paddingBottom: Spacing.xl,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xxl,
     maxHeight: '80%',
   },
   modalHeader: {
@@ -653,6 +820,14 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     alignItems: 'center',
   },
+  emptyIconWrapper: {
+    width: 72,
+    height: 72,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
   modalEmptyTitle: {
     ...Typography.headingSm,
     marginTop: Spacing.sm,
@@ -672,9 +847,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.md,
     borderBottomWidth: Hairline,
+    gap: Spacing.sm,
   },
-  folderIcon: {
-    fontSize: 20,
+  folderIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: Spacing.sm,
   },
   folderInfo: {
@@ -697,7 +877,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.xs,
     paddingVertical: Spacing.md,
-    borderWidth: 1,
     borderRadius: BorderRadius.sm,
     marginTop: Spacing.md,
   },
@@ -715,8 +894,8 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   iconOption: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -724,7 +903,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing.xs,
   },
   iconText: {
-    fontSize: 20,
+    fontSize: 22,
   },
   textInput: {
     borderWidth: 1,

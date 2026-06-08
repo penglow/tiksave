@@ -1,11 +1,8 @@
-/**
- * Folders API Tests
- * 
- * Tests for folder CRUD operations and hierarchy management.
- */
+/** Folders API tests. */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
 import {
+  dbAvailable,
   getTestPool,
   cleanupTestConnections,
   resetTestDatabase,
@@ -17,7 +14,7 @@ import {
 process.env.JWT_SECRET = 'test-secret-key-for-testing';
 process.env.NODE_ENV = 'test';
 
-describe('Folders API', () => {
+describe.skipIf(!dbAvailable)('Folders API', () => {
   let testUser: { id: string; email: string; accessToken: string };
   
   beforeAll(async () => {

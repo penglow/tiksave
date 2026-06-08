@@ -1,11 +1,19 @@
+/**
+ * Theme hook that resolves user preference (light/dark/system) into design tokens.
+ */
+
 import { useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 import { useAppStore } from '../stores/appStore';
 import { getThemeColors } from '../config';
 
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
 /**
- * Hook to get theme-aware colors based on user settings
- * Handles 'system' theme by checking device color scheme
+ * Get theme-aware colors based on user settings.
+ * Resolves `'system'` theme by checking the device color scheme.
  */
 export function useTheme() {
   const userSettings = useAppStore((state) => state.userSettings);
@@ -18,10 +26,7 @@ export function useTheme() {
     return userSettings.theme;
   }, [userSettings.theme, systemColorScheme]);
 
-  const colors = useMemo(
-    () => getThemeColors(effectiveTheme === 'dark'),
-    [effectiveTheme]
-  );
+  const colors = useMemo(() => getThemeColors(effectiveTheme === 'dark'), [effectiveTheme]);
 
   return {
     colors,
@@ -29,4 +34,3 @@ export function useTheme() {
     theme: effectiveTheme,
   };
 }
-

@@ -1,8 +1,13 @@
+/**
+ * Express application entry point — middleware, routes, health checks, and shutdown.
+ */
+
+// --- imports ---
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -11,16 +16,24 @@ import { itemsRouter } from './routes/items.js';
 import { foldersRouter } from './routes/folders.js';
 import { searchRouter } from './routes/search.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import { authenticate, AuthenticatedRequest } from './middleware/auth.js';
+import { authenticate } from './middleware/auth.js';
 import { initializeDatabase, pool } from './database/init.js';
 import { startWorker, shutdownWorker } from './workers/videoProcessor.js';
 import { getRedisClient, isRedisHealthy, closeRedisConnections } from './services/redis.js';
 import { getCacheStats } from './services/cache.js';
 import { logger, createRequestLogger } from './utils/logger.js';
+import {
+  globalIpLimiter,
+  userLimiter,
+  authLimiter,
+  healthLimiter,
+  publicConfigLimiter,
+} from './middleware/rateLimiter.js';
 
 dotenv.config();
 
-// Extend Express Request type
+// --- types ---
+
 declare global {
   namespace Express {
     interface Request {
@@ -29,16 +42,14 @@ declare global {
   }
 }
 
+// --- constants ---
+
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-// Security middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  contentSecurityPolicy: false, // Disable for development
-}));
+// --- helpers ---
 
-// CORS configuration - use CORS_ORIGINS env var in production
+/** Resolve allowed CORS origins from environment. */
 const getCorsOrigins = (): string[] | boolean => {
   if (process.env.NODE_ENV !== 'production') {
     return true; // Allow all origins in development
@@ -54,6 +65,13 @@ const getCorsOrigins = (): string[] | boolean => {
   return corsOrigins.split(',').map((origin) => origin.trim()).filter(Boolean);
 };
 
+// --- middleware ---
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false,
+}));
+
 app.use(cors({
   origin: getCorsOrigins(),
   credentials: true,
@@ -61,57 +79,18 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Compression middleware - reduces response size by 70-80%
 app.use(compression({
   filter: (req, res) => {
-    // Don't compress responses with small payloads (< 1KB)
     if (req.headers['x-no-compression']) {
       return false;
     }
-    // Use compression filter function
     return compression.filter(req, res);
   },
-  level: 6, // Balance between compression ratio and speed (1-9)
-  threshold: 1024, // Only compress responses larger than 1KB
+  level: 6,
+  threshold: 1024,
 }));
 
-// Rate limiting - supports both IP-based and user-based limiting
-const createRateLimiter = (options: { windowMs: number; max: number; keyGenerator?: (req: express.Request) => string }) => {
-  return rateLimit({
-    windowMs: options.windowMs,
-    max: options.max,
-    message: { error: 'Too many requests, please try again later.' },
-    standardHeaders: true,
-    legacyHeaders: false,
-    keyGenerator: options.keyGenerator || ((req) => req.ip || 'unknown'),
-  });
-};
-
-// IP-based rate limiting for unauthenticated routes (auth endpoints)
-const ipLimiter = createRateLimiter({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
-});
-
-// User-based rate limiting for authenticated routes (higher limits)
-const userLimiter = createRateLimiter({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS_USER || '500'), // Higher limit for authenticated users
-  keyGenerator: (req) => {
-    // Use userId if available, otherwise fall back to IP
-    const authReq = req as AuthenticatedRequest;
-    return authReq.userId || req.ip || 'unknown';
-  },
-});
-
-// Strict rate limiting for auth endpoints to prevent brute force
-const authLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // 20 attempts per 15 minutes
-});
-
-// Apply IP limiter to all API routes as baseline
-app.use('/api', ipLimiter);
+app.use('/api', globalIpLimiter);
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -131,20 +110,28 @@ app.use((req, res, next) => {
   
   res.on('finish', () => {
     const duration = Date.now() - start;
-    const logLevel = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
-    
-    requestLogger[logLevel](`${req.method} ${req.url}`, {
+    const context = {
       statusCode: res.statusCode,
       duration,
       ip: req.ip,
       userAgent: req.get('user-agent'),
-    });
+    };
+
+    if (res.statusCode >= 500) {
+      requestLogger.error(`${req.method} ${req.url}`, undefined, context);
+    } else if (res.statusCode >= 400) {
+      requestLogger.warn(`${req.method} ${req.url}`, context);
+    } else {
+      requestLogger.info(`${req.method} ${req.url}`, context);
+    }
   });
   next();
 });
 
-// Health check with dependency status (reuses existing Redis connection)
-app.get('/health', async (req, res) => {
+// --- handlers ---
+
+/** GET /health — dependency health check for DB, Redis, and OpenAI. */
+app.get('/health', healthLimiter, async (req, res) => {
   const startedAt = process.hrtime.bigint();
   const checks: {
     db: boolean;
@@ -194,15 +181,21 @@ app.get('/health', async (req, res) => {
   });
 });
 
-// API Routes
-// Auth routes have stricter rate limiting
+/** GET /api/config/public — expose browser-safe runtime config (client-restricted keys only). */
+app.get('/api/config/public', publicConfigLimiter, (req, res) => {
+  res.json({
+    googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+  });
+});
+
+// --- routes ---
+
 app.use('/api/auth', authLimiter, authRouter);
-// Authenticated routes use user-based rate limiting
 app.use('/api/items', authenticate, userLimiter, itemsRouter);
 app.use('/api/folders', authenticate, userLimiter, foldersRouter);
 app.use('/api/search', authenticate, userLimiter, searchRouter);
 
-// Lightweight cache metrics endpoint (disabled in production unless explicitly enabled)
+/** GET /api/metrics/cache — cache hit/miss stats (non-production by default). */
 app.get('/api/metrics/cache', authenticate, userLimiter, async (req, res) => {
   if (process.env.NODE_ENV === 'production' && process.env.ENABLE_METRICS_ENDPOINT !== 'true') {
     return res.status(404).json({ error: 'Not found' });
@@ -221,15 +214,15 @@ app.get('/api/metrics/cache', authenticate, userLimiter, async (req, res) => {
   });
 });
 
-// Error handling
 app.use(errorHandler);
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-// Start server
+// --- bootstrap ---
+
+/** Initialize dependencies and start the HTTP server. */
 async function start() {
   try {
     // Initialize database

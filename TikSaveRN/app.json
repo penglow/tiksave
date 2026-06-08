@@ -6,10 +6,11 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
+    "primaryColor": "#e8705a",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#12121F"
+      "backgroundColor": "#0c0c0e"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -32,7 +33,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#12121F"
+        "backgroundColor": "#e8705a"
       },
       "package": "com.yourcompany.tiksave",
       "intentFilters": [

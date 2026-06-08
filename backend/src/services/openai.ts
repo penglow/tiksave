@@ -1,11 +1,20 @@
+/**
+ * Shared OpenAI client singleton with retry helpers.
+ */
+
+// --- imports ---
+
 import OpenAI from 'openai';
 
-// Singleton OpenAI client instance
+// --- constants ---
+
 let openaiClient: OpenAI | null = null;
 
+// --- handlers ---
+
 /**
- * Get the shared OpenAI client instance
- * Creates a new instance if one doesn't exist
+ * Get the shared OpenAI client instance.
+ * Creates a new instance if one doesn't exist.
  */
 export function getOpenAIClient(): OpenAI {
   if (!openaiClient) {

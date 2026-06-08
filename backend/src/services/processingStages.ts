@@ -1,7 +1,8 @@
 /**
- * Processing stage tracking for video imports
- * Provides real-time feedback on processing progress
+ * Processing stage definitions and display helpers for import progress UI.
  */
+
+// --- types ---
 
 export type ProcessingStage = 
   | 'queued'
@@ -19,6 +20,8 @@ interface StageConfig {
   progress: number; // 0-100
   emoji: string;
 }
+
+// --- constants ---
 
 export const ProcessingStages: Record<ProcessingStage, StageConfig> = {
   queued: {
@@ -71,9 +74,9 @@ export const ProcessingStages: Record<ProcessingStage, StageConfig> = {
   },
 };
 
-/**
- * Get stage configuration
- */
+// --- handlers ---
+
+/** Get stage configuration for a processing stage. */
 export function getStageConfig(stage: ProcessingStage): StageConfig {
   return ProcessingStages[stage] || ProcessingStages.queued;
 }

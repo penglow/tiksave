@@ -1,3 +1,8 @@
+/**
+ * HTTP client for the TikSave backend: auth, items, folders, and search.
+ * Handles token storage, refresh, retries, and GET request deduplication.
+ */
+
 import { Platform } from 'react-native';
 
 // Conditional import for SecureStore (not available on web)
@@ -20,15 +25,19 @@ import {
   UploadURLResponse,
 } from '../types';
 
-// API Error class
+// ---------------------------------------------------------------------------
+// Errors
+// ---------------------------------------------------------------------------
+
+/** Typed API error with optional rate-limit retry hint. */
 export class APIError extends Error {
   retryAfter?: number; // seconds until retry is allowed (for rate limiting)
-  
+
   constructor(
     public code: string,
     message: string,
     public statusCode?: number,
-    retryAfter?: number
+    retryAfter?: number,
   ) {
     super(message);
     this.name = 'APIError';
@@ -36,10 +45,15 @@ export class APIError extends Error {
   }
 }
 
-// Request deduplication - prevents duplicate concurrent requests
+// ---------------------------------------------------------------------------
+// Request deduplication
+// ---------------------------------------------------------------------------
+
 const pendingRequests = new Map<string, Promise<any>>();
 
-function serializeQueryParams(queryParams?: Record<string, string | number | boolean | undefined>): string {
+function serializeQueryParams(
+  queryParams?: Record<string, string | number | boolean | undefined>,
+): string {
   if (!queryParams) return '';
   const entries = Object.entries(queryParams)
     .filter(([, value]) => value !== undefined)
@@ -52,37 +66,42 @@ function getRequestKey(
   method: string,
   path: string,
   body?: unknown,
-  queryParams?: Record<string, string | number | boolean | undefined>
+  queryParams?: Record<string, string | number | boolean | undefined>,
 ): string {
   const queryString = serializeQueryParams(queryParams);
   return `${method}:${path}?${queryString}:${body ? JSON.stringify(body) : ''}`;
 }
 
-// Token storage keys
+// ---------------------------------------------------------------------------
+// Token storage
+// ---------------------------------------------------------------------------
+
 const ACCESS_TOKEN_KEY = 'accessToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 
 // Platform-specific storage wrapper
 // On web, use localStorage; on native, use SecureStore
 // Falls back to in-memory storage if neither is available
-let inMemoryStorage: Record<string, string> = {};
+const inMemoryStorage: Record<string, string> = {};
 let secureStoreAvailable: boolean | null = null;
 
 const TokenStorage = {
   async isSecureStoreAvailable(): Promise<boolean> {
     if (secureStoreAvailable !== null) return secureStoreAvailable;
-    
+
     if (Platform.OS === 'web') {
       secureStoreAvailable = false;
       return false;
     }
-    
+
     if (!SecureStore) {
       secureStoreAvailable = false;
-      console.warn('⚠️ SecureStore not available, using in-memory storage (tokens will not persist across app restarts)');
+      console.warn(
+        '⚠️ SecureStore not available, using in-memory storage (tokens will not persist across app restarts)',
+      );
       return false;
     }
-    
+
     // Test if SecureStore actually works
     try {
       const testKey = '__secure_store_test__';
@@ -107,7 +126,7 @@ const TokenStorage = {
       }
       return;
     }
-    
+
     const useSecureStore = await this.isSecureStoreAvailable();
     if (useSecureStore && SecureStore) {
       try {
@@ -117,7 +136,7 @@ const TokenStorage = {
         console.warn('SecureStore.setItemAsync failed, falling back to in-memory:', error);
       }
     }
-    
+
     // Fallback to in-memory storage
     inMemoryStorage[key] = value;
   },
@@ -131,7 +150,7 @@ const TokenStorage = {
         return inMemoryStorage[key] ?? null;
       }
     }
-    
+
     const useSecureStore = await this.isSecureStoreAvailable();
     if (useSecureStore && SecureStore) {
       try {
@@ -140,7 +159,7 @@ const TokenStorage = {
         console.warn('SecureStore.getItemAsync failed:', error);
       }
     }
-    
+
     // Fallback to in-memory storage
     return inMemoryStorage[key] ?? null;
   },
@@ -155,7 +174,7 @@ const TokenStorage = {
       delete inMemoryStorage[key];
       return;
     }
-    
+
     const useSecureStore = await this.isSecureStoreAvailable();
     if (useSecureStore && SecureStore) {
       try {
@@ -164,11 +183,15 @@ const TokenStorage = {
         console.warn('SecureStore.deleteItemAsync failed:', error);
       }
     }
-    
+
     // Also clear from in-memory storage
     delete inMemoryStorage[key];
   },
 };
+
+// ---------------------------------------------------------------------------
+// APIService
+// ---------------------------------------------------------------------------
 
 class APIService {
   private baseURL: string;
@@ -264,9 +287,17 @@ class APIService {
       queryParams?: Record<string, string | number | boolean | undefined>;
       skipDedup?: boolean; // Skip deduplication for certain requests
       retryCount?: number; // Current retry attempt
-    } = {}
+      signal?: AbortSignal;
+    } = {},
   ): Promise<T> {
-    const { method = 'GET', body, queryParams, skipDedup = false, retryCount = 0 } = options;
+    const {
+      method = 'GET',
+      body,
+      queryParams,
+      skipDedup = false,
+      retryCount = 0,
+      signal,
+    } = options;
     const maxRetries = 3;
 
     // Request deduplication for GET requests
@@ -305,11 +336,30 @@ class APIService {
     // Create the request promise
     const requestPromise = (async (): Promise<T> => {
       const controller = new AbortController();
+      let abortedByCaller = signal?.aborted ?? false;
+
+      const onCallerAbort = () => {
+        abortedByCaller = true;
+        controller.abort();
+      };
+
+      if (signal) {
+        if (signal.aborted) {
+          abortedByCaller = true;
+          controller.abort();
+        } else {
+          signal.addEventListener('abort', onCallerAbort, { once: true });
+        }
+      }
+
       const timeoutId = setTimeout(() => controller.abort(), Config.apiTimeoutMs);
 
       try {
         if (__DEV__) {
-          console.log(`[API] ${method} ${url}${retryCount > 0 ? ` (retry ${retryCount})` : ''}`, body ? { body } : '');
+          console.log(
+            `[API] ${method} ${url}${retryCount > 0 ? ` (retry ${retryCount})` : ''}`,
+            body ? { body } : '',
+          );
         }
         const response = await fetch(url, {
           method,
@@ -325,7 +375,7 @@ class APIService {
           // Try to read error message from response body
           let errorMessage = `Server error (${response.status})`;
           let retryAfter: number | undefined;
-          
+
           try {
             const errorData = await response.json();
             errorMessage = errorData.error || errorData.message || errorMessage;
@@ -337,7 +387,7 @@ class APIService {
           if (response.status === 429) {
             const retryAfterHeader = response.headers.get('Retry-After');
             retryAfter = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 60;
-            const waitMessage = retryAfter 
+            const waitMessage = retryAfter
               ? `Too many requests. Please wait ${retryAfter} seconds before trying again.`
               : 'Too many requests. Please try again later.';
             throw new APIError('RATE_LIMITED', waitMessage, 429, retryAfter);
@@ -345,18 +395,23 @@ class APIService {
 
           if (response.status === 401) {
             // For login/signup endpoints, use the actual error message from backend
-            const isAuthEndpoint = path === '/auth/signin' || path === '/auth/signup' || path === '/auth/refresh';
+            const isAuthEndpoint =
+              path === '/auth/signin' || path === '/auth/signup' || path === '/auth/refresh';
             if (isAuthEndpoint) {
               throw new APIError('UNAUTHORIZED', errorMessage, 401);
             }
-            
+
             // Try to refresh the token
             const refreshed = await this.refreshAccessToken();
             if (refreshed) {
               // Retry the original request with new token
-              return this.request<T>(path, { ...options, skipDedup: true, retryCount: retryCount + 1 });
+              return this.request<T>(path, {
+                ...options,
+                skipDedup: true,
+                retryCount: retryCount + 1,
+              });
             }
-            
+
             // Refresh failed, clear tokens and require re-login
             await this.clearTokens();
             throw new APIError('UNAUTHORIZED', 'Session expired. Please sign in again.', 401);
@@ -365,8 +420,12 @@ class APIService {
           // Retry on server errors (5xx) with exponential backoff
           if (response.status >= 500 && retryCount < maxRetries) {
             const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            return this.request<T>(path, { ...options, skipDedup: true, retryCount: retryCount + 1 });
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            return this.request<T>(path, {
+              ...options,
+              skipDedup: true,
+              retryCount: retryCount + 1,
+            });
           }
 
           throw new APIError('SERVER_ERROR', errorMessage, response.status);
@@ -388,20 +447,31 @@ class APIService {
 
         if (error instanceof Error) {
           if (error.name === 'AbortError') {
+            if (abortedByCaller || signal?.aborted) {
+              throw error;
+            }
             throw new APIError('TIMEOUT', 'Request timed out');
           }
-          
+
           // Retry on network errors with exponential backoff
-          if ((error.message === 'Failed to fetch' || error.message.includes('fetch') || 
-               error.message.includes('network')) && retryCount < maxRetries) {
+          if (
+            (error.message === 'Failed to fetch' ||
+              error.message.includes('fetch') ||
+              error.message.includes('network')) &&
+            retryCount < maxRetries
+          ) {
             const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
             if (__DEV__) {
               console.log(`[API] Network error, retrying in ${delay}ms...`);
             }
-            await new Promise(resolve => setTimeout(resolve, delay));
-            return this.request<T>(path, { ...options, skipDedup: true, retryCount: retryCount + 1 });
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            return this.request<T>(path, {
+              ...options,
+              skipDedup: true,
+              retryCount: retryCount + 1,
+            });
           }
-          
+
           // Provide more helpful error message for "Failed to fetch"
           if (error.message === 'Failed to fetch' || error.message.includes('fetch')) {
             const helpfulMessage = `Cannot connect to server at ${this.baseURL}. Please ensure the backend server is running on port 3000.`;
@@ -461,7 +531,7 @@ class APIService {
   // Batch import multiple URLs
   async batchCreateSaveItems(
     urls: string[],
-    options?: { skipDuplicates?: boolean; autoOrganize?: boolean }
+    options?: { skipDuplicates?: boolean; autoOrganize?: boolean },
   ): Promise<{
     batchId: string;
     total: number;
@@ -507,20 +577,28 @@ class APIService {
 
   // Cursor-based pagination (more efficient for large datasets)
   async getItemsPaginated(options?: {
-    status?: SaveItemStatus;
+    status?: SaveItemStatus | SaveItemStatus[];
     folderId?: string;
     cursor?: string;
     limit?: number;
     direction?: 'next' | 'prev';
+    signal?: AbortSignal;
   }): Promise<ItemsResponse> {
+    const statusParam =
+      options?.status === undefined
+        ? undefined
+        : Array.isArray(options.status)
+          ? [...new Set(options.status)].join(',')
+          : options.status;
     return this.request<ItemsResponse>('/items/paginated', {
       queryParams: {
-        status: options?.status,
+        status: statusParam,
         folderId: options?.folderId,
         cursor: options?.cursor,
         limit: options?.limit ?? 20,
         direction: options?.direction ?? 'next',
       },
+      signal: options?.signal,
     });
   }
 
@@ -611,6 +689,9 @@ class APIService {
   }
 }
 
-// Export singleton instance
-export const apiService = new APIService();
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
 
+/** Singleton API client used across stores and hooks. */
+export const apiService = new APIService();

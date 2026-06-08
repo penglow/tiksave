@@ -1,7 +1,17 @@
+/**
+ * Location extraction via OpenAI and geocoding via Google Maps API.
+ */
+
+// --- imports ---
+
 import axios from 'axios';
 import { getOpenAIClient, isOpenAIConfigured, withRetry } from './openai.js';
 
+// --- constants ---
+
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+
+// --- types ---
 
 interface GeocodeResult {
   latitude: number;
@@ -10,8 +20,10 @@ interface GeocodeResult {
   address: string;
 }
 
+// --- handlers ---
+
 /**
- * Step 1: Extract ONE location query string from context using OpenAI.
+ * Extract ONE location query string from context using OpenAI.
  */
 export async function extractLocationQuery(
   text: string,
@@ -236,6 +248,7 @@ export async function batchGeocodeLocations(
 }
 
 // Wrapper to match previous interface
+/** Extract and geocode a single location from text and optional context. */
 export async function extractLocationData(text: string, context?: string) {
   const query = await extractLocationQuery(text, context);
   if (!query) return null;

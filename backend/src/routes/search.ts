@@ -1,17 +1,25 @@
+/**
+ * Search routes — semantic and keyword search over saved items.
+ */
+
+// --- imports ---
+
 import { Router, Response } from 'express';
 import { query } from '../database/init.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
+import { searchLimiter } from '../middleware/rateLimiter.js';
 import { generateEmbedding } from '../services/embeddings.js';
 import { getOpenAIClient, isOpenAIConfigured, withRetry } from '../services/openai.js';
 
+// --- helpers ---
+
 /**
- * Enhance search query with context understanding
- * Converts simple queries like "chicken" into context-rich queries
- * that better match semantic meaning
+ * Enhance search query with context understanding via OpenAI.
+ * Converts simple queries into context-rich descriptions for semantic matching.
  */
 async function enhanceSearchQuery(searchQuery: string): Promise<string> {
   if (!isOpenAIConfigured() || searchQuery.length < 2) {
-    return searchQuery; // Return original if no API key or too short
+    return searchQuery;
   }
 
   try {
@@ -40,60 +48,28 @@ Respond with just the enhanced query description (no labels, no JSON, just natur
     );
 
     const enhanced = response.choices[0]?.message?.content?.trim();
-    return enhanced || searchQuery; // Fallback to original if enhancement fails
+    return enhanced || searchQuery;
   } catch (error) {
     console.warn('Failed to enhance search query, using original:', error);
-    return searchQuery; // Fallback to original query
+    return searchQuery;
   }
 }
 
-export const searchRouter = Router();
+/** Escape special characters for PostgreSQL tsquery. */
+function escapeTsQueryTerm(term: string): string {
+  return term.replace(/[&|!():'\\*<>]/g, '').trim();
+}
 
-// Search items
-searchRouter.get('/', async (req, res: Response) => {
-  const authReq = req as unknown as AuthenticatedRequest;
-  const { q, semantic = 'true', limit = '20' } = req.query;
-  
-  if (!q || typeof q !== 'string' || q.trim().length === 0) {
-    return res.json({ items: [], total: 0 });
-  }
-  
-  const searchQuery = q.trim();
-  const useSemanticSearch = semantic === 'true';
-  const resultLimit = Math.min(parseInt(limit as string) || 20, 100);
-  
-  let items: any[] = [];
-  
-  if (useSemanticSearch) {
-    // Semantic search using embeddings
-    items = await semanticSearch(authReq.userId, searchQuery, resultLimit);
-  }
-  
-  // If semantic search returned no results or is disabled, fall back to keyword search
-  if (items.length === 0) {
-    items = await keywordSearch(authReq.userId, searchQuery, resultLimit);
-  }
-  
-  res.json({
-    items: items.map(formatSearchResult),
-    total: items.length,
-  });
-});
-
-// Semantic search using pgvector
+/** Semantic search using pgvector cosine similarity. */
 async function semanticSearch(userId: string, searchQuery: string, limit: number) {
   try {
-    // Enhance search query with context understanding using OpenAI
     const enhancedQuery = await enhanceSearchQuery(searchQuery);
-    
-    // Generate embedding for enhanced search query (with caching for frequent searches)
     const embedding = await generateEmbedding(enhancedQuery, true);
-    
+
     if (!embedding) {
       return [];
     }
-    
-    // Search using cosine similarity
+
     const result = await query(
       `SELECT si.*, f.name as folder_name,
         1 - (si.embedding <=> $1::vector) as similarity
@@ -107,37 +83,28 @@ async function semanticSearch(userId: string, searchQuery: string, limit: number
        LIMIT $3`,
       [`[${embedding.join(',')}]`, userId, limit]
     );
-    
-    // Filter by minimum similarity threshold
-    return result.rows.filter(row => row.similarity > 0.5);
+
+    return result.rows.filter((row) => row.similarity > 0.5);
   } catch (error) {
     console.error('Semantic search error:', error);
     return [];
   }
 }
 
-// Escape special characters for PostgreSQL tsquery
-function escapeTsQueryTerm(term: string): string {
-  // Remove or escape special tsquery characters: & | ! ( ) : ' \ *
-  // Keep only alphanumeric and common punctuation that's safe
-  return term.replace(/[&|!():'\\*<>]/g, '').trim();
-}
-
-// Keyword search using PostgreSQL full-text search
+/** Keyword search using PostgreSQL full-text search. */
 async function keywordSearch(userId: string, searchQuery: string, limit: number) {
-  // Prepare search terms - escape special characters to prevent injection
   const terms = searchQuery
     .toLowerCase()
     .split(/\s+/)
-    .map(term => escapeTsQueryTerm(term))
-    .filter(term => term.length > 1)
-    .map(term => term + ':*')
+    .map((term) => escapeTsQueryTerm(term))
+    .filter((term) => term.length > 1)
+    .map((term) => term + ':*')
     .join(' & ');
-  
+
   if (!terms) {
     return [];
   }
-  
+
   const result = await query(
     `SELECT si.*, f.name as folder_name,
       ts_rank(
@@ -172,7 +139,7 @@ async function keywordSearch(userId: string, searchQuery: string, limit: number)
      LIMIT $4`,
     [terms, userId, `%${searchQuery}%`, limit]
   );
-  
+
   return result.rows;
 }
 
@@ -198,3 +165,38 @@ function formatSearchResult(row: any) {
     similarity: row.similarity ? parseFloat(row.similarity) : undefined,
   };
 }
+
+// --- constants ---
+
+export const searchRouter = Router();
+
+// --- handlers ---
+
+/** GET / — search saved items by semantic or keyword query. */
+searchRouter.get('/', searchLimiter, async (req, res: Response) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const { q, semantic = 'true', limit = '20' } = req.query;
+
+  if (!q || typeof q !== 'string' || q.trim().length === 0) {
+    return res.json({ items: [], total: 0 });
+  }
+
+  const searchQuery = q.trim();
+  const useSemanticSearch = semantic === 'true';
+  const resultLimit = Math.min(parseInt(limit as string) || 20, 100);
+
+  let items: any[] = [];
+
+  if (useSemanticSearch) {
+    items = await semanticSearch(authReq.userId, searchQuery, resultLimit);
+  }
+
+  if (items.length === 0) {
+    items = await keywordSearch(authReq.userId, searchQuery, resultLimit);
+  }
+
+  res.json({
+    items: items.map(formatSearchResult),
+    total: items.length,
+  });
+});

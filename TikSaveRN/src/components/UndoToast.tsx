@@ -1,14 +1,11 @@
+/**
+ * Bottom snackbar with undo action and shrinking progress bar for timed destructive ops.
+ * Positioned above the safe-area inset; used after delete/move with grace period.
+ */
+
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-  FadeIn,
-  FadeOut,
-  SlideInDown,
-  SlideOutDown,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -16,6 +13,7 @@ import { Spacing, BorderRadius, Typography } from '../config';
 import { useTheme } from '../hooks/useTheme';
 import { AnimatedPressable } from './AnimatedPressable';
 
+// --- Types / props ---
 interface UndoToastProps {
   message: string;
   timeRemaining: number;
@@ -25,6 +23,7 @@ interface UndoToastProps {
   visible: boolean;
 }
 
+// --- Main component ---
 export function UndoToast({
   message,
   timeRemaining,
@@ -56,14 +55,9 @@ export function UndoToast({
         },
       ]}
     >
-      {/* Progress bar */}
       <View style={[styles.progressTrack, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
         <Animated.View
-          style={[
-            styles.progressBar,
-            { backgroundColor: colors.background },
-            progressStyle,
-          ]}
+          style={[styles.progressBar, { backgroundColor: colors.background }, progressStyle]}
         />
       </View>
 
@@ -76,14 +70,8 @@ export function UndoToast({
         </View>
 
         <View style={styles.actions}>
-          <AnimatedPressable
-            style={styles.undoButton}
-            onPress={onUndo}
-            haptic
-          >
-            <Text style={[styles.undoText, { color: colors.warning }]}>
-              Undo
-            </Text>
+          <AnimatedPressable style={styles.undoButton} onPress={onUndo} haptic>
+            <Text style={[styles.undoText, { color: colors.warning }]}>Undo</Text>
           </AnimatedPressable>
 
           {onDismiss && (
@@ -97,6 +85,7 @@ export function UndoToast({
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',

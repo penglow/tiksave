@@ -1,17 +1,35 @@
+/**
+ * Authentication routes — signup, signin, token refresh, and password reset.
+ */
+
+// --- imports ---
+
 import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import type { JwtPayload, SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { query } from '../database/init.js';
 import { AppError } from '../middleware/errorHandler.js';
-import { sanitizeEmail, sanitizeString } from '../utils/sanitize.js';
+import { sanitizeEmail, sanitizeString, sanitizeUserSettingsForClient } from '../utils/sanitize.js';
 import { logger } from '../utils/logger.js';
+import {
+  signInLimiter,
+  signUpLimiter,
+  refreshLimiter,
+  passwordResetRequestLimiter,
+  passwordResetConfirmLimiter,
+} from '../middleware/rateLimiter.js';
+
+// --- constants ---
 
 export const authRouter = Router();
 
-const ACCESS_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
-const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
+type JwtExpiresIn = NonNullable<SignOptions['expiresIn']>;
+
+const ACCESS_EXPIRES_IN = (process.env.JWT_EXPIRES_IN || '7d') as JwtExpiresIn;
+const REFRESH_EXPIRES_IN = (process.env.JWT_REFRESH_EXPIRES_IN || '30d') as JwtExpiresIn;
 const ALLOW_DEV_RESET_TOKEN_RESPONSE =
   process.env.NODE_ENV === 'development' &&
   process.env.ALLOW_DEV_PASSWORD_RESET_TOKEN === 'true';
@@ -20,7 +38,28 @@ if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEV_PASSWORD_RESE
   throw new Error('ALLOW_DEV_PASSWORD_RESET_TOKEN must never be enabled in production');
 }
 
-// Validation schemas
+// --- helpers ---
+
+function getJwtSecret(): string {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET is not configured');
+  }
+  return jwtSecret;
+}
+
+function isRefreshPayload(decoded: string | JwtPayload): decoded is JwtPayload & { userId: string; type: 'refresh' } {
+  return (
+    typeof decoded === 'object' &&
+    typeof decoded.userId === 'string' &&
+    decoded.type === 'refresh'
+  );
+}
+
+// --- types ---
+
+// --- validation schemas ---
+
 const signUpSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
@@ -32,8 +71,10 @@ const signInSchema = z.object({
   password: z.string(),
 });
 
-// Sign up
-authRouter.post('/signup', async (req: Request, res: Response, next: NextFunction) => {
+// --- handlers ---
+
+/** POST /signup — register a new user and return tokens. */
+authRouter.post('/signup', signUpLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = signUpSchema.parse(req.body);
     
@@ -91,8 +132,8 @@ authRouter.post('/signup', async (req: Request, res: Response, next: NextFunctio
   }
 });
 
-// Sign in
-authRouter.post('/signin', async (req: Request, res: Response, next: NextFunction) => {
+/** POST /signin — authenticate with email and password. */
+authRouter.post('/signin', signInLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = signInSchema.parse(req.body);
     
@@ -105,7 +146,8 @@ authRouter.post('/signin', async (req: Request, res: Response, next: NextFunctio
     
     // Find user
     const result = await query(
-      'SELECT * FROM users WHERE email = $1',
+      `SELECT id, email, display_name, avatar_url, settings, created_at
+       FROM users WHERE email = $1`,
       [email]
     );
     
@@ -136,8 +178,8 @@ authRouter.post('/signin', async (req: Request, res: Response, next: NextFunctio
   }
 });
 
-// Refresh token
-authRouter.post('/refresh', async (req: Request, res: Response, next: NextFunction) => {
+/** POST /refresh — rotate refresh token and issue new access token. */
+authRouter.post('/refresh', refreshLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { refreshToken } = req.body;
     
@@ -145,18 +187,16 @@ authRouter.post('/refresh', async (req: Request, res: Response, next: NextFuncti
       throw new AppError('Refresh token required', 400);
     }
     
-    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET!) as {
-      userId: string; 
-      type: string;
-    };
+    const decoded = jwt.verify(refreshToken, getJwtSecret());
     
-    if (decoded.type !== 'refresh') {
+    if (!isRefreshPayload(decoded)) {
       throw new AppError('Invalid token type', 401);
     }
     
     // Get user
     const result = await query(
-      'SELECT * FROM users WHERE id = $1',
+      `SELECT id, email, display_name, avatar_url, settings, created_at
+       FROM users WHERE id = $1`,
       [decoded.userId]
     );
     
@@ -217,8 +257,8 @@ const resetPasswordSchema = z.object({
   newPassword: z.string().min(8),
 });
 
-// Request password reset - generates a reset token
-authRouter.post('/password-reset/request', async (req: Request, res: Response, next: NextFunction) => {
+/** POST /password-reset/request — initiate password reset flow. */
+authRouter.post('/password-reset/request', passwordResetRequestLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = requestPasswordResetSchema.parse(req.body);
     const email = sanitizeEmail(parsed.email);
@@ -281,8 +321,8 @@ authRouter.post('/password-reset/request', async (req: Request, res: Response, n
   }
 });
 
-// Reset password with token
-authRouter.post('/password-reset/confirm', async (req: Request, res: Response, next: NextFunction) => {
+/** POST /password-reset/confirm — reset password with a valid token. */
+authRouter.post('/password-reset/confirm', passwordResetConfirmLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = resetPasswordSchema.parse(req.body);
     
@@ -338,8 +378,13 @@ authRouter.post('/password-reset/confirm', async (req: Request, res: Response, n
   }
 });
 
-// Helper functions
-function parseExpiresIn(expiresIn: string): number {
+// --- helpers ---
+
+function parseExpiresIn(expiresIn: JwtExpiresIn): number {
+  if (typeof expiresIn === 'number') {
+    return expiresIn * 1000;
+  }
+
   // Parse duration string like '7d', '24h', '30m' into milliseconds
   const match = expiresIn.match(/^(\d+)([dhms])$/);
   if (!match) return 7 * 24 * 60 * 60 * 1000; // Default 7 days
@@ -389,13 +434,9 @@ async function revokeAllUserRefreshTokens(userId: string): Promise<void> {
 }
 
 async function generateTokens(userId: string) {
-  const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret) {
-    throw new Error('JWT_SECRET is not configured');
-  }
+  const jwtSecret = getJwtSecret();
   
   const expiresIn = ACCESS_EXPIRES_IN;
-  // @ts-expect-error - jsonwebtoken types are incorrect for expiresIn string values
   const accessToken = jwt.sign(
     { userId },
     jwtSecret,
@@ -424,7 +465,7 @@ function formatUser(row: any) {
     displayName: row.display_name,
     avatarURL: row.avatar_url,
     createdAt: row.created_at,
-    settings: row.settings,
+    settings: sanitizeUserSettingsForClient(row.settings),
   };
 }
 

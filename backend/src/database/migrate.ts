@@ -1,4 +1,10 @@
+/** CLI entry point to run database schema initialization migrations. */
+
+// --- imports ---
+
 import { initializeDatabase, pool } from './init.js';
+
+// --- handlers ---
 
 async function migrate() {
   try {
@@ -14,4 +20,3 @@ async function migrate() {
 }
 
 migrate();
-

@@ -1,6 +1,16 @@
+/**
+ * Centralized error handling for Express.
+ * Maps known error types to HTTP status codes and structured JSON responses.
+ */
+
+// --- imports ---
+
 import { Request, Response, NextFunction } from 'express';
 import { logger, createRequestLogger } from '../utils/logger.js';
 
+// --- types ---
+
+/** Application error with an explicit HTTP status code and optional error code. */
 export class AppError extends Error {
   statusCode: number;
   code?: string;
@@ -13,6 +23,11 @@ export class AppError extends Error {
   }
 }
 
+// --- handlers ---
+
+/**
+ * Express error middleware — logs the failure and returns a safe JSON error payload.
+ */
 export function errorHandler(
   err: Error | AppError,
   req: Request,

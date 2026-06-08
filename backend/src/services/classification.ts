@@ -1,6 +1,14 @@
+/**
+ * Save-item folder classification using topic, label, hashtag, and learned weights.
+ */
+
+// --- imports ---
+
 import { query } from '../database/init.js';
 import { createOrFindFolder } from './folderCreation.js';
 import { getUserFoldersForClassification } from './folderCache.js';
+
+// --- types ---
 
 interface ClassificationInput {
   topics: string[];
@@ -22,8 +30,10 @@ interface ClassificationResult {
   }>;
 }
 
+// --- handlers ---
+
 /**
- * Classify a save item into the appropriate folder
+ * Classify a save item into the appropriate folder.
  */
 export async function classifyItem(
   userId: string,
@@ -139,6 +149,8 @@ export async function classifyItemWithFolders(
 
   return result;
 }
+
+// --- helpers ---
 
 function scoreFolder(folder: any, input: ClassificationInput): {
   score: number;

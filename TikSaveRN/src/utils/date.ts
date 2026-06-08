@@ -1,5 +1,15 @@
 /**
- * Format a date string as a relative time ago string
+ * Relative date and duration formatting helpers for list and detail UI.
+ */
+
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+
+/**
+ * Format a date string as a compact relative time ago string (e.g. `3h`, `2d`).
+ *
+ * @param dateString - ISO or parseable date string.
  */
 export function formatTimeAgo(dateString: string): string {
   const date = new Date(dateString);
@@ -40,11 +50,12 @@ export function formatTimeAgo(dateString: string): string {
 }
 
 /**
- * Format duration in seconds as mm:ss
+ * Format duration in seconds as `mm:ss`.
+ *
+ * @param seconds - Total duration in seconds.
  */
 export function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
-

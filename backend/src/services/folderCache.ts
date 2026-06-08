@@ -1,14 +1,23 @@
+/**
+ * Folder list caching and formatting for API and classification consumers.
+ */
+
+// --- imports ---
+
 import { RedisCache } from './redis.js';
 import { query } from '../database/init.js';
 import { FolderRow, FormattedFolder } from '../types/database.js';
 
-// Cache TTL: 5 minutes (folders rarely change)
+// --- constants ---
+
 const FOLDER_CACHE_TTL = 300;
 
 const folderCache = new RedisCache('folders', FOLDER_CACHE_TTL);
 
+// --- helpers ---
+
 /**
- * Format a folder row for API response
+ * Format a folder row for API response.
  */
 export function formatFolder(row: FolderRow): FormattedFolder {
   return {
@@ -26,8 +35,10 @@ export function formatFolder(row: FolderRow): FormattedFolder {
   };
 }
 
+// --- handlers ---
+
 /**
- * Get all folders for a user (with caching)
+ * Get all folders for a user (with caching).
  */
 export async function getUserFolders(userId: string): Promise<FormattedFolder[]> {
   const cacheKey = `user:${userId}:all`;

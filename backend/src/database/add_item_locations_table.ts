@@ -1,4 +1,10 @@
+/** One-off migration: create save_item_locations table for multi-location items. */
+
+// --- imports ---
+
 import { query, pool } from './init';
+
+// --- handlers ---
 
 async function run() {
   try {
@@ -31,4 +37,3 @@ async function run() {
 }
 
 run();
-

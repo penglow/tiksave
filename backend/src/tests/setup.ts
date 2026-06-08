@@ -1,12 +1,40 @@
-/**
- * Test Setup and Utilities
- * 
- * This file provides shared test setup, utilities, and mocks for testing
- * the TikSave backend API.
- */
+/** Shared test setup, utilities, and mocks for backend API tests. */
 
 import { Pool } from 'pg';
 import Redis from 'ioredis';
+
+const DEFAULT_TEST_DATABASE_URL =
+  process.env.TEST_DATABASE_URL ||
+  'postgresql://tiksave:tiksave_password@localhost:5432/tiksave_test';
+
+/** True when the configured test database accepts connections. */
+export async function isDatabaseAvailable(): Promise<boolean> {
+  const pool = new Pool({
+    connectionString: DEFAULT_TEST_DATABASE_URL,
+    max: 1,
+    connectionTimeoutMillis: 2000,
+  });
+  try {
+    await pool.query('SELECT 1');
+    await pool.end();
+    return true;
+  } catch {
+    await pool.end().catch(() => {});
+    return false;
+  }
+}
+
+export let dbAvailable = false;
+
+/** Populated by test preload before suites are collected. */
+export async function initDbAvailability(): Promise<void> {
+  dbAvailable = await isDatabaseAvailable();
+  if (!dbAvailable && process.env.REQUIRE_TEST_DB === 'true') {
+    throw new Error(
+      'Test database is required (REQUIRE_TEST_DB=true) but TEST_DATABASE_URL is unreachable.',
+    );
+  }
+}
 
 // Test database connection
 let testPool: Pool | null = null;
@@ -18,7 +46,7 @@ let testRedis: Redis | null = null;
 export function getTestPool(): Pool {
   if (!testPool) {
     testPool = new Pool({
-      connectionString: process.env.TEST_DATABASE_URL || 'postgresql://tiksave:tiksave_password@localhost:5432/tiksave_test',
+      connectionString: DEFAULT_TEST_DATABASE_URL,
       max: 5,
     });
   }

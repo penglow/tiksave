@@ -1,12 +1,19 @@
 /**
- * Cursor-based pagination utilities
- * Provides efficient pagination for large datasets
+ * Cursor-based pagination utilities for efficient large-dataset paging.
  */
+
+// --- types ---
 
 export interface CursorPaginationParams {
   cursor?: string;      // Base64 encoded "created_at:id"
   limit?: number;       // Items per page (default: 20, max: 100)
   direction?: 'next' | 'prev'; // Direction of pagination
+}
+
+export interface ParsedCursorPaginationParams {
+  cursor: string | undefined;
+  limit: number;
+  direction: 'next' | 'prev';
 }
 
 export interface CursorPaginationResult<T> {
@@ -59,7 +66,7 @@ export function parseCursorPagination(
   query: Record<string, unknown>,
   defaultLimit = 20,
   maxLimit = 100
-): Required<CursorPaginationParams> {
+): ParsedCursorPaginationParams {
   const cursor = typeof query.cursor === 'string' ? query.cursor : undefined;
   
   // Parse limit with bounds checking

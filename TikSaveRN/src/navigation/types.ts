@@ -1,9 +1,16 @@
+/**
+ * React Navigation param lists and typed screen props for all app navigators.
+ */
+
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { CompositeScreenProps, NavigatorScreenParams } from '@react-navigation/native';
 import { Folder, SaveItem } from '../types';
 
-// Root Stack Navigator
+// ---------------------------------------------------------------------------
+// Root stack
+// ---------------------------------------------------------------------------
+
 export type RootStackParamList = {
   Auth: undefined;
   Main: NavigatorScreenParams<MainTabParamList>;
@@ -14,7 +21,10 @@ export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeSta
   T
 >;
 
-// Main Tab Navigator
+// ---------------------------------------------------------------------------
+// Main tabs
+// ---------------------------------------------------------------------------
+
 export type MainTabParamList = {
   Library: undefined;
   Add: undefined;
@@ -28,7 +38,10 @@ export type MainTabScreenProps<T extends keyof MainTabParamList> = CompositeScre
   RootStackScreenProps<keyof RootStackParamList>
 >;
 
-// Library Stack Navigator (main view with AI categories)
+// ---------------------------------------------------------------------------
+// Library stack
+// ---------------------------------------------------------------------------
+
 export type LibraryStackParamList = {
   LibraryMain: undefined;
   CategoryDetail: { categoryName: string; icon: string; color: string; subcategoryName?: string };
@@ -42,7 +55,10 @@ export type LibraryStackScreenProps<T extends keyof LibraryStackParamList> = Nat
   T
 >;
 
-// Folders Stack Navigator (optional manual organization)
+// ---------------------------------------------------------------------------
+// Folders stack
+// ---------------------------------------------------------------------------
+
 export type FoldersStackParamList = {
   FoldersList: undefined;
   FolderDetail: { folder: Folder };
@@ -54,7 +70,10 @@ export type FoldersStackScreenProps<T extends keyof FoldersStackParamList> = Nat
   T
 >;
 
-// Search Stack Navigator
+// ---------------------------------------------------------------------------
+// Search stack
+// ---------------------------------------------------------------------------
+
 export type SearchStackParamList = {
   SearchMain: undefined;
   VideoDetail: { item: SaveItem };
@@ -65,7 +84,10 @@ export type SearchStackScreenProps<T extends keyof SearchStackParamList> = Nativ
   T
 >;
 
-// Inbox Stack Navigator (for processing/review items)
+// ---------------------------------------------------------------------------
+// Inbox stack
+// ---------------------------------------------------------------------------
+
 export type InboxStackParamList = {
   InboxMain: undefined;
   VideoDetail: { item: SaveItem };
@@ -76,7 +98,10 @@ export type InboxStackScreenProps<T extends keyof InboxStackParamList> = NativeS
   T
 >;
 
-// Add Stack Navigator
+// ---------------------------------------------------------------------------
+// Add stack
+// ---------------------------------------------------------------------------
+
 export type AddStackParamList = {
   AddMain: undefined;
 };
@@ -86,7 +111,10 @@ export type AddStackScreenProps<T extends keyof AddStackParamList> = NativeStack
   T
 >;
 
-// Map Stack Navigator
+// ---------------------------------------------------------------------------
+// Map stack
+// ---------------------------------------------------------------------------
+
 export type MapStackParamList = {
   MapMain: undefined;
   VideoDetail: { item: SaveItem };
@@ -97,9 +125,12 @@ export type MapStackScreenProps<T extends keyof MapStackParamList> = NativeStack
   T
 >;
 
-// Declare global navigation types
+// ---------------------------------------------------------------------------
+// Global augmentation
+// ---------------------------------------------------------------------------
+
 declare global {
   namespace ReactNavigation {
-    interface RootParamList extends RootStackParamList { }
+    interface RootParamList extends RootStackParamList {}
   }
 }

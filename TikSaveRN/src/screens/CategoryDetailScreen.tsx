@@ -1,4 +1,12 @@
-import React, { useState, useCallback } from 'react';
+/**
+ * CategoryDetailScreen
+ *
+ * Lists videos grouped by AI-detected topic within the Library stack. Route params
+ * supply `categoryName`, optional `subcategoryName`, and accent `color`. Pushes nested
+ * subcategory routes or `VideoDetail` on row tap.
+ */
+
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,18 +16,29 @@ import {
   ActivityIndicator,
   Image,
   Linking,
+  TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { Spacing, BorderRadius, Typography, Hairline } from '../config';
+import { Spacing, BorderRadius, Typography, Hairline, Shadows, TAB_BAR_OVERLAP } from '../config';
 import { SaveItem, getDisplayTitle } from '../types';
-import { apiService } from '../services/api';
+import {
+  itemBelongsToLibraryCategory,
+  itemHasSubcategoryTopic,
+  parseDetectedTopic,
+} from '../utils/libraryTopicFilter';
+import { fetchAllLibraryItems } from '../utils/fetchAllLibraryItems';
 import { LibraryStackScreenProps } from '../navigation/types';
 import { formatTimeAgo } from '../utils/date';
 import { useTheme } from '../hooks/useTheme';
-import { AnimatedPressable, AnimatedListItem, AnimatedText } from '../components';
+import { useResolvedTikTokThumbnail } from '../hooks/useResolvedTikTokThumbnail';
+import { AnimatedListItem, AnimatedPressable, AnimatedText } from '../components';
+
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
 
 type Props = LibraryStackScreenProps<'CategoryDetail'>;
 
@@ -28,55 +47,51 @@ interface Subcategory {
   items: SaveItem[];
 }
 
+// -----------------------------------------------------------------------------
+// Main screen
+// -----------------------------------------------------------------------------
+
 export default function CategoryDetailScreen({ route, navigation }: Props) {
   const { categoryName, color, subcategoryName } = route.params;
   const { colors } = useTheme();
+
+  // --- List state -------------------------------------------------------------
+
   const [items, setItems] = useState<SaveItem[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // --- Data loading -----------------------------------------------------------
 
   const loadItems = useCallback(async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
-      const allItems = await apiService.getItems();
+      const allItems = await fetchAllLibraryItems(controller.signal);
+      if (controller.signal.aborted) return;
 
-      const categoryItems = allItems.filter(item => {
-        if (item.status !== 'ready') return false;
-        const primaryTopic = item.detectedTopics?.[0] || 'Saved';
-
-        let parentName = primaryTopic;
-        let subName: string | null = null;
-
-        if (primaryTopic.includes(' > ')) {
-          const parts = primaryTopic.split(' > ');
-          parentName = parts[0].trim();
-          subName = parts[1]?.trim() || null;
-        }
-
-        parentName = parentName.charAt(0).toUpperCase() + parentName.slice(1);
-
-        if (subcategoryName) {
-          return parentName === categoryName && subName === subcategoryName;
-        }
-
-        return parentName === categoryName;
-      });
+      const categoryItems = allItems.filter((item) =>
+        itemBelongsToLibraryCategory(item, categoryName, subcategoryName),
+      );
 
       if (subcategoryName) {
-        setItems(categoryItems.sort((a, b) =>
-          new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
-        ));
+        setItems(
+          categoryItems.sort(
+            (a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime(),
+          ),
+        );
       } else {
         const subcategoryMap = new Map<string, SaveItem[]>();
 
         for (const item of categoryItems) {
           const primaryTopic = item.detectedTopics?.[0] || 'Saved';
-          let subName: string | null = null;
-
-          if (primaryTopic.includes(' > ')) {
-            const parts = primaryTopic.split(' > ');
-            subName = parts[1]?.trim() || null;
-          }
+          const { subName } = parseDetectedTopic(primaryTopic);
 
           if (subName) {
             if (!subcategoryMap.has(subName)) {
@@ -90,8 +105,8 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
         for (const [name, subItems] of subcategoryMap) {
           subcategoriesList.push({
             name,
-            items: subItems.sort((a, b) =>
-              new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
+            items: subItems.sort(
+              (a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime(),
             ),
           });
         }
@@ -100,63 +115,81 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
         setItems(categoryItems);
       }
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
       console.error('Failed to load items:', error);
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }, [categoryName, subcategoryName]);
+
+  /** Videos filed directly under the parent topic (not in a subcategory row). */
+  const directItems = useMemo(() => {
+    if (subcategoryName) return [];
+    return items.filter((item) => !itemHasSubcategoryTopic(item));
+  }, [items, subcategoryName]);
 
   useFocusEffect(
     useCallback(() => {
       loadItems();
-    }, [loadItems])
+    }, [loadItems]),
   );
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
     loadItems();
-  };
+  }, [loadItems]);
 
-  const renderVideoItem = ({ item, index }: { item: SaveItem; index: number }) => (
-    <AnimatedListItem index={index} direction="fade">
-      <VideoRow
-        item={item}
-        onPress={() => navigation.navigate('VideoDetail', { item })}
-      />
-    </AnimatedListItem>
+  const navigateToVideoDetail = useCallback(
+    (item: SaveItem) => {
+      navigation.navigate('VideoDetail', { item });
+    },
+    [navigation],
   );
 
-  const renderSubcategoryItem = ({ item: subcategory, index }: { item: Subcategory; index: number }) => (
-    <AnimatedListItem index={index} direction="fade">
-      <AnimatedPressable
-        style={[styles.subcategoryRow, { borderBottomColor: colors.border }]}
-        onPress={() => navigation.navigate('CategoryDetail', {
-          categoryName,
-          icon: '',
-          color,
-          subcategoryName: subcategory.name,
-        })}
-      >
-        <View style={styles.subcategoryInfo}>
-          <Text style={[styles.subcategoryName, { color: colors.text }]}>
-            {subcategory.name}
-          </Text>
-          <Text style={[styles.subcategoryCount, { color: colors.textTertiary }]}>
-            {subcategory.items.length} videos
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={16} color={colors.textQuaternary} />
-      </AnimatedPressable>
-    </AnimatedListItem>
+  const navigateToSubcategory = useCallback(
+    (name: string) => {
+      navigation.navigate('CategoryDetail', {
+        categoryName,
+        icon: '',
+        color,
+        subcategoryName: name,
+      });
+    },
+    [navigation, categoryName, color],
   );
+
+  const renderVideoItem = useCallback(
+    ({ item, index }: { item: SaveItem; index: number }) => (
+      <AnimatedListItem index={index} direction="fade">
+        <VideoRow item={item} onPress={() => navigateToVideoDetail(item)} />
+      </AnimatedListItem>
+    ),
+    [navigateToVideoDetail],
+  );
+
+  const renderSubcategoryItem = useCallback(
+    ({ item: subcategory, index }: { item: Subcategory; index: number }) => (
+      <AnimatedListItem index={index} direction="fade">
+        <SubcategoryRow
+          subcategory={subcategory}
+          borderColor={colors.border}
+          textColor={colors.text}
+          subtitleColor={colors.textTertiary}
+          chevronColor={colors.textQuaternary}
+          onPress={() => navigateToSubcategory(subcategory.name)}
+        />
+      </AnimatedListItem>
+    ),
+    [colors, navigateToSubcategory],
+  );
+
+  // --- Render -----------------------------------------------------------------
 
   if (isLoading) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="small" color={colors.text} />
-      </View>
-    );
+    return <CategoryLoadingView backgroundColor={colors.background} />;
   }
 
   return (
@@ -164,16 +197,15 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
       {/* Header */}
       <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
         <View style={styles.headerTitleRow}>
-          <AnimatedText style={[styles.headerTitle, { color: colors.text }]}>
-            {subcategoryName || categoryName}
-          </AnimatedText>
           <View style={[styles.categoryDot, { backgroundColor: color }]} />
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            {subcategoryName || categoryName}
+          </Text>
         </View>
         <Text style={[styles.headerSubtitle, { color: colors.textTertiary }]}>
           {subcategoryName
-            ? `${items.length} videos`
-            : `${items.length} videos · ${subcategories.length} subcategories`
-          }
+            ? `${items.length} video${items.length !== 1 ? 's' : ''}`
+            : `${items.length} video${items.length !== 1 ? 's' : ''} · ${subcategories.length} subcategories`}
         </Text>
       </Animated.View>
 
@@ -184,6 +216,10 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          style={styles.listFlat}
+          nestedScrollEnabled
+          keyboardShouldPersistTaps="handled"
+          removeClippedSubviews={false}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -193,19 +229,26 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
+              <View style={[styles.emptyIconWrapper, { backgroundColor: colors.surfaceHover }]}>
+                <Ionicons name="grid-outline" size={28} color={colors.textTertiary} />
+              </View>
               <AnimatedText delay={100} style={[styles.emptyText, { color: colors.textTertiary }]}>
                 No videos in this category
               </AnimatedText>
             </View>
           }
         />
-      ) : (
+      ) : subcategories.length > 0 ? (
         <FlatList
-          data={subcategories.length > 0 ? subcategories : []}
+          data={subcategories}
           renderItem={renderSubcategoryItem}
           keyExtractor={(item) => item.name}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          style={styles.listFlat}
+          nestedScrollEnabled
+          keyboardShouldPersistTaps="handled"
+          removeClippedSubviews={false}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -214,24 +257,17 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
             />
           }
           ListHeaderComponent={
-            subcategories.length > 0 ? (
-              <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
-                SUBCATEGORIES
-              </Text>
-            ) : null
+            <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>SUBCATEGORIES</Text>
           }
           ListFooterComponent={
-            items.length > 0 ? (
+            directItems.length > 0 ? (
               <View style={styles.allVideosSection}>
                 <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>
-                  ALL VIDEOS
+                  IN THIS CATEGORY
                 </Text>
-                {items.slice(0, 10).map((item, index) => (
+                {directItems.map((item, index) => (
                   <AnimatedListItem key={item.id} index={index} direction="fade">
-                    <VideoRow
-                      item={item}
-                      onPress={() => navigation.navigate('VideoDetail', { item })}
-                    />
+                    <VideoRow item={item} onPress={() => navigateToVideoDetail(item)} />
                   </AnimatedListItem>
                 ))}
               </View>
@@ -239,12 +275,40 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
           }
           ListEmptyComponent={
             items.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <AnimatedText delay={100} style={[styles.emptyText, { color: colors.textTertiary }]}>
-                  No videos in this category
-                </AnimatedText>
-              </View>
+              <CategoryEmptyView
+                surfaceHoverColor={colors.surfaceHover}
+                subtitleColor={colors.textTertiary}
+              />
             ) : null
+          }
+        />
+      ) : (
+        <FlatList
+          data={items}
+          renderItem={renderVideoItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          style={styles.listFlat}
+          nestedScrollEnabled
+          keyboardShouldPersistTaps="handled"
+          removeClippedSubviews={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.text}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <View style={[styles.emptyIconWrapper, { backgroundColor: colors.surfaceHover }]}>
+                <Ionicons name="grid-outline" size={28} color={colors.textTertiary} />
+              </View>
+              <AnimatedText delay={100} style={[styles.emptyText, { color: colors.textTertiary }]}>
+                No videos in this category
+              </AnimatedText>
+            </View>
           }
         />
       )}
@@ -252,14 +316,77 @@ export default function CategoryDetailScreen({ route, navigation }: Props) {
   );
 }
 
-function VideoRow({
-  item,
-  onPress
+// -----------------------------------------------------------------------------
+// Presentational subviews (loading / empty / rows)
+// -----------------------------------------------------------------------------
+
+function CategoryLoadingView({ backgroundColor }: { backgroundColor: string }) {
+  const { colors } = useTheme();
+
+  return (
+    <View style={[styles.loadingContainer, { backgroundColor }]}>
+      <ActivityIndicator size="small" color={colors.text} />
+    </View>
+  );
+}
+
+function CategoryEmptyView({
+  surfaceHoverColor,
+  subtitleColor,
 }: {
-  item: SaveItem;
+  surfaceHoverColor: string;
+  subtitleColor: string;
+}) {
+  return (
+    <View style={styles.emptyContainer}>
+      <View style={[styles.emptyIconWrapper, { backgroundColor: surfaceHoverColor }]}>
+        <Ionicons name="grid-outline" size={28} color={subtitleColor} />
+      </View>
+      <AnimatedText delay={100} style={[styles.emptyText, { color: subtitleColor }]}>
+        No videos in this category
+      </AnimatedText>
+    </View>
+  );
+}
+
+function SubcategoryRow({
+  subcategory,
+  borderColor,
+  textColor,
+  subtitleColor,
+  chevronColor,
+  onPress,
+}: {
+  subcategory: Subcategory;
+  borderColor: string;
+  textColor: string;
+  subtitleColor: string;
+  chevronColor: string;
   onPress: () => void;
 }) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.88}
+      delayPressIn={75}
+      style={[styles.subcategoryRow, { borderBottomColor: borderColor }]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Open subcategory ${subcategory.name}`}
+    >
+      <View style={styles.subcategoryInfo}>
+        <Text style={[styles.subcategoryName, { color: textColor }]}>{subcategory.name}</Text>
+        <Text style={[styles.subcategoryCount, { color: subtitleColor }]}>
+          {subcategory.items.length} videos
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={chevronColor} />
+    </TouchableOpacity>
+  );
+}
+
+function VideoRow({ item, onPress }: { item: SaveItem; onPress: () => void }) {
   const { colors } = useTheme();
+  const thumbUri = useResolvedTikTokThumbnail(item.sourceURL, item.thumbnailURL);
 
   const openInTikTok = () => {
     if (item.sourceURL) {
@@ -268,59 +395,75 @@ function VideoRow({
   };
 
   return (
-    <AnimatedPressable
-      style={[styles.videoRow, { borderBottomColor: colors.border }]}
-      onPress={onPress}
-    >
-      {/* Thumbnail */}
+    <View style={[styles.videoRow, { borderBottomColor: colors.border }]}>
       <AnimatedPressable
         style={styles.thumbnail}
         onPress={openInTikTok}
-        scaleOnPress={0.98}
+        scaleOnPress={0.97}
+        accessibilityLabel="Play in TikTok"
+        accessibilityRole="button"
       >
-        {item.thumbnailURL ? (
+        {thumbUri ? (
           <Image
-            source={{ uri: item.thumbnailURL, cache: 'force-cache' }}
+            source={{ uri: thumbUri, cache: 'force-cache' }}
             style={styles.thumbnailImage}
             resizeMode="cover"
           />
         ) : (
-          <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.accentSubtle }]}>
+          <View style={[styles.thumbnailPlaceholder, { backgroundColor: colors.surfaceHover }]}>
             <Ionicons name="play" size={18} color={colors.textTertiary} />
           </View>
         )}
         {item.duration && (
           <View style={styles.durationBadge}>
             <Text style={styles.durationText}>
-              {Math.floor(item.duration / 60)}:{String(Math.floor(item.duration % 60)).padStart(2, '0')}
+              {Math.floor(item.duration / 60)}:
+              {String(Math.floor(item.duration % 60)).padStart(2, '0')}
             </Text>
           </View>
         )}
       </AnimatedPressable>
 
-      {/* Info */}
-      <View style={styles.videoInfo}>
-        <Text style={[styles.videoTitle, { color: colors.text }]} numberOfLines={2}>
-          {getDisplayTitle(item)}
-        </Text>
-        {item.creatorUsername && (
-          <Text style={[styles.creatorName, { color: colors.textTertiary }]}>
-            @{item.creatorUsername}
+      <AnimatedPressable
+        style={styles.videoMain}
+        onPress={onPress}
+        noScale
+        opacityOnPress={0.6}
+        accessibilityLabel={`View details for ${getDisplayTitle(item)}`}
+        accessibilityRole="button"
+      >
+        <View style={styles.videoInfo}>
+          <Text style={[styles.videoTitle, { color: colors.text }]} numberOfLines={2}>
+            {getDisplayTitle(item)}
           </Text>
-        )}
-        <Text style={[styles.timeAgo, { color: colors.textQuaternary }]}>
-          {formatTimeAgo(item.dateAdded)}
-        </Text>
-      </View>
+          {item.creatorUsername && (
+            <Text style={[styles.creatorName, { color: colors.textTertiary }]}>
+              @{item.creatorUsername}
+            </Text>
+          )}
+          <Text style={[styles.timeAgo, { color: colors.textQuaternary }]}>
+            {formatTimeAgo(item.dateAdded)}
+          </Text>
+        </View>
 
-      <Ionicons name="chevron-forward" size={14} color={colors.textQuaternary} />
-    </AnimatedPressable>
+        <Ionicons name="chevron-forward" size={14} color={colors.textQuaternary} />
+      </AnimatedPressable>
+    </View>
   );
 }
+
+// -----------------------------------------------------------------------------
+// Styles
+// -----------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 0,
+  },
+  listFlat: {
+    flex: 1,
+    minHeight: 0,
   },
   loadingContainer: {
     flex: 1,
@@ -341,16 +484,16 @@ const styles = StyleSheet.create({
     ...Typography.displayMd,
   },
   categoryDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   headerSubtitle: {
     ...Typography.caption,
     marginTop: Spacing.xs,
   },
   listContent: {
-    paddingBottom: Spacing.xl,
+    paddingBottom: Spacing.xl + TAB_BAR_OVERLAP,
   },
   sectionLabel: {
     ...Typography.label,
@@ -367,12 +510,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     borderBottomWidth: Hairline,
     gap: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.xs,
   },
   thumbnail: {
-    width: 70,
-    height: 93,
-    borderRadius: BorderRadius.xs,
+    width: 76,
+    height: 102,
+    borderRadius: BorderRadius.sm,
     overflow: 'hidden',
+    backgroundColor: '#000',
+    ...Shadows.xs,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 128, 128, 0.12)',
   },
   thumbnailImage: {
     width: '100%',
@@ -385,17 +535,23 @@ const styles = StyleSheet.create({
   },
   durationBadge: {
     position: 'absolute',
-    bottom: 4,
-    right: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
+    bottom: 6,
+    right: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
     borderRadius: BorderRadius.xs,
   },
   durationText: {
     fontSize: 10,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#ffffff',
+  },
+  videoMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   videoInfo: {
     flex: 1,
@@ -403,7 +559,7 @@ const styles = StyleSheet.create({
   },
   videoTitle: {
     ...Typography.captionStrong,
-    lineHeight: 16,
+    lineHeight: 17,
   },
   creatorName: {
     fontSize: 12,
@@ -418,6 +574,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
     borderBottomWidth: Hairline,
+    gap: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.xs,
+    backgroundColor: 'transparent',
   },
   subcategoryInfo: {
     flex: 1,
@@ -433,7 +594,16 @@ const styles = StyleSheet.create({
     padding: Spacing.xxl,
     alignItems: 'center',
   },
+  emptyIconWrapper: {
+    width: 72,
+    height: 72,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
   emptyText: {
     ...Typography.body,
+    textAlign: 'center',
   },
 });

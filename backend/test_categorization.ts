@@ -1,3 +1,4 @@
+/** Manual script: exercises categorization / folder-creation paths against mocked indexer output. */
 import { analyzeUrlOnly } from './src/services/videoIndexer.js';
 import { createOrFindFolder } from './src/services/folderCreation.js';
 

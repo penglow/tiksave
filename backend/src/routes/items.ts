@@ -1,3 +1,9 @@
+/**
+ * Save-item routes — import, list, map, upload, folder moves, and trash.
+ */
+
+// --- imports ---
+
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { query } from '../database/init.js';
@@ -13,6 +19,7 @@ import { extractLocationQueries, geocodeLocation } from '../services/location.js
 import { withLock } from '../services/redis.js';
 import { sanitizeTikTokUrl, sanitizeTikTokImageUrl, sanitizeUserContent, sanitizeString } from '../utils/sanitize.js';
 import { validateParams, CommonSchemas } from '../middleware/validation.js';
+import { importLimiter, uploadLimiter } from '../middleware/rateLimiter.js';
 import {
   parseCursorPagination,
   decodeCursor,
@@ -26,9 +33,33 @@ import {
   type ProcessingStage 
 } from '../services/processingStages.js';
 
+// --- constants ---
+
 export const itemsRouter = Router();
 
-// Validation schemas
+/** Allow-list for ?status= and comma-separated filters (also used by pagination). */
+const SAVE_ITEM_QUERY_STATUSES = new Set([
+  'queued',
+  'upload_requested',
+  'uploading',
+  'processing',
+  'ready',
+  'needs_review',
+  'failed',
+]);
+
+// --- helpers ---
+
+function normalizeStatusesQuery(raw: unknown): string[] | null {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const joined = Array.isArray(raw) ? raw.join(',') : String(raw);
+  const parts = joined.split(',').map((s) => s.trim()).filter(Boolean);
+  const allowed = parts.filter((p) => SAVE_ITEM_QUERY_STATUSES.has(p));
+  return allowed.length > 0 ? allowed : null;
+}
+
+// --- validation schemas ---
+
 const createItemSchema = z.object({
   sourceURL: z.string().url(),
   rawSharedText: z.string().optional(),
@@ -46,8 +77,10 @@ const moveToFolderSchema = z.object({
   folderId: z.string().uuid().nullable(),
 });
 
-// Create a new save item
-itemsRouter.post('/', async (req, res: Response) => {
+// --- handlers ---
+
+/** POST / — create a save item from a TikTok URL and process asynchronously. */
+itemsRouter.post('/', importLimiter, async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
 
   try {
@@ -73,7 +106,7 @@ itemsRouter.post('/', async (req, res: Response) => {
 
     if (duplicate.rows.length > 0) {
       // Return existing item if just added
-      const existing = await getItemById(duplicate.rows[0].id);
+      const existing = await getItemById(duplicate.rows[0].id, authReq.userId);
       return res.json(existing);
     }
 
@@ -88,27 +121,28 @@ itemsRouter.post('/', async (req, res: Response) => {
 
     const item = formatSaveItem(result.rows[0]);
 
-    // Process immediately for faster feedback (dev mode)
-    // In production, use the queue for scalability
-    try {
-      console.log('🚀 Processing item immediately:', item.id);
-      await processItemNow(item.id, authReq.userId, sourceURL, rawSharedText);
+    // Process in background so the HTTP response returns quickly (polling UI stays responsive).
+    void (async () => {
+      try {
+        console.log('🚀 Processing item asynchronously:', item.id);
+        await processItemNow(item.id, authReq.userId, sourceURL, rawSharedText);
+      } catch (processingError) {
+        console.error('⚠️ Background processing failed, queuing:', processingError);
+        try {
+          await addToProcessingQueue({
+            itemId: item.id,
+            userId: authReq.userId,
+            sourceURL,
+            rawSharedText,
+          });
+        } catch (queueError) {
+          console.error('Failed to enqueue item after process failure:', queueError);
+        }
+      }
+    })();
 
-      // Return updated item
-      const updated = await getItemById(item.id, authReq.userId);
-      return res.status(201).json(updated);
-    } catch (processingError) {
-      console.error('⚠️ Immediate processing failed, queuing:', processingError);
-      // Fallback to queue
-      await addToProcessingQueue({
-        itemId: item.id,
-        userId: authReq.userId,
-        sourceURL,
-        rawSharedText,
-      });
-    }
-
-    res.status(201).json(item);
+    const latest = await getItemById(item.id, authReq.userId);
+    return res.status(201).json(latest ?? item);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });
@@ -117,8 +151,8 @@ itemsRouter.post('/', async (req, res: Response) => {
   }
 });
 
-// Batch create items (multiple URLs at once)
-itemsRouter.post('/batch', async (req, res: Response) => {
+/** POST /batch — queue multiple TikTok URLs for import. */
+itemsRouter.post('/batch', importLimiter, async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
 
   try {
@@ -255,7 +289,7 @@ function normalizeCategory(category: unknown): string | null {
   return trimmed.slice(0, 100);
 }
 
-// Get items list (excludes soft-deleted items by default)
+/** GET / — list save items with offset pagination and optional filters. */
 itemsRouter.get('/', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { status, folderId, limit = '50', offset = '0', includeDeleted } = req.query;
@@ -270,10 +304,17 @@ itemsRouter.get('/', async (req, res: Response) => {
       whereClause += ' AND deleted_at IS NULL';
     }
 
-    if (status) {
-      whereClause += ` AND status = $${paramIndex}`;
-      params.push(status);
-      paramIndex++;
+    const statuses = normalizeStatusesQuery(status);
+    if (statuses) {
+      if (statuses.length === 1) {
+        whereClause += ` AND status = $${paramIndex}`;
+        params.push(statuses[0]);
+        paramIndex++;
+      } else {
+        whereClause += ` AND status = ANY($${paramIndex}::text[])`;
+        params.push(statuses);
+        paramIndex++;
+      }
     }
 
     if (folderId) {
@@ -319,8 +360,7 @@ itemsRouter.get('/', async (req, res: Response) => {
   }
 });
 
-// Get items with cursor-based pagination (more efficient for large datasets)
-// Query params: cursor (base64), limit (default 20, max 100), direction (next|prev)
+/** GET /paginated — list save items with cursor-based pagination. */
 itemsRouter.get('/paginated', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { status, folderId, includeDeleted } = req.query;
@@ -337,7 +377,7 @@ itemsRouter.get('/paginated', async (req, res: Response) => {
 
     // Build base WHERE clause (use si. prefix to avoid ambiguity with joined tables)
     let baseWhere = 'si.user_id = $1';
-    const baseParams: (string | number | boolean)[] = [authReq.userId];
+    const baseParams: (string | number | boolean | string[])[] = [authReq.userId];
     let paramIndex = 2;
     
     // Exclude soft-deleted items unless explicitly requested
@@ -345,10 +385,17 @@ itemsRouter.get('/paginated', async (req, res: Response) => {
       baseWhere += ` AND si.deleted_at IS NULL`;
     }
 
-    if (status) {
-      baseWhere += ` AND si.status = $${paramIndex}`;
-      baseParams.push(String(status));
-      paramIndex++;
+    const statuses = normalizeStatusesQuery(status);
+    if (statuses) {
+      if (statuses.length === 1) {
+        baseWhere += ` AND si.status = $${paramIndex}`;
+        baseParams.push(statuses[0]);
+        paramIndex++;
+      } else {
+        baseWhere += ` AND si.status = ANY($${paramIndex}::text[])`;
+        baseParams.push(statuses);
+        paramIndex++;
+      }
     }
 
     if (folderId) {
@@ -427,7 +474,7 @@ itemsRouter.get('/paginated', async (req, res: Response) => {
   }
 });
 
-// Get items grouped by category with pagination and optional category filter
+/** GET /by-category — group ready items by detected topic category. */
 itemsRouter.get('/by-category', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { category, limit = '20', offset = '0', itemsPerCategory = '20' } = req.query;
@@ -586,7 +633,7 @@ itemsRouter.get('/by-category', async (req, res: Response) => {
   }
 });
 
-// Get processing status for an item (for real-time progress updates)
+/** GET /:id/progress — return processing stage and progress for an item. */
 itemsRouter.get('/:id/progress', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
@@ -598,23 +645,24 @@ itemsRouter.get('/:id/progress', validateParams(CommonSchemas.idParam), async (r
   }
 
   // Return processing status with display info
-  const stageInfo = getStageDisplayInfo(item.status === 'ready' ? 'ready' : 
-    item.status === 'error' ? 'error' : 
-    (item as any).processing_stage || 'queued');
+  const processingStage = item.processingStage || (item.status === 'ready' ? 'ready' :
+    item.status === 'failed' ? 'error' :
+    'queued');
+  const stageInfo = getStageDisplayInfo(processingStage);
 
   res.json({
     id: item.id,
     status: item.status,
     processing: {
       stage: stageInfo.stage,
-      progress: (item as any).processing_progress || stageInfo.progress,
-      message: (item as any).processing_message || stageInfo.message,
+      progress: item.processingProgress ?? stageInfo.progress,
+      message: item.processingMessage || stageInfo.message,
       emoji: stageInfo.emoji,
     },
   });
 });
 
-// Get map markers (one row per location)
+/** GET /map — return geolocated items as map markers. */
 itemsRouter.get('/map', async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { limit = '500', offset = '0' } = req.query;
@@ -724,7 +772,37 @@ itemsRouter.get('/map', async (req, res: Response) => {
   }
 });
 
-// Get single item
+/** GET /trash/list — list soft-deleted items. */
+itemsRouter.get('/trash/list', async (req, res: Response) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const { limit = '50', offset = '0' } = req.query;
+
+  const { limit: parsedLimit, offset: parsedOffset } = parsePaginationParams(
+    limit as string,
+    offset as string
+  );
+
+  const result = await query(
+    `SELECT * FROM save_items 
+     WHERE user_id = $1 AND deleted_at IS NOT NULL
+     ORDER BY deleted_at DESC
+     LIMIT $2 OFFSET $3`,
+    [authReq.userId, parsedLimit, parsedOffset]
+  );
+
+  const countResult = await query(
+    `SELECT COUNT(*) FROM save_items WHERE user_id = $1 AND deleted_at IS NOT NULL`,
+    [authReq.userId]
+  );
+
+  res.setHeader('X-Total-Count', countResult.rows[0].count);
+  res.json({
+    items: result.rows.map(formatSaveItem),
+    total: parseInt(countResult.rows[0].count, 10),
+  });
+});
+
+/** GET /:id — fetch a single save item by ID. */
 itemsRouter.get('/:id', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
@@ -738,8 +816,8 @@ itemsRouter.get('/:id', validateParams(CommonSchemas.idParam), async (req, res: 
   res.json(item);
 });
 
-// Get upload URL for video
-itemsRouter.post('/:id/uploadUrl', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
+/** POST /:id/uploadUrl — generate a signed URL for video upload. */
+itemsRouter.post('/:id/uploadUrl', uploadLimiter, validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
 
@@ -756,16 +834,16 @@ itemsRouter.post('/:id/uploadUrl', validateParams(CommonSchemas.idParam), async 
   await query(
     `UPDATE save_items 
      SET status = 'upload_requested', video_blob_name = $2, updated_at = NOW()
-     WHERE id = $1`,
-    [id, blobName]
+     WHERE id = $1 AND user_id = $3`,
+    [id, blobName, authReq.userId]
   );
 
   // Return blobName too (helpful for debugging/clients), but server also persists it.
   res.json({ uploadURL, expiresAt, blobName });
 });
 
-// Complete upload and start processing
-itemsRouter.post('/:id/completeUpload', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
+/** POST /:id/completeUpload — mark upload complete and queue video processing. */
+itemsRouter.post('/:id/completeUpload', uploadLimiter, validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
 
@@ -777,8 +855,8 @@ itemsRouter.post('/:id/completeUpload', validateParams(CommonSchemas.idParam), a
   // Update status and re-queue for video processing
   await query(
     `UPDATE save_items SET status = 'uploading', updated_at = NOW()
-     WHERE id = $1`,
-    [id]
+     WHERE id = $1 AND user_id = $2`,
+    [id, authReq.userId]
   );
 
   await addToProcessingQueue({
@@ -792,7 +870,7 @@ itemsRouter.post('/:id/completeUpload', validateParams(CommonSchemas.idParam), a
   res.json(updated);
 });
 
-// Move item to folder (user correction)
+/** POST /:id/moveFolder — move an item to a folder or back to the library. */
 itemsRouter.post('/:id/moveFolder', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
@@ -824,8 +902,8 @@ itemsRouter.post('/:id/moveFolder', validateParams(CommonSchemas.idParam), async
     await query(
       `UPDATE save_items 
        SET folder_id = $1, status = 'ready', updated_at = NOW()
-       WHERE id = $2`,
-      [folderId, id]
+       WHERE id = $2 AND user_id = $3`,
+      [folderId, id, authReq.userId]
     );
 
     // Record training example if this was a correction (only if moving to a folder, not to library)
@@ -862,7 +940,7 @@ itemsRouter.post('/:id/moveFolder', validateParams(CommonSchemas.idParam), async
   }
 });
 
-// Soft delete item
+/** DELETE /:id — soft-delete or permanently delete a save item. */
 itemsRouter.delete('/:id', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
@@ -896,7 +974,7 @@ itemsRouter.delete('/:id', validateParams(CommonSchemas.idParam), async (req, re
   res.json({ success: true });
 });
 
-// Restore soft-deleted item
+/** POST /:id/restore — restore a soft-deleted save item. */
 itemsRouter.post('/:id/restore', validateParams(CommonSchemas.idParam), async (req, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
@@ -916,37 +994,8 @@ itemsRouter.post('/:id/restore', validateParams(CommonSchemas.idParam), async (r
   res.json(formatSaveItem(result.rows[0]));
 });
 
-// Get deleted items (trash)
-itemsRouter.get('/trash/list', async (req, res: Response) => {
-  const authReq = req as unknown as AuthenticatedRequest;
-  const { limit = '50', offset = '0' } = req.query;
+// --- helpers ---
 
-  const { limit: parsedLimit, offset: parsedOffset } = parsePaginationParams(
-    limit as string,
-    offset as string
-  );
-
-  const result = await query(
-    `SELECT * FROM save_items 
-     WHERE user_id = $1 AND deleted_at IS NOT NULL
-     ORDER BY deleted_at DESC
-     LIMIT $2 OFFSET $3`,
-    [authReq.userId, parsedLimit, parsedOffset]
-  );
-
-  const countResult = await query(
-    `SELECT COUNT(*) FROM save_items WHERE user_id = $1 AND deleted_at IS NOT NULL`,
-    [authReq.userId]
-  );
-
-  res.setHeader('X-Total-Count', countResult.rows[0].count);
-  res.json({
-    items: result.rows.map(formatSaveItem),
-    total: parseInt(countResult.rows[0].count, 10),
-  });
-});
-
-// Helper functions
 async function getItemById(id: string, userId?: string) {
   let queryStr = `
     SELECT si.*, f.name as folder_name 
@@ -990,6 +1039,9 @@ function formatSaveItem(row: any) {
     creatorName: row.creator_name,
     creatorUsername: row.creator_username,
     errorMessage: row.error_message,
+    processingStage: row.processing_stage,
+    processingProgress: row.processing_progress != null ? Number(row.processing_progress) : undefined,
+    processingMessage: row.processing_message,
     latitude: row.latitude ? parseFloat(row.latitude) : null,
     longitude: row.longitude ? parseFloat(row.longitude) : null,
     locationName: row.location_name,
@@ -1014,9 +1066,9 @@ async function processItemNow(
       const lockResult = await query(
         `UPDATE save_items 
          SET status = 'processing', updated_at = NOW() 
-         WHERE id = $1 AND status NOT IN ('processing', 'ready')
+         WHERE id = $1 AND user_id = $2 AND status NOT IN ('processing', 'ready')
          RETURNING id`,
-        [itemId]
+        [itemId, userId]
       );
       
       if (lockResult.rows.length === 0) {
@@ -1214,6 +1266,7 @@ async function updateProcessingStage(
   
   await query(
     `UPDATE save_items SET
+      status = CASE WHEN $1 = 'error' THEN 'failed' ELSE status END,
       processing_stage = $1,
       processing_progress = $2,
       processing_message = $3,

@@ -1,0 +1,91 @@
+name: tiksave
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tiksave}
+      POSTGRES_USER: ${POSTGRES_USER:-tiksave}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tiksave_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tiksave}:${POSTGRES_PASSWORD:-tiksave_password}@postgres:5432/${POSTGRES_DB:-tiksave}
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    volumes:
+      - ./backend:/app
+      - backend_node_modules:/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bun -e \"fetch('http://localhost:3000/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./TikSaveRN
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-http://localhost:3000/api}
+      EXPO_PUBLIC_GOOGLE_MAPS_API_KEY: ${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+      CI: "1"
+      BROWSER: none
+      EXPO_NO_TELEMETRY: "1"
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "${FRONTEND_PORT:-8081}:8081"
+    volumes:
+      - ./TikSaveRN:/app
+      - frontend_node_modules:/app/node_modules
+    command: ["bunx", "expo", "start", "--web", "--host", "lan", "--port", "8081"]
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_node_modules:
+  frontend_node_modules:

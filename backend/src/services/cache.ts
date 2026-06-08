@@ -1,12 +1,15 @@
 /**
- * Cache service for frequently accessed data
- * Uses Redis with cache-aside pattern
+ * Cache service for frequently accessed data using Redis cache-aside pattern.
  */
+
+// --- imports ---
 
 import { getRedisClient } from './redis.js';
 import { logger } from '../utils/logger.js';
 
-// Cache TTL in seconds
+// --- constants ---
+
+/** Cache TTL in seconds by data category. */
 const CACHE_TTL = {
   FOLDER_LIST: 300,      // 5 minutes
   FOLDER_DETAIL: 600,    // 10 minutes
@@ -16,7 +19,7 @@ const CACHE_TTL = {
   CATEGORY_STATS: 300,   // 5 minutes
 } as const;
 
-// Cache key prefixes
+/** Cache key prefixes by domain. */
 const KEY_PREFIX = {
   FOLDERS: 'folders',
   FOLDER: 'folder',
@@ -26,16 +29,16 @@ const KEY_PREFIX = {
   CATEGORIES: 'categories',
 } as const;
 
-/**
- * Generate cache key
- */
+// --- helpers ---
+
+/** Build a colon-separated cache key from prefix and parts. */
 function generateKey(prefix: string, ...parts: string[]): string {
   return `${prefix}:${parts.join(':')}`;
 }
 
-/**
- * Get cached value
- */
+// --- handlers ---
+
+/** Get a cached value by key. */
 export async function getCache<T>(key: string): Promise<T | null> {
   try {
     const redis = getRedisClient();

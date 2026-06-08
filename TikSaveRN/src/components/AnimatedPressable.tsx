@@ -1,118 +1,119 @@
+/**
+ * Pressable with Reanimated scale/opacity feedback and optional haptics.
+ * Base interaction primitive used by buttons, chips, list rows, and modals.
+ */
+
 import React, { useCallback } from 'react';
-import { Pressable, PressableProps, ViewStyle, StyleProp, Platform, AccessibilityRole } from 'react-native';
+import {
+  Pressable,
+  PressableProps,
+  ViewStyle,
+  StyleProp,
+  Platform,
+  AccessibilityRole,
+} from 'react-native';
 import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withTiming,
-    interpolate,
-    Easing,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  interpolate,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Animation } from '../config';
 
+// --- Constants ---
 const AnimatedPressableBase = Animated.createAnimatedComponent(Pressable);
 
+// --- Types / props ---
 interface AnimatedPressableProps extends Omit<PressableProps, 'style'> {
-    children: React.ReactNode;
-    style?: StyleProp<ViewStyle>;
-    /** Scale factor on press (default: 0.97) */
-    scaleOnPress?: number;
-    /** Opacity on press (default: 0.8) */
-    opacityOnPress?: number;
-    /** Whether to trigger haptic feedback on press (default: false) */
-    haptic?: boolean;
-    /** Disable the scale animation */
-    noScale?: boolean;
-    /** Disable the opacity animation */
-    noOpacity?: boolean;
-    /** Accessibility label for screen readers */
-    accessibilityLabel?: string;
-    /** Accessibility hint for screen readers */
-    accessibilityHint?: string;
-    /** Accessibility role (default: 'button' when onPress is provided) */
-    accessibilityRole?: AccessibilityRole;
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  /** Scale factor on press (default: Animation.press.scale). */
+  scaleOnPress?: number;
+  /** Opacity on press (default: Animation.press.opacity). */
+  opacityOnPress?: number;
+  /** Trigger haptic feedback on press in (default: false). */
+  haptic?: boolean;
+  /** Disable scale animation. */
+  noScale?: boolean;
+  /** Disable opacity animation. */
+  noOpacity?: boolean;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
+  accessibilityRole?: AccessibilityRole;
 }
 
+// --- Main component ---
 export function AnimatedPressable({
-    children,
-    style,
-    scaleOnPress = Animation.press.scale,
-    opacityOnPress = Animation.press.opacity,
-    haptic = false,
-    noScale = false,
-    noOpacity = false,
-    onPressIn,
-    onPressOut,
-    onPress,
-    disabled,
-    accessibilityLabel,
-    accessibilityHint,
-    accessibilityRole,
-    ...rest
+  children,
+  style,
+  scaleOnPress = Animation.press.scale,
+  opacityOnPress = Animation.press.opacity,
+  haptic = false,
+  noScale = false,
+  noOpacity = false,
+  onPressIn,
+  onPressOut,
+  onPress,
+  disabled,
+  accessibilityLabel,
+  accessibilityHint,
+  accessibilityRole,
+  ...rest
 }: AnimatedPressableProps) {
-    const pressed = useSharedValue(0);
+  const pressed = useSharedValue(0);
 
-    const handlePressIn = useCallback(
-        (event: any) => {
-            pressed.value = withTiming(1, {
-                duration: Animation.duration.instant,
-                easing: Easing.out(Easing.ease)
-            });
-            
-            // Trigger haptic feedback if enabled
-            if (haptic && Platform.OS !== 'web') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {
-                    // Haptics may fail on some devices, ignore silently
-                });
-            }
-            
-            onPressIn?.(event);
-        },
-        [pressed, onPressIn, haptic]
-    );
+  const handlePressIn = useCallback(
+    (event: any) => {
+      pressed.value = withSpring(1, Animation.spring.crisp, () => {});
 
-    const handlePressOut = useCallback(
-        (event: any) => {
-            pressed.value = withTiming(0, {
-                duration: Animation.duration.fast,
-                easing: Easing.out(Easing.ease)
-            });
-            onPressOut?.(event);
-        },
-        [pressed, onPressOut]
-    );
+      if (haptic && Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      }
 
-    const animatedStyle = useAnimatedStyle(() => {
-        'worklet';
-        const scale = noScale ? 1 : interpolate(pressed.value, [0, 1], [1, scaleOnPress]);
-        const opacity = noOpacity ? 1 : interpolate(pressed.value, [0, 1], [1, opacityOnPress]);
+      onPressIn?.(event);
+    },
+    [pressed, onPressIn, haptic],
+  );
 
-        return {
-            transform: [{ scale }],
-            opacity,
-        };
-    });
+  const handlePressOut = useCallback(
+    (event: any) => {
+      pressed.value = withSpring(0, Animation.spring.snappy);
+      onPressOut?.(event);
+    },
+    [pressed, onPressOut],
+  );
 
-    // Default to 'button' role if onPress is provided and no role is specified
-    const effectiveRole = accessibilityRole ?? (onPress ? 'button' : undefined);
+  const animatedStyle = useAnimatedStyle(() => {
+    'worklet';
+    const scale = noScale ? 1 : interpolate(pressed.value, [0, 1], [1, scaleOnPress]);
+    const opacity = noOpacity ? 1 : interpolate(pressed.value, [0, 1], [1, opacityOnPress]);
 
-    return (
-        <AnimatedPressableBase
-            style={[animatedStyle, style]}
-            onPressIn={handlePressIn}
-            onPressOut={handlePressOut}
-            onPress={onPress}
-            disabled={disabled}
-            accessible={true}
-            accessibilityLabel={accessibilityLabel}
-            accessibilityHint={accessibilityHint}
-            accessibilityRole={effectiveRole}
-            accessibilityState={{ disabled: !!disabled }}
-            {...rest}
-        >
-            {children}
-        </AnimatedPressableBase>
-    );
+    return {
+      transform: [{ scale }],
+      opacity,
+    };
+  });
+
+  const effectiveRole = accessibilityRole ?? (onPress ? 'button' : undefined);
+
+  return (
+    <AnimatedPressableBase
+      style={[animatedStyle, style]}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={onPress}
+      disabled={disabled}
+      accessible={true}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
+      accessibilityRole={effectiveRole}
+      accessibilityState={{ disabled: !!disabled }}
+      {...rest}
+    >
+      {children}
+    </AnimatedPressableBase>
+  );
 }
 
 export default AnimatedPressable;
